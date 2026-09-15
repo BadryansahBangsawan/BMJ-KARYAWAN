@@ -1,4 +1,5 @@
 import { cn } from "@BMJ-KARYAWAN/ui/lib/utils";
+import * as React from "react";
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
