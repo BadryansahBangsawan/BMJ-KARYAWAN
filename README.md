@@ -118,3 +118,4 @@ BMJ-KARYAWAN/
 - `bun run dev:web`: Start only the web application
 - `bun run check-types`: Check TypeScript types across all apps
 - `bun run db:generate`: Generate database client/types
+# BMJ-KARYAWAN
