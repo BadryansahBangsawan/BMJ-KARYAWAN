@@ -23,3 +23,22 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
     },
   });
 });
+
+export const supervisorProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const role = ctx.session.user.role ?? "mekanik";
+  if (role !== "supervisor") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Supervisor only" });
+  }
+  return next();
+});
+
+export const kasirProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const role = ctx.session.user.role ?? "mekanik";
+  if (role !== "kasir" && role !== "supervisor") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Kasir or supervisor only",
+    });
+  }
+  return next();
+});

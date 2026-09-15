@@ -1,0 +1,303 @@
+import { createAuth, type AuthConfig } from "@BMJ-KARYAWAN/auth";
+import type { Database } from "@BMJ-KARYAWAN/db";
+import { user } from "@BMJ-KARYAWAN/db/schema/auth";
+import { employee } from "@BMJ-KARYAWAN/db/schema/karyawan";
+import { TRPCError } from "@trpc/server";
+import { env } from "cloudflare:workers";
+import { and, eq, ne, sql } from "drizzle-orm";
+import { z } from "zod";
+
+import { kasirProcedure, protectedProcedure, router, supervisorProcedure } from "../index";
+
+const roleSchema = z.enum(["supervisor", "kasir", "mekanik"]);
+type Role = z.infer<typeof roleSchema>;
+
+async function assertUniqueActiveName(
+  db: Database,
+  name: string,
+  exceptId?: string,
+) {
+  const normalized = name.trim().toLowerCase();
+  const [row] = await db
+    .select({ id: employee.id })
+    .from(employee)
+    .where(
+      and(
+        eq(employee.active, true),
+        sql`lower(${employee.name}) = ${normalized}`,
+        exceptId ? ne(employee.id, exceptId) : undefined,
+      ),
+    )
+    .limit(1);
+  if (row) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "Employee name already exists",
+    });
+  }
+}
+
+async function findUserByEmail(db: Database, email: string) {
+  const [row] = await db
+    .select()
+    .from(user)
+    .where(sql`lower(${user.email}) = ${email.trim().toLowerCase()}`)
+    .limit(1);
+  return row ?? null;
+}
+
+async function signUpWithRole(
+  db: Database,
+  input: { name: string; email: string; password: string; role: Role },
+) {
+  const existing = await findUserByEmail(db, input.email);
+  if (existing) {
+    throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
+  }
+
+  const auth = createAuth(env as AuthConfig, db);
+  let userId: string;
+  try {
+    const result = await auth.api.signUpEmail({
+      body: {
+        name: input.name,
+        email: input.email.trim(),
+        password: input.password,
+      },
+    });
+    userId = result.user.id;
+  } catch {
+    throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
+  }
+
+  await db.update(user).set({ role: input.role }).where(eq(user.id, userId));
+  return userId;
+}
+
+async function assertUserIdFree(
+  db: Database,
+  userId: string,
+  exceptEmployeeId?: string,
+) {
+  const [taken] = await db
+    .select({ id: employee.id })
+    .from(employee)
+    .where(
+      and(
+        eq(employee.userId, userId),
+        exceptEmployeeId ? ne(employee.id, exceptEmployeeId) : undefined,
+      ),
+    )
+    .limit(1);
+  if (taken) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "User already assigned",
+    });
+  }
+}
+
+export const employeeRouter = router({
+  me: protectedProcedure.query(async ({ ctx }) => {
+    const [row] = await ctx.db
+      .select()
+      .from(employee)
+      .where(eq(employee.userId, ctx.session.user.id))
+      .limit(1);
+    return row ?? null;
+  }),
+
+  list: kasirProcedure.query(async ({ ctx }) => {
+    return ctx.db.select().from(employee).orderBy(employee.name);
+  }),
+
+  create: supervisorProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(1),
+        role: roleSchema,
+        email: z.email().optional(),
+        password: z.string().min(8).optional(),
+        dailyRateIdr: z.number().int().min(0),
+        konsumsiMonthlyIdr: z.number().int().min(0),
+        bonusIdr: z.number().int().min(0),
+        active: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const hasEmail = input.email !== undefined;
+      const hasPassword = input.password !== undefined;
+      if (hasEmail !== hasPassword) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Email and password are both required to create a login",
+        });
+      }
+
+      if (input.active) {
+        await assertUniqueActiveName(ctx.db, input.name);
+      }
+
+      let userId: string | null = null;
+      if (input.email && input.password) {
+        userId = await signUpWithRole(ctx.db, {
+          name: input.name,
+          email: input.email,
+          password: input.password,
+          role: input.role,
+        });
+      }
+
+      const [row] = await ctx.db
+        .insert(employee)
+        .values({
+          id: crypto.randomUUID(),
+          name: input.name,
+          role: input.role,
+          dailyRateIdr: input.dailyRateIdr,
+          konsumsiMonthlyIdr: input.konsumsiMonthlyIdr,
+          bonusIdr: input.bonusIdr,
+          active: input.active,
+          userId,
+        })
+        .returning();
+      return row;
+    }),
+
+  update: supervisorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().trim().min(1).optional(),
+        role: roleSchema.optional(),
+        dailyRateIdr: z.number().int().min(0).optional(),
+        konsumsiMonthlyIdr: z.number().int().min(0).optional(),
+        bonusIdr: z.number().int().min(0).optional(),
+        active: z.boolean().optional(),
+        email: z.email().nullable().optional(),
+        password: z.string().min(8).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select()
+        .from(employee)
+        .where(eq(employee.id, input.id))
+        .limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      }
+
+      const nextName = input.name ?? existing.name;
+      const nextActive = input.active ?? existing.active;
+      const nextRole = input.role ?? (existing.role as Role);
+
+      if (nextActive) {
+        await assertUniqueActiveName(ctx.db, nextName, existing.id);
+      }
+
+      let nextUserId: string | null | undefined;
+      if (input.email === null) {
+        nextUserId = null;
+      } else if (input.email !== undefined) {
+        const emailUser = await findUserByEmail(ctx.db, input.email);
+        if (emailUser) {
+          if (existing.userId !== emailUser.id) {
+            if (input.password) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "Email already exists",
+              });
+            }
+            await assertUserIdFree(ctx.db, emailUser.id, existing.id);
+          }
+          nextUserId = emailUser.id;
+          await ctx.db
+            .update(user)
+            .set({ role: nextRole })
+            .where(eq(user.id, emailUser.id));
+        } else {
+          if (!input.password) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "Password required to create user",
+            });
+          }
+          nextUserId = await signUpWithRole(ctx.db, {
+            name: nextName,
+            email: input.email,
+            password: input.password,
+            role: nextRole,
+          });
+        }
+      } else if (input.password) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Email and password are both required to create a login",
+        });
+      }
+
+      if (nextUserId === undefined && existing.userId && input.role) {
+        await ctx.db
+          .update(user)
+          .set({ role: nextRole })
+          .where(eq(user.id, existing.userId));
+      }
+
+      const [row] = await ctx.db
+        .update(employee)
+        .set({
+          name: nextName,
+          role: nextRole,
+          dailyRateIdr: input.dailyRateIdr ?? existing.dailyRateIdr,
+          konsumsiMonthlyIdr: input.konsumsiMonthlyIdr ?? existing.konsumsiMonthlyIdr,
+          bonusIdr: input.bonusIdr ?? existing.bonusIdr,
+          active: nextActive,
+          ...(nextUserId !== undefined ? { userId: nextUserId } : {}),
+        })
+        .where(eq(employee.id, existing.id))
+        .returning();
+      return row;
+    }),
+
+  assignUser: supervisorProcedure
+    .input(
+      z.object({
+        employeeId: z.string().min(1),
+        userId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select()
+        .from(employee)
+        .where(eq(employee.id, input.employeeId))
+        .limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
+      }
+
+      const [authUser] = await ctx.db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, input.userId))
+        .limit(1);
+      if (!authUser) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+      }
+
+      await assertUserIdFree(ctx.db, input.userId, existing.id);
+
+      await ctx.db
+        .update(user)
+        .set({ role: existing.role })
+        .where(eq(user.id, input.userId));
+
+      const [row] = await ctx.db
+        .update(employee)
+        .set({ userId: input.userId })
+        .where(eq(employee.id, existing.id))
+        .returning();
+      return row;
+    }),
+});

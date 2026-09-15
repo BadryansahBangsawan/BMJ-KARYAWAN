@@ -1,5 +1,7 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import z from "zod";
 
 import { useTRPC } from "@/utils/trpc";
 
@@ -7,17 +9,201 @@ export const Route = createFileRoute("/_auth/dashboard")({
   component: RouteComponent,
 });
 
+type UserRole = "supervisor" | "kasir" | "mekanik";
+
+const employeeMeSchema = z.object({ id: z.string() }).nullable();
+
+const kasbonRowSchema = z.object({
+  employeeId: z.string(),
+  amountIdr: z.number(),
+  status: z.string(),
+  sisaIdr: z.number().optional(),
+  sisa: z.number().optional(),
+  paidIdr: z.number().optional(),
+  payments: z.array(z.object({ amountIdr: z.number() })).optional(),
+});
+
+const jobRowSchema = z.object({
+  employeeId: z.string(),
+  status: z.string(),
+});
+
+const diagramSchema = z.object({
+  pendapatan: z.number(),
+  pengeluaran: z.number(),
+  bengkel: z.number(),
+});
+
+function sessionRole(user: { role?: string } | undefined): UserRole {
+  if (user?.role === "supervisor" || user?.role === "kasir") {
+    return user.role;
+  }
+  return "mekanik";
+}
+
+function formatIdr(n: number) {
+  return n.toLocaleString("id-ID");
+}
+
+function listPayload(data: unknown): unknown[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
+    return data.items;
+  }
+  return [];
+}
+
+function parseList<T>(data: unknown, schema: z.ZodType<T>): T[] {
+  const parsed: T[] = [];
+  for (const row of listPayload(data)) {
+    const result = schema.safeParse(row);
+    if (result.success) {
+      parsed.push(result.data);
+    }
+  }
+  return parsed;
+}
+
+function kasbonSisa(row: z.infer<typeof kasbonRowSchema>): number {
+  if (row.status !== "disbursed" && row.status !== "lunas") {
+    return 0;
+  }
+  if (typeof row.sisaIdr === "number") {
+    return row.sisaIdr;
+  }
+  if (typeof row.sisa === "number") {
+    return row.sisa;
+  }
+  const paid =
+    typeof row.paidIdr === "number"
+      ? row.paidIdr
+      : (row.payments ?? []).reduce((sum, payment) => sum + payment.amountIdr, 0);
+  return row.amountIdr - paid;
+}
+
+function currentJayapuraMonthRange() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jayapura",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const lastDay = new Date(year, month, 0).getDate();
+  const monthText = String(month).padStart(2, "0");
+  return {
+    from: `${year}-${monthText}-01`,
+    to: `${year}-${monthText}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
 function RouteComponent() {
   const { session } = Route.useRouteContext();
-
+  const role = sessionRole(session?.user);
+  const isStaff = role === "kasir" || role === "supervisor";
+  const month = currentJayapuraMonthRange();
   const trpc = useTRPC();
-  const privateData = useQuery(trpc.privateData.queryOptions());
+
+  const me = useQuery(trpc.employee.me.queryOptions());
+  const kasbon = useQuery(trpc.kasbon.list.queryOptions());
+  const jobs = useQuery(
+    trpc.job.list.queryOptions({
+      from: "2000-01-01",
+      to: "2099-12-31",
+    }),
+  );
+  const diagram = useQuery({
+    ...trpc.laporan.diagram.queryOptions({
+      from: month.from,
+      to: month.to,
+    }),
+    enabled: isStaff,
+  });
+
+  const employee = employeeMeSchema.safeParse(me.data);
+  const employeeId = employee.success ? employee.data?.id : undefined;
+  const kasbonRows = parseList(kasbon.data, kasbonRowSchema);
+  const jobRows = parseList(jobs.data, jobRowSchema);
+  const diagramParsed = diagramSchema.safeParse(diagram.data);
+  const diagramData = diagramParsed.success
+    ? diagramParsed.data
+    : { pendapatan: 0, pengeluaran: 0, bengkel: 0 };
+
+  const ownKasbon = employeeId
+    ? kasbonRows.filter((row) => row.employeeId === employeeId)
+    : role === "mekanik"
+      ? kasbonRows
+      : [];
+  const ownSisa = ownKasbon.reduce((sum, row) => sum + kasbonSisa(row), 0);
+
+  const ownJobs = employeeId
+    ? jobRows.filter((row) => row.employeeId === employeeId)
+    : role === "mekanik"
+      ? jobRows
+      : [];
+  const inProgressCount = ownJobs.filter(
+    (row) => row.status === "proses" || row.status === "selesai",
+  ).length;
+
+  const pendingKasbonCount = kasbonRows.filter((row) => row.status === "pending").length;
 
   return (
-    <div>
-      <h1>Dashboard</h1>
-      <p>Welcome {session?.user.name}</p>
-      <p>API: {privateData.data?.message}</p>
+    <div className="container mx-auto max-w-5xl px-4 py-6">
+      <h1 className="mb-1 text-2xl font-medium">Dasbor</h1>
+      <p className="mb-6 text-muted-foreground">Halo, {session?.user.name}</p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Sisa kasbon</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-medium">Rp {formatIdr(ownSisa)}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Pekerjaan berjalan</CardTitle>
+          </CardHeader>
+          <CardContent className="text-2xl font-medium">{inProgressCount}</CardContent>
+        </Card>
+      </div>
+
+      {isStaff ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Kasbon menunggu</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-medium">{pendingKasbonCount}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Pendapatan</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-medium">
+              Rp {formatIdr(diagramData.pendapatan)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Pengeluaran</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-medium">
+              Rp {formatIdr(diagramData.pengeluaran)}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Bengkel</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-medium">
+              Rp {formatIdr(diagramData.bengkel)}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

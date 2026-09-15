@@ -7,6 +7,8 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 export type AuthConfig = {
   BETTER_AUTH_URL: string;
   BETTER_AUTH_SECRET: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
 };
 
 export function createAuth(env: AuthConfig, database: Database) {
@@ -19,6 +21,33 @@ export function createAuth(env: AuthConfig, database: Database) {
     emailAndPassword: { enabled: true },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
+    ...(env.GOOGLE_CLIENT_ID
+      ? {
+          socialProviders: {
+            google: {
+              clientId: env.GOOGLE_CLIENT_ID,
+              clientSecret: env.GOOGLE_CLIENT_SECRET,
+              disableImplicitSignUp: true,
+            },
+          },
+        }
+      : {}),
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+      },
+    },
+    user: {
+      additionalFields: {
+        role: {
+          type: "string",
+          required: true,
+          defaultValue: "mekanik",
+          input: false,
+        },
+      },
+    },
     plugins: [tanstackStartCookies()],
   });
 }

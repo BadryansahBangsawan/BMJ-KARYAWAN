@@ -17,6 +17,8 @@ export const web = Cloudflare.Website.Vite("web", {
     DB: db,
     BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
     BETTER_AUTH_URL: Cloudflare.Worker.URL,
+    GOOGLE_CLIENT_ID: Config.string("GOOGLE_CLIENT_ID"),
+    GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET"),
   },
   dev: {
     port: 3001,

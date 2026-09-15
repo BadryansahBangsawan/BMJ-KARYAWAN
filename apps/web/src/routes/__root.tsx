@@ -25,7 +25,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "My App",
+        title: "BMJ Karyawan",
       },
     ],
     links: [
@@ -41,7 +41,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 
 function RootDocument() {
   return (
-    <html lang="en" className="dark">
+    <html lang="id" className="dark">
       <head>
         <HeadContent />
       </head>

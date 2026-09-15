@@ -10,11 +10,14 @@ import { authClient } from "@/lib/auth-client";
 
 import Loader from "./loader";
 
-export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) {
-  const navigate = useNavigate({
-    from: "/",
-  });
+export default function SignInForm() {
+  const navigate = useNavigate();
   const { isPending } = authClient.useSession();
+  const googleClientId = import.meta.env.GOOGLE_CLIENT_ID;
+  const viteGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const showGoogle =
+    (typeof googleClientId === "string" && googleClientId.trim() !== "") ||
+    (typeof viteGoogleClientId === "string" && viteGoogleClientId.trim() !== "");
 
   const form = useForm({
     defaultValues: {
@@ -32,7 +35,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
             navigate({
               to: "/dashboard",
             });
-            toast.success("Sign in successful");
+            toast.success("Berhasil masuk");
           },
           onError: (error) => {
             toast.error(error.error.message || error.error.statusText);
@@ -42,8 +45,8 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
     },
     validators: {
       onSubmit: z.object({
-        email: z.email("Invalid email address"),
-        password: z.string().min(8, "Password must be at least 8 characters"),
+        email: z.email("Email tidak valid"),
+        password: z.string().min(8, "Kata sandi minimal 8 karakter"),
       }),
     },
   });
@@ -53,8 +56,8 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
   }
 
   return (
-    <div className="mx-auto w-full mt-10 max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Welcome Back</h1>
+    <div className="mx-auto mt-10 w-full max-w-md p-6">
+      <h1 className="mb-6 text-center text-3xl font-bold">Masuk</h1>
 
       <form
         onSubmit={(e) => {
@@ -91,7 +94,7 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
           <form.Field name="password">
             {(field) => (
               <div className="space-y-2">
-                <Label htmlFor={field.name}>Password</Label>
+                <Label htmlFor={field.name}>Kata sandi</Label>
                 <Input
                   id={field.name}
                   name={field.name}
@@ -115,21 +118,27 @@ export default function SignInForm({ onSwitchToSignUp }: { onSwitchToSignUp: () 
         >
           {({ canSubmit, isSubmitting }) => (
             <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Sign In"}
+              {isSubmitting ? "Memproses..." : "Masuk"}
             </Button>
           )}
         </form.Subscribe>
       </form>
 
-      <div className="mt-4 text-center">
+      {showGoogle ? (
         <Button
-          variant="link"
-          onClick={onSwitchToSignUp}
-          className="text-indigo-600 hover:text-indigo-800"
+          type="button"
+          variant="outline"
+          className="mt-4 w-full"
+          onClick={() => {
+            void authClient.signIn.social({
+              provider: "google",
+              callbackURL: "/dashboard",
+            });
+          }}
         >
-          Need an account? Sign Up
+          Masuk dengan Google
         </Button>
-      </div>
+      ) : null}
     </div>
   );
 }

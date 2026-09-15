@@ -13,7 +13,7 @@ export async function createContext({ req }: { req: Request }): Promise<ApiConte
   return {
     db,
     auth: null,
-    session,
+    session: session as ApiContext["session"],
   };
 }
 
