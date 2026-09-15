@@ -2,6 +2,7 @@ import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
 import "varlock/auto-load";
 
 export const db = Cloudflare.D1.Database("database", {
@@ -17,8 +18,10 @@ export const web = Cloudflare.Website.Vite("web", {
     DB: db,
     BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
     BETTER_AUTH_URL: Cloudflare.Worker.URL,
-    GOOGLE_CLIENT_ID: Config.string("GOOGLE_CLIENT_ID"),
-    GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET"),
+    GOOGLE_CLIENT_ID: Config.string("GOOGLE_CLIENT_ID").pipe(Config.withDefault("")),
+    GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET").pipe(
+      Config.withDefault(Redacted.make("")),
+    ),
   },
   dev: {
     port: 3001,
