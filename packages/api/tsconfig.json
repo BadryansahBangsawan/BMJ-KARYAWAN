@@ -1,0 +1,6 @@
+{
+  "extends": "@BMJ-KARYAWAN/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  }
+}

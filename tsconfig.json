@@ -1,0 +1,3 @@
+{
+  "extends": "@BMJ-KARYAWAN/config/tsconfig.base.json"
+}

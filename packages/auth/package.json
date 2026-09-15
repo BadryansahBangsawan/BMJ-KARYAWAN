@@ -1,0 +1,24 @@
+{
+  "name": "@BMJ-KARYAWAN/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@BMJ-KARYAWAN/db": "workspace:*",
+    "better-auth": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@BMJ-KARYAWAN/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

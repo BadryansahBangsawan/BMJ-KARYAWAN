@@ -1,0 +1,26 @@
+{
+  "name": "@BMJ-KARYAWAN/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@BMJ-KARYAWAN/auth": "workspace:*",
+    "@BMJ-KARYAWAN/db": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@BMJ-KARYAWAN/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

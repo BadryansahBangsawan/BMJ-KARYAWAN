@@ -1,0 +1,58 @@
+{
+  "name": "BMJ-KARYAWAN",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "zod": "^4.5.4",
+      "typescript": "^6.0.3",
+      "varlock": "1.18.0",
+      "lucide-react": "^1.41.0",
+      "next-themes": "^0.4.6",
+      "react": "^19.2.8",
+      "react-dom": "^19.2.8",
+      "sonner": "^2.0.8",
+      "tailwindcss": "^4.3.3",
+      "@libsql/client": "0.18.0",
+      "libsql": "0.5.29",
+      "@trpc/server": "^11.18.0",
+      "@trpc/client": "^11.18.0",
+      "better-auth": "1.7.3",
+      "@types/react": "^19.2.18",
+      "@types/react-dom": "^19.2.7"
+    }
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "dev:web": "turbo run dev:bare -F web --",
+    "db:generate": "turbo run db:generate -F @BMJ-KARYAWAN/db --",
+    "deploy": "turbo run deploy -F @BMJ-KARYAWAN/infra --",
+    "destroy": "turbo run destroy -F @BMJ-KARYAWAN/infra --",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/",
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./packages/db/"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@BMJ-KARYAWAN/config": "workspace:*",
+    "@cloudflare/workers-types": "^5.20260906.1",
+    "@types/node": "^26.4.1",
+    "turbo": "^2.10.12",
+    "typescript": "catalog:",
+    "varlock": "catalog:"
+  },
+  "overrides": {
+    "@effect/platform-node-shared": "4.0.0-rc.112",
+    "@effect/sql-d1": "4.0.0-rc.112",
+    "@effect/sql-sqlite-do": "4.0.0-rc.112",
+    "@effect/vitest": "4.0.0-rc.112"
+  },
+  "packageManager": "bun@1.4.0"
+}
