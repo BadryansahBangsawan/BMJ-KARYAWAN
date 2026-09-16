@@ -31,7 +31,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         name: "theme-color",
-        content: "#1c1c1c",
+        content: "#007bb6",
       },
     ],
     links: [
@@ -49,7 +49,7 @@ function RootDocument() {
   const { data: session } = authClient.useSession();
 
   return (
-    <html lang="id" className="dark">
+    <html lang="id">
       <head>
         <HeadContent />
       </head>

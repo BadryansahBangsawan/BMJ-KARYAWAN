@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export function MobileList({ children }: { children: ReactNode }) {
   return (
-    <ul className="divide-y divide-white/10 overflow-hidden rounded-[1.25rem] bg-card shadow-[var(--shadow-border)]">
+    <ul className="divide-y divide-border overflow-hidden rounded-[1.25rem] bg-card shadow-[var(--shadow-border)]">
       {children}
     </ul>
   );
