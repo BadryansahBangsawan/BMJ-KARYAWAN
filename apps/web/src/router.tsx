@@ -28,16 +28,31 @@ function createQueryClient() {
   });
 }
 
+async function trpcFetch(url: string | URL | Request, options?: RequestInit) {
+  const href =
+    typeof url === "string"
+      ? url
+      : url instanceof URL
+        ? url.href
+        : url.url;
+  let absolute = href;
+  if (href.startsWith("/") && typeof window === "undefined") {
+    // Server-only; static import would pull cloudflare:workers into the client bundle.
+    const { env } = await import("./env.server");
+    const base = String(env.BETTER_AUTH_URL ?? "").replace(/\/$/, "");
+    if (!base) {
+      throw new Error("BETTER_AUTH_URL is required for server tRPC");
+    }
+    absolute = new URL(href, `${base}/`).href;
+  }
+  return fetch(absolute, { ...options, credentials: "include" });
+}
+
 const trpcClient = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
       url: "/api/trpc",
-      fetch(url, options) {
-        return fetch(url, {
-          ...options,
-          credentials: "include",
-        });
-      },
+      fetch: trpcFetch,
     }),
   ],
 });
