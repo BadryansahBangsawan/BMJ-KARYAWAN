@@ -1,7 +1,8 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import { Checkbox } from "@BMJ-KARYAWAN/ui/components/checkbox";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import { Separator } from "@BMJ-KARYAWAN/ui/components/separator";
@@ -31,8 +32,11 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import Loader from "@/components/loader";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
+import { roleLabel } from "@/lib/session-role";
 
 
 type Role = "supervisor" | "kasir" | "mekanik";
@@ -145,7 +149,7 @@ function KaryawanPage() {
     },
     validators: {
       onSubmit: z.object({
-        name: z.string().min(1, "Nama wajib"),
+        name: z.string().min(1, "Masukkan nama karyawan."),
         role: z.enum(["supervisor", "kasir", "mekanik"]),
         email: z.string(),
         password: z.string(),
@@ -182,6 +186,19 @@ function KaryawanPage() {
         ...(value.password ? { password: value.password } : {}),
       });
     },
+    validators: {
+      onSubmit: z.object({
+        id: z.string(),
+        name: z.string().min(1, "Masukkan nama karyawan."),
+        role: z.enum(["supervisor", "kasir", "mekanik"]),
+        email: z.string(),
+        password: z.string(),
+        dailyRateIdr: z.string(),
+        konsumsiMonthlyIdr: z.string(),
+        bonusIdr: z.string(),
+        active: z.boolean(),
+      }),
+    },
   });
 
   function startEdit(row: EmployeeRow) {
@@ -206,7 +223,7 @@ function KaryawanPage() {
   if (role !== "supervisor") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button
           variant="outline"
@@ -225,7 +242,7 @@ function KaryawanPage() {
           <CardContent className="space-y-2 text-sm">
             {ttlSisa != null ? (
               <p>
-                Sisa kasbon (ttlSisa):{" "}
+                Sisa kasbon:{" "}
                 <span className="font-medium tabular-nums">
                   {typeof ttlSisa === "number" ? formatIdr(ttlSisa) : String(ttlSisa)}
                 </span>
@@ -248,6 +265,7 @@ function KaryawanPage() {
               e.preventDefault();
               e.stopPropagation();
               void createForm.handleSubmit();
+              focusFirstInvalid();
             }}
             className="grid gap-3 md:grid-cols-2"
           >
@@ -260,7 +278,10 @@ function KaryawanPage() {
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    aria-invalid={field.state.meta.errors.length > 0}
+                    aria-describedby={fieldDescribedBy("name-error", field.state.meta.errors)}
                   />
+                  <FieldError id="name-error" errors={field.state.meta.errors} />
                 </div>
               )}
             </createForm.Field>
@@ -358,11 +379,10 @@ function KaryawanPage() {
             <createForm.Field name="active">
               {(field) => (
                 <div className="flex items-center gap-2 self-end">
-                  <input
+                  <Checkbox
                     id={field.name}
-                    type="checkbox"
                     checked={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.checked)}
+                    onCheckedChange={(checked) => field.handleChange(checked === true)}
                   />
                   <Label htmlFor={field.name}>Aktif</Label>
                 </div>
@@ -396,12 +416,19 @@ function KaryawanPage() {
           <CardTitle>Daftar karyawan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {rows.length === 0 ? (
+          {listQuery.isPending ? (
+            <Loader />
+          ) : rows.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Belum ada karyawan</EmptyTitle>
                 <EmptyDescription>Tambah manual atau impor dari spreadsheet.</EmptyDescription>
               </EmptyHeader>
+              <EmptyContent>
+                <Button type="button" variant="outline" onClick={() => document.getElementById("name")?.focus()}>
+                  Tambah karyawan
+                </Button>
+              </EmptyContent>
             </Empty>
           ) : (
             <ResponsiveRecords
@@ -415,7 +442,7 @@ function KaryawanPage() {
                       trailing={<span className="tabular-nums">{formatIdr(row.dailyRateIdr)}</span>}
                       meta={
                         <>
-                          <Badge variant="outline">{row.role}</Badge>
+                          <Badge variant="outline">{roleLabel(row.role)}</Badge>
                           <span className="text-sm text-muted-foreground">
                             Konsumsi <span className="tabular-nums">{formatIdr(row.konsumsiMonthlyIdr)}</span>
                             {" · "}
@@ -449,7 +476,7 @@ function KaryawanPage() {
                       <TableRow key={row.id}>
                         <TableCell>{row.name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{row.role}</Badge>
+                          <Badge variant="outline">{roleLabel(row.role)}</Badge>
                         </TableCell>
                         <TableCell>
                           <span className="tabular-nums">{formatIdr(row.dailyRateIdr)}</span>
@@ -482,6 +509,7 @@ function KaryawanPage() {
                 e.preventDefault();
                 e.stopPropagation();
                 void editForm.handleSubmit();
+                focusFirstInvalid();
               }}
               className="grid gap-3 border border-border p-3 md:grid-cols-2"
             >
@@ -493,7 +521,10 @@ function KaryawanPage() {
                       id={`edit-${field.name}`}
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      aria-describedby={fieldDescribedBy("edit-name-error", field.state.meta.errors)}
                     />
+                    <FieldError id="edit-name-error" errors={field.state.meta.errors} />
                   </div>
                 )}
               </editForm.Field>
@@ -589,11 +620,10 @@ function KaryawanPage() {
               <editForm.Field name="active">
                 {(field) => (
                   <div className="flex items-center gap-2 self-end">
-                    <input
+                    <Checkbox
                       id={`edit-${field.name}`}
-                      type="checkbox"
                       checked={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.checked)}
+                      onCheckedChange={(checked) => field.handleChange(checked === true)}
                     />
                     <Label htmlFor={`edit-${field.name}`}>Aktif</Label>
                   </div>

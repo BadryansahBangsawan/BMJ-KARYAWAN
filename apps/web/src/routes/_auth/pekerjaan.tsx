@@ -1,6 +1,6 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
@@ -30,6 +30,8 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import Loader from "@/components/loader";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 import { StatusBadge } from "@/components/status-badge";
@@ -111,6 +113,7 @@ function PekerjaanPage() {
     "" | "proses" | "selesai" | "diterima" | "batal"
   >("");
   const [employeeIdFilter, setEmployeeIdFilter] = useState<string>("");
+  const [cancelId, setCancelId] = useState<string | null>(null);
 
   const listInput = {
     from,
@@ -200,9 +203,9 @@ function PekerjaanPage() {
     validators: {
       onSubmit: z.object({
         employeeId: z.string(),
-        workDate: z.string().min(1, "Tanggal wajib"),
-        description: z.string().min(1, "Pekerjaan wajib"),
-        amountIdr: z.string().refine((v) => Number(v) > 0, "Ongkos harus lebih dari 0"),
+        workDate: z.string().min(1, "Masukkan tanggal pekerjaan."),
+        description: z.string().min(1, "Masukkan uraian pekerjaan."),
+        amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan ongkos lebih dari 0."),
         struk: z.string(),
         customerNote: z.string(),
         kind: z.enum(["ongkos", "persenan"]),
@@ -214,7 +217,7 @@ function PekerjaanPage() {
   const canCreate = role === "mekanik" || role === "supervisor";
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
 
       {canCreate ? (
         <Card>
@@ -227,6 +230,7 @@ function PekerjaanPage() {
                 e.preventDefault();
                 e.stopPropagation();
                 void form.handleSubmit();
+                focusFirstInvalid();
               }}
               className="grid gap-3 md:grid-cols-2"
             >
@@ -265,7 +269,10 @@ function PekerjaanPage() {
                       value={field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      aria-describedby={fieldDescribedBy("workDate-error", field.state.meta.errors)}
                     />
+                    <FieldError id="workDate-error" errors={field.state.meta.errors} />
                   </div>
                 )}
               </form.Field>
@@ -279,7 +286,10 @@ function PekerjaanPage() {
                       value={field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      aria-describedby={fieldDescribedBy("description-error", field.state.meta.errors)}
                     />
+                    <FieldError id="description-error" errors={field.state.meta.errors} />
                   </div>
                 )}
               </form.Field>
@@ -287,14 +297,18 @@ function PekerjaanPage() {
               <form.Field name="amountIdr">
                 {(field) => (
                   <div className="space-y-2">
-                    <Label htmlFor={field.name}>Ongkos (IDR)</Label>
+                    <Label htmlFor={field.name}>Ongkos</Label>
                     <Input
                       id={field.name}
                       inputMode="numeric"
                       value={field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(e) => field.handleChange(e.target.value)}
+                      placeholder="50000"
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
                     />
+                    <FieldError id="amount-error" errors={field.state.meta.errors} />
                   </div>
                 )}
               </form.Field>
@@ -453,12 +467,25 @@ function PekerjaanPage() {
             ) : null}
           </div>
 
-          {jobs.length === 0 ? (
+          {jobsQuery.isPending ? (
+            <Loader />
+          ) : jobs.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Belum ada pekerjaan</EmptyTitle>
                 <EmptyDescription>Catat pekerjaan baru atau ubah filter tanggal.</EmptyDescription>
               </EmptyHeader>
+              <EmptyContent>
+                {canCreate ? (
+                  <Button type="button" variant="outline" onClick={() => document.getElementById("description")?.focus()}>
+                    Catat pekerjaan
+                  </Button>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => document.getElementById("from")?.focus()}>
+                    Ubah filter
+                  </Button>
+                )}
+              </EmptyContent>
             </Empty>
           ) : (
             <ResponsiveRecords
@@ -468,11 +495,16 @@ function PekerjaanPage() {
                     <MobileListRow
                       key={job.id}
                       title={job.description}
-                      subtitle={`${job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"} · ${job.workDate} · ${
-                        job.kind === "persenan"
-                          ? `Persenan${job.bengkelPercent != null ? ` ${job.bengkelPercent}%` : ""}`
-                          : "Ongkos"
-                      }${job.struk ? ` · ${job.struk}` : ""}`}
+                      subtitle={
+                        <>
+                          {job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"} ·{" "}
+                          <span className="tabular-nums">{job.workDate}</span> ·{" "}
+                          {job.kind === "persenan"
+                            ? `Persenan${job.bengkelPercent != null ? ` ${job.bengkelPercent}%` : ""}`
+                            : "Ongkos"}
+                          {job.struk ? ` · ${job.struk}` : ""}
+                        </>
+                      }
                       trailing={<span className="tabular-nums">{formatIdr(job.amountIdr)}</span>}
                       meta={
                         <>
@@ -503,13 +535,27 @@ function PekerjaanPage() {
                         </Button>
                       ) : null}
                       {role === "supervisor" && job.status !== "batal" ? (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => statusMut.mutate({ id: job.id, status: "batal" })}
-                        >
-                          Batal
-                        </Button>
+                        cancelId === job.id ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                statusMut.mutate({ id: job.id, status: "batal" });
+                                setCancelId(null);
+                              }}
+                            >
+                              Batalkan pekerjaan
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setCancelId(null)}>
+                              Batal
+                            </Button>
+                          </>
+                        ) : (
+                          <Button size="sm" variant="destructive" onClick={() => setCancelId(job.id)}>
+                            Batal
+                          </Button>
+                        )
                       ) : null}
                     </MobileListRow>
                   ))}
@@ -532,7 +578,7 @@ function PekerjaanPage() {
                   <TableBody>
                     {jobs.map((job) => (
                       <TableRow key={job.id}>
-                        <TableCell>{job.workDate}</TableCell>
+                        <TableCell className="tabular-nums">{job.workDate}</TableCell>
                         <TableCell>
                           {job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"}
                         </TableCell>
@@ -575,13 +621,27 @@ function PekerjaanPage() {
                             </Button>
                           ) : null}
                           {role === "supervisor" && job.status !== "batal" ? (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => statusMut.mutate({ id: job.id, status: "batal" })}
-                            >
-                              Batal
-                            </Button>
+                            cancelId === job.id ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    statusMut.mutate({ id: job.id, status: "batal" });
+                                    setCancelId(null);
+                                  }}
+                                >
+                                  Batalkan pekerjaan
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setCancelId(null)}>
+                                  Batal
+                                </Button>
+                              </>
+                            ) : (
+                              <Button size="sm" variant="destructive" onClick={() => setCancelId(job.id)}>
+                                Batal
+                              </Button>
+                            )
                           ) : null}
                         </TableCell>
                       </TableRow>

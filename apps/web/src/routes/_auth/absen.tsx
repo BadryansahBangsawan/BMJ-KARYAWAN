@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
@@ -139,7 +139,7 @@ function AbsenPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Isi absen bulan ini</CardTitle>
@@ -176,7 +176,7 @@ function AbsenPage() {
                 <TableRow>
                   <TableHead className="sticky start-0 min-w-28 bg-card">Nama</TableHead>
                   {days.map((d) => (
-                    <TableHead key={d.date} className="min-w-11 text-center">
+                    <TableHead key={d.date} className="min-w-11 text-center tabular-nums">
                       {d.day}
                     </TableHead>
                   ))}
@@ -195,7 +195,7 @@ function AbsenPage() {
                           <Button
                             type="button"
                             variant={value == null ? "ghost" : "outline"}
-                            className={`min-h-11 min-w-11 w-full px-0 text-sm tabular-nums${
+                            className={`min-h-11 min-w-11 w-full px-0 text-sm tabular-nums md:h-11 md:min-h-11 md:min-w-11${
                               value === 100
                                 ? " text-success"
                                 : value === 50
@@ -210,6 +210,11 @@ function AbsenPage() {
                             {value === 100 ? (
                               <>
                                 <Check className="size-3" aria-hidden="true" />
+                                {cellLabel(value)}
+                              </>
+                            ) : value === 50 ? (
+                              <>
+                                <Minus className="size-3" aria-hidden="true" />
                                 {cellLabel(value)}
                               </>
                             ) : value === 0 ? (

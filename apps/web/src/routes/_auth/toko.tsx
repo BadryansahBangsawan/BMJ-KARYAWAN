@@ -1,7 +1,7 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
@@ -29,6 +29,8 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import Loader from "@/components/loader";
 import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
@@ -129,7 +131,7 @@ function TokoPage() {
     validators: {
       onSubmit: z.object({
         kind: z.enum(["kasir", "non_tunai", "panjar"]),
-        amountIdr: z.string().refine((v) => Number(v) > 0, "Jumlah harus lebih dari 0"),
+        amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan jumlah lebih dari 0."),
         note: z.string(),
       }),
     },
@@ -138,7 +140,7 @@ function TokoPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile compact label={`Transaksi`} value={`${kali}×`} />
         <StatTile compact label="Tunai" value={<span className="tabular-nums">{formatIdr(tunai)}</span>} />
@@ -156,6 +158,7 @@ function TokoPage() {
               e.preventDefault();
               e.stopPropagation();
               void form.handleSubmit();
+              focusFirstInvalid();
             }}
             className="grid gap-3 md:grid-cols-3"
           >
@@ -186,14 +189,18 @@ function TokoPage() {
             <form.Field name="amountIdr">
               {(field) => (
                 <div className="space-y-2">
-                  <Label htmlFor={field.name}>Jumlah (IDR)</Label>
+                  <Label htmlFor={field.name}>Jumlah</Label>
                   <Input
                     id={field.name}
                     inputMode="numeric"
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="50000"
+                    aria-invalid={field.state.meta.errors.length > 0}
+                    aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
                   />
+                  <FieldError id="amount-error" errors={field.state.meta.errors} />
                 </div>
               )}
             </form.Field>
@@ -230,12 +237,19 @@ function TokoPage() {
           <CardTitle>Riwayat</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          {listQuery.isPending ? (
+            <Loader />
+          ) : rows.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Belum ada transaksi</EmptyTitle>
                 <EmptyDescription>Catat transaksi tunai, non tunai, atau panjar.</EmptyDescription>
               </EmptyHeader>
+              <EmptyContent>
+                <Button type="button" variant="outline" onClick={() => document.getElementById("amountIdr")?.focus()}>
+                  Catat transaksi
+                </Button>
+              </EmptyContent>
             </Empty>
           ) : (
             <ResponsiveRecords

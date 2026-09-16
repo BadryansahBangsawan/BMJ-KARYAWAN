@@ -1,5 +1,6 @@
+import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@BMJ-KARYAWAN/ui/components/tabs";
@@ -18,6 +19,7 @@ import { useMemo, useState } from "react";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import Loader from "@/components/loader";
 import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
@@ -77,7 +79,10 @@ export const Route = createFileRoute("/_auth/laporan")({
   component: LaporanPage,
 });
 
-function LaporanTable({ rows }: { rows: LaporanRow[] }) {
+function LaporanTable({ rows, isPending }: { rows: LaporanRow[]; isPending: boolean }) {
+  if (isPending) {
+    return <Loader />;
+  }
   if (rows.length === 0) {
     return (
       <Empty>
@@ -85,6 +90,11 @@ function LaporanTable({ rows }: { rows: LaporanRow[] }) {
           <EmptyTitle>Tidak ada laporan di rentang ini</EmptyTitle>
           <EmptyDescription>Ubah tanggal mulai atau tanggal selesai, lalu tampilkan lagi.</EmptyDescription>
         </EmptyHeader>
+        <EmptyContent>
+          <Button type="button" variant="outline" onClick={() => document.getElementById("from")?.focus()}>
+            Ubah tanggal
+          </Button>
+        </EmptyContent>
       </Empty>
     );
   }
@@ -165,7 +175,7 @@ function LaporanPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Periode</CardTitle>
@@ -200,7 +210,7 @@ function LaporanPage() {
               <CardTitle>Laporan ongkos</CardTitle>
             </CardHeader>
             <CardContent>
-              <LaporanTable rows={asRows(ongkosQuery.data)} />
+              <LaporanTable rows={asRows(ongkosQuery.data)} isPending={ongkosQuery.isPending} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -210,7 +220,7 @@ function LaporanPage() {
               <CardTitle>Laporan kumulatif</CardTitle>
             </CardHeader>
             <CardContent>
-              <LaporanTable rows={asRows(kumulatifQuery.data)} />
+              <LaporanTable rows={asRows(kumulatifQuery.data)} isPending={kumulatifQuery.isPending} />
             </CardContent>
           </Card>
         </TabsContent>

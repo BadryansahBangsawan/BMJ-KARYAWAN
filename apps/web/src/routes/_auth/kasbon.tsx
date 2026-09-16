@@ -1,6 +1,6 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
@@ -30,6 +30,8 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import Loader from "@/components/loader";
 import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 import { StatusBadge } from "@/components/status-badge";
@@ -192,23 +194,29 @@ function KasbonPage() {
     validators: {
       onSubmit: z.object({
         employeeId: z.string(),
-        keperluan: z.string().min(1, "Keperluan wajib"),
-        amountIdr: z.string().refine((v) => Number(v) > 0, "Jumlah harus lebih dari 0"),
+        keperluan: z.string().min(1, "Masukkan keperluan kasbon."),
+        amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan jumlah lebih dari 0."),
       }),
     },
   });
 
   const pending = rows.filter((row) => row.status === "pending");
   const approved = rows.filter((row) => row.status === "approved");
-  const visible = rows.filter((row) =>
-    ["pending", "approved", "disbursed", "lunas"].includes(row.status),
-  );
+  const visible = statusFilter
+    ? rows
+    : rows.filter((row) =>
+        ["pending", "approved", "disbursed", "lunas"].includes(row.status),
+      );
+
+  function focusAjukan() {
+    document.getElementById("keperluan")?.focus();
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       {isKasirish && summary ? (
         <div className="grid grid-cols-3 gap-2">
-          <StatTile compact label="TTL" value={<span className="tabular-nums">{formatIdr(summary.ttlAmount ?? 0)}</span>} />
+          <StatTile compact label="Total" value={<span className="tabular-nums">{formatIdr(summary.ttlAmount ?? 0)}</span>} />
           <StatTile compact label="Dibayar" value={<span className="tabular-nums">{formatIdr(summary.ttlPaid ?? 0)}</span>} />
           <StatTile compact label="Sisa" value={<span className="tabular-nums">{formatIdr(summary.ttlSisa ?? 0)}</span>} />
         </div>
@@ -224,6 +232,7 @@ function KasbonPage() {
               e.preventDefault();
               e.stopPropagation();
               void form.handleSubmit();
+              focusFirstInvalid();
             }}
             className="grid gap-3 md:grid-cols-2"
           >
@@ -260,21 +269,28 @@ function KasbonPage() {
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    aria-invalid={field.state.meta.errors.length > 0}
+                    aria-describedby={fieldDescribedBy("keperluan-error", field.state.meta.errors)}
                   />
+                  <FieldError id="keperluan-error" errors={field.state.meta.errors} />
                 </div>
               )}
             </form.Field>
             <form.Field name="amountIdr">
               {(field) => (
                 <div className="space-y-2">
-                  <Label htmlFor={field.name}>Jumlah (IDR)</Label>
+                  <Label htmlFor={field.name}>Jumlah</Label>
                   <Input
                     id={field.name}
                     inputMode="numeric"
                     value={field.state.value}
                     onBlur={field.handleBlur}
                     onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="50000"
+                    aria-invalid={field.state.meta.errors.length > 0}
+                    aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
                   />
+                  <FieldError id="amount-error" errors={field.state.meta.errors} />
                 </div>
               )}
             </form.Field>
@@ -296,12 +312,19 @@ function KasbonPage() {
       {role === "supervisor" ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">Antrian persetujuan</h2>
-          {pending.length === 0 ? (
+          {listQuery.isPending ? (
+            <Loader />
+          ) : pending.length === 0 ? (
             <Empty>
               <EmptyHeader>
-                <EmptyTitle>Tidak ada kasbon pending</EmptyTitle>
-                <EmptyDescription>Pengajuan baru akan muncul di sini.</EmptyDescription>
+                <EmptyTitle>Tidak ada kasbon menunggu</EmptyTitle>
+                <EmptyDescription>Pengajuan baru muncul di antrian ini.</EmptyDescription>
               </EmptyHeader>
+              <EmptyContent>
+                <Button type="button" variant="outline" onClick={focusAjukan}>
+                  Ajukan kasbon
+                </Button>
+              </EmptyContent>
             </Empty>
           ) : (
             <MobileList>
@@ -327,11 +350,15 @@ function KasbonPage() {
                   </Button>
                   {rejectId === row.id ? (
                     <div className="flex w-full flex-wrap gap-3">
-                      <Input
-                        placeholder="Alasan"
-                        value={rejectReason}
-                        onChange={(e) => setRejectReason(e.target.value)}
-                      />
+                      <div className="w-full space-y-2">
+                        <Label htmlFor={`reject-reason-${row.id}`}>Alasan</Label>
+                        <Input
+                          id={`reject-reason-${row.id}`}
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder="Mis. stok belum lunas"
+                        />
+                      </div>
                       <Button
                         size="sm"
                         variant="destructive"
@@ -357,7 +384,9 @@ function KasbonPage() {
       {isKasirish ? (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-muted-foreground">Antrian pencairan</h2>
-          {approved.length === 0 ? (
+          {listQuery.isPending ? (
+            <Loader />
+          ) : approved.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Tidak ada kasbon siap dicairkan</EmptyTitle>
@@ -419,12 +448,19 @@ function KasbonPage() {
             </div>
           ) : null}
 
-          {visible.length === 0 ? (
+          {listQuery.isPending ? (
+            <Loader />
+          ) : visible.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Belum ada kasbon</EmptyTitle>
                 <EmptyDescription>Ajukan kasbon baru dari formulir di atas.</EmptyDescription>
               </EmptyHeader>
+              <EmptyContent>
+                <Button type="button" variant="outline" onClick={focusAjukan}>
+                  Ajukan kasbon
+                </Button>
+              </EmptyContent>
             </Empty>
           ) : (
             <ResponsiveRecords
@@ -462,12 +498,16 @@ function KasbonPage() {
                         {isKasirish && row.status === "disbursed" ? (
                           payId === row.id ? (
                             <>
-                              <Input
-                                inputMode="numeric"
-                                value={payAmount}
-                                onChange={(e) => setPayAmount(e.target.value)}
-                                placeholder="IDR"
-                              />
+                              <div className="w-full space-y-2">
+                                <Label htmlFor={`pay-${row.id}`}>Jumlah</Label>
+                                <Input
+                                  id={`pay-${row.id}`}
+                                  inputMode="numeric"
+                                  value={payAmount}
+                                  onChange={(e) => setPayAmount(e.target.value)}
+                                  placeholder="50000"
+                                />
+                              </div>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -534,13 +574,17 @@ function KasbonPage() {
                           <TableCell>
                             {isKasirish && row.status === "disbursed" ? (
                               payId === row.id ? (
-                                <div className="flex gap-2">
-                                  <Input
-                                    inputMode="numeric"
-                                    value={payAmount}
-                                    onChange={(e) => setPayAmount(e.target.value)}
-                                    placeholder="IDR"
-                                  />
+                                <div className="flex flex-wrap items-end gap-2">
+                                  <div className="min-w-32 space-y-2">
+                                    <Label htmlFor={`pay-table-${row.id}`}>Jumlah</Label>
+                                    <Input
+                                      id={`pay-table-${row.id}`}
+                                      inputMode="numeric"
+                                      value={payAmount}
+                                      onChange={(e) => setPayAmount(e.target.value)}
+                                      placeholder="50000"
+                                    />
+                                  </div>
                                   <Button
                                     size="sm"
                                     variant="outline"

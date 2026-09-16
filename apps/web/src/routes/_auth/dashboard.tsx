@@ -145,7 +145,7 @@ function RouteComponent() {
   const pendingKasbonCount = kasbonRows.filter((row) => row.status === "pending").length;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       <p className="text-pretty text-muted-foreground">Halo, {session?.user.name}</p>
 
       <div className="grid grid-cols-2 gap-2">

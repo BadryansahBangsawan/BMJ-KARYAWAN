@@ -1,7 +1,7 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
@@ -21,6 +21,7 @@ import { Lock, Pencil } from "lucide-react";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import Loader from "@/components/loader";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
@@ -135,7 +136,7 @@ function GajiPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Periode</CardTitle>
@@ -171,11 +172,11 @@ function GajiPage() {
               ) : (
                 <Pencil className="size-3" aria-hidden="true" />
               )}
-              {period.status === "finalized" ? "Final" : "Draf"}
+              {period.status === "finalized" ? "Dikunci" : "Draf"}
             </Badge>
           ) : null}
           {period?.payDate ? (
-            <span className="text-muted-foreground text-sm">Bayar {period.payDate}</span>
+            <span className="text-muted-foreground text-sm tabular-nums">Bayar {period.payDate}</span>
           ) : null}
           {role === "supervisor" && isDraft ? (
             <>
@@ -202,12 +203,25 @@ function GajiPage() {
           <CardTitle>Slip gaji</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {lines.length === 0 ? (
+          {payrollQuery.isPending ? (
+            <Loader />
+          ) : lines.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyTitle>Belum ada baris gaji</EmptyTitle>
                 <EmptyDescription>Pilih periode atau hitung ulang sebagai supervisor.</EmptyDescription>
               </EmptyHeader>
+              {role === "supervisor" && isDraft ? (
+                <EmptyContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => recomputeMut.mutate({ year, month, keepDeductions: false })}
+                  >
+                    Hitung ulang
+                  </Button>
+                </EmptyContent>
+              ) : null}
             </Empty>
           ) : (
             <ResponsiveRecords
@@ -217,7 +231,7 @@ function GajiPage() {
                     <MobileListRow
                       key={line.id}
                       title={line.employeeName ?? line.name ?? line.employeeId}
-                      subtitle={`${formatHari(line.daysPresent)} hari`}
+                      subtitle={<span className="tabular-nums">{formatHari(line.daysPresent)} hari</span>}
                       trailing={
                         <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
                       }
@@ -234,6 +248,8 @@ function GajiPage() {
                           {role === "supervisor" && isDraft ? (
                             <div className="flex justify-end gap-1">
                               <Input
+                                id={`potongan-${line.id}`}
+                                aria-label={`Potongan kasbon ${line.employeeName ?? line.name ?? line.employeeId}`}
                                 inputMode="numeric"
                                 value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
                                 onChange={(e) =>
@@ -296,7 +312,7 @@ function GajiPage() {
                     {lines.map((line) => (
                       <TableRow key={line.id}>
                         <TableCell>{line.employeeName ?? line.name ?? line.employeeId}</TableCell>
-                        <TableCell>{formatHari(line.daysPresent)}</TableCell>
+                        <TableCell className="tabular-nums">{formatHari(line.daysPresent)}</TableCell>
                         <TableCell>
                           <span className="tabular-nums">{formatIdr(line.dailyRateIdr)}</span>
                         </TableCell>
@@ -310,6 +326,8 @@ function GajiPage() {
                           {role === "supervisor" && isDraft ? (
                             <div className="flex min-w-40 gap-1">
                               <Input
+                                id={`potongan-table-${line.id}`}
+                                aria-label={`Potongan kasbon ${line.employeeName ?? line.name ?? line.employeeId}`}
                                 inputMode="numeric"
                                 value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
                                 onChange={(e) =>
@@ -357,10 +375,10 @@ function GajiPage() {
               }
             />
           )}
-          <p className="text-muted-foreground text-sm">
+          <p className="text-pretty text-base text-muted-foreground">
             Bonus diberikan jika hadir minimal 20 hari dan alpa &lt; 5 hari.
           </p>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-pretty text-base text-muted-foreground">
             Konsumsi diberikan jika ada kehadiran di bulan tersebut.
           </p>
         </CardContent>
