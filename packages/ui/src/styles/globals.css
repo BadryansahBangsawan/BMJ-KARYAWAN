@@ -142,10 +142,14 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply font-sans bg-background text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
   }
   html {
-    @apply font-sans;
+    @apply font-sans antialiased;
+  }
+  ::selection {
+    background-color: var(--foreground);
+    color: var(--background);
   }
   @media (prefers-reduced-transparency: reduce) {
     .app-chrome {

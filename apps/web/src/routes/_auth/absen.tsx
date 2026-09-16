@@ -166,14 +166,14 @@ function AbsenPage() {
               />
             </div>
           </div>
-          <p className="text-muted-foreground text-sm">
-            Klik sel: 1 → 0,5 → 0 → kosong. Minggu dilewati. Zona waktu Asia/Jayapura.
+          <p className="text-pretty text-sm text-muted-foreground">
+            Pilih sel: 1 → 0,5 → 0 → kosong. Minggu dilewati. Zona waktu Asia/Jayapura.
           </p>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky left-0 min-w-28 bg-card">Nama</TableHead>
+                  <TableHead className="sticky start-0 min-w-28 bg-card">Nama</TableHead>
                   {days.map((d) => (
                     <TableHead key={d.date} className="min-w-11 text-center">
                       {d.day}
@@ -184,7 +184,7 @@ function AbsenPage() {
               <TableBody>
                 {employees.map((employee) => (
                   <TableRow key={employee.id}>
-                    <TableCell className="sticky left-0 min-w-28 bg-card font-medium">
+                    <TableCell className="sticky start-0 min-w-28 bg-card font-medium">
                       {employee.name}
                     </TableCell>
                     {days.map((d) => {
@@ -195,6 +195,7 @@ function AbsenPage() {
                             type="button"
                             variant={value == null ? "ghost" : "outline"}
                             className="min-h-11 min-w-11 w-full px-0 text-sm tabular-nums"
+                            aria-label={`${employee.name}, ${d.date}, ${cellLabel(value) || "kosong"}`}
                             onClick={() => cycle(employee.id, d.date)}
                           >
                             {cellLabel(value) || "·"}

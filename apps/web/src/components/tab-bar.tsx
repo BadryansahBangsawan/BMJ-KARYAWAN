@@ -19,7 +19,7 @@ const TAB_ICONS = {
 } as const;
 
 const TAB_CONTROL =
-  "flex min-h-11 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-[11px] leading-none tracking-wide text-muted-foreground motion-safe:active:scale-[0.96]";
+  "flex min-h-11 flex-col items-center justify-center gap-1 px-1 pt-1.5 text-xs font-medium leading-tight text-muted-foreground";
 
 const TAB_ACTIVE = "font-semibold text-foreground";
 
@@ -36,8 +36,13 @@ function MoreTab({ active }: { active: boolean }) {
       <DropdownMenuTrigger
         render={<button type="button" />}
         className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
+        aria-current={active ? "page" : undefined}
       >
-        <Ellipsis className={active ? "size-5 fill-current" : "size-5"} />
+        <Ellipsis
+          className="size-5"
+          strokeWidth={active ? 2 : 1.5}
+          fill={active ? "currentColor" : "none"}
+        />
         Lainnya
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="end" className="origin-bottom-right">
@@ -80,10 +85,15 @@ export function TabBar() {
             key={item.to}
             to={item.to}
             activeOptions={{ exact: true }}
+            aria-current={active ? "page" : undefined}
             className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
-            activeProps={{ className: TAB_ACTIVE }}
+            activeProps={{ className: `${TAB_CONTROL} ${TAB_ACTIVE}` }}
           >
-            <Icon className={active ? "size-5 fill-current" : "size-5"} />
+            <Icon
+              className="size-5"
+              strokeWidth={active ? 2 : 1.5}
+              fill={active ? "currentColor" : "none"}
+            />
             {item.label}
           </Link>
         );

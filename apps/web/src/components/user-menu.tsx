@@ -18,7 +18,7 @@ export default function UserMenu() {
   const { data: session, isPending } = authClient.useSession();
 
   if (isPending) {
-    return <Skeleton className="h-9 w-24" />;
+    return <Skeleton className="h-11 w-24" />;
   }
 
   if (!session) {
@@ -31,7 +31,10 @@ export default function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" />}>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" className="max-w-40 truncate" />}
+        aria-label="Akun"
+      >
         {session.user.name}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="bg-card">

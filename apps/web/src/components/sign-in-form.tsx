@@ -6,6 +6,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 
+import { AuthScreen } from "@/components/auth-screen";
+import { BusyLabel } from "@/components/busy-label";
 import { authClient } from "@/lib/auth-client";
 
 import Loader from "./loader";
@@ -45,8 +47,8 @@ export default function SignInForm() {
     },
     validators: {
       onSubmit: z.object({
-        email: z.email("Email tidak valid"),
-        password: z.string().min(8, "Kata sandi minimal 8 karakter"),
+        email: z.email("Masukkan email yang valid"),
+        password: z.string().min(8, "Pilih kata sandi dengan minimal 8 karakter"),
       }),
     },
   });
@@ -56,96 +58,96 @@ export default function SignInForm() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col justify-center px-4 py-8">
-      <h1 className="mb-6 text-center text-3xl font-bold text-balance tracking-tight">Masuk</h1>
-
+    <AuthScreen title="Masuk" description="Masuk untuk kasbon, pekerjaan, dan gaji.">
       <form
         onSubmit={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          form.handleSubmit();
+          void form.handleSubmit();
+          requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
+          });
         }}
-        className="space-y-4"
+        className="space-y-6"
       >
-        <div>
-          <form.Field name="email">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>Email</Label>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  aria-invalid={field.state.meta.errors.length > 0}
-                  aria-describedby={field.state.meta.errors.length > 0 ? "email-error" : undefined}
-                />
-                {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} id="email-error" className="text-sm text-destructive">
-                    {error?.message}
-                  </p>
-                ))}
-              </div>
-            )}
-          </form.Field>
-        </div>
-
-        <div>
-          <form.Field name="password">
-            {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor={field.name}>Kata sandi</Label>
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  type="password"
-                  autoComplete="current-password"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  aria-invalid={field.state.meta.errors.length > 0}
-                  aria-describedby={
-                    field.state.meta.errors.length > 0 ? "password-error" : undefined
-                  }
-                />
-                {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} id="password-error" className="text-sm text-destructive">
-                    {error?.message}
-                  </p>
-                ))}
-              </div>
-            )}
-          </form.Field>
-        </div>
-
-        <form.Subscribe selector={(state) => ({ isSubmitting: state.isSubmitting })}>
-          {({ isSubmitting }) => (
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Memproses..." : "Masuk"}
-            </Button>
+        <form.Field name="email">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Email</Label>
+              <Input
+                id={field.name}
+                name={field.name}
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                placeholder="nama@bengkel.com"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={field.state.meta.errors.length > 0 ? "email-error" : undefined}
+              />
+              {field.state.meta.errors.map((error) => (
+                <p key={error?.message} id="email-error" className="text-sm text-destructive">
+                  {error?.message}
+                </p>
+              ))}
+            </div>
           )}
-        </form.Subscribe>
-      </form>
+        </form.Field>
 
-      {showGoogle ? (
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-4 w-full"
-          onClick={() => {
-            void authClient.signIn.social({
-              provider: "google",
-              callbackURL: "/dashboard",
-            });
-          }}
-        >
-          Masuk dengan Google
-        </Button>
-      ) : null}
-    </div>
+        <form.Field name="password">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Kata sandi</Label>
+              <Input
+                id={field.name}
+                name={field.name}
+                type="password"
+                autoComplete="current-password"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={
+                  field.state.meta.errors.length > 0 ? "password-error" : undefined
+                }
+              />
+              {field.state.meta.errors.map((error) => (
+                <p key={error?.message} id="password-error" className="text-sm text-destructive">
+                  {error?.message}
+                </p>
+              ))}
+            </div>
+          )}
+        </form.Field>
+
+        <div className="space-y-3">
+          <form.Subscribe selector={(state) => ({ isSubmitting: state.isSubmitting })}>
+            {({ isSubmitting }) => (
+              <Button type="submit" className="w-full" disabled={isSubmitting} aria-busy={isSubmitting}>
+                <BusyLabel busy={isSubmitting}>Masuk</BusyLabel>
+              </Button>
+            )}
+          </form.Subscribe>
+
+          {showGoogle ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                void authClient.signIn.social({
+                  provider: "google",
+                  callbackURL: "/dashboard",
+                });
+              }}
+            >
+              Masuk dengan Google
+            </Button>
+          ) : null}
+        </div>
+      </form>
+    </AuthScreen>
   );
 }

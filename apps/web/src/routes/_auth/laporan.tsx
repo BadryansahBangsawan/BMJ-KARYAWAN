@@ -82,8 +82,8 @@ function LaporanTable({ rows }: { rows: LaporanRow[] }) {
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>Tidak ada data</EmptyTitle>
-          <EmptyDescription>Ubah rentang tanggal lalu coba lagi.</EmptyDescription>
+          <EmptyTitle>Tidak ada laporan di rentang ini</EmptyTitle>
+          <EmptyDescription>Ubah tanggal mulai atau tanggal selesai, lalu tampilkan lagi.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

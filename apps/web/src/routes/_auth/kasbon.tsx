@@ -30,6 +30,7 @@ import z from "zod";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { BusyLabel } from "@/components/busy-label";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -300,14 +301,11 @@ function KasbonPage() {
             </form.Field>
             <div className="md:col-span-2">
               <form.Subscribe
-                selector={(state) => ({
-                  canSubmit: state.canSubmit,
-                  isSubmitting: state.isSubmitting,
-                })}
+                selector={(state) => ({ isSubmitting: state.isSubmitting })}
               >
-                {({ canSubmit, isSubmitting }) => (
-                  <Button type="submit" disabled={!canSubmit || isSubmitting} className="w-full">
-                    {isSubmitting ? "Mengajukan..." : "Ajukan"}
+                {({ isSubmitting }) => (
+                  <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
+                    <BusyLabel busy={isSubmitting}>Ajukan</BusyLabel>
                   </Button>
                 )}
               </form.Subscribe>
