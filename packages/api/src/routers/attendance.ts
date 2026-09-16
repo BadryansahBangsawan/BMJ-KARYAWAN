@@ -15,8 +15,8 @@ import {
 // Workshop location — update these coordinates to match the real workshop.
 // Radius is in metres; 150m gives reasonable tolerance for GPS drift.
 // ---------------------------------------------------------------------------
-const WORKSHOP_LAT = -2.5489;   // example: replace with actual latitude
-const WORKSHOP_LNG = 140.7172;  // example: replace with actual longitude
+const WORKSHOP_LAT = -1.8779371;  // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
+const WORKSHOP_LNG = 136.2299775; // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
 const CHECKIN_RADIUS_M = 150;
 
 /** Haversine distance in metres between two WGS-84 coordinates. */
