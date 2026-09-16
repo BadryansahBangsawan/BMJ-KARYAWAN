@@ -333,7 +333,7 @@ function SelfCheckinPanel() {
       ) : (
         <StatePanel
           title="Belum ada absen bulan ini"
-          description="Tap "Absen sekarang" saat kamu tiba di bengkel."
+          description='Tap "Absen sekarang" saat kamu tiba di bengkel.'
         />
       )}
     </div>

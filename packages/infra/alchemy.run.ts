@@ -22,6 +22,9 @@ export const web = Cloudflare.Website.Vite("web", {
     GOOGLE_CLIENT_SECRET: Config.redacted("GOOGLE_CLIENT_SECRET").pipe(
       Config.withDefault(Redacted.make("")),
     ),
+    AI_API_KEY: Config.redacted("AI_API_KEY").pipe(Config.withDefault(Redacted.make(""))),
+    AI_BASE_URL: Config.string("AI_BASE_URL").pipe(Config.withDefault("")),
+    AI_MODEL: Config.string("AI_MODEL").pipe(Config.withDefault("BMJ")),
   },
   dev: {
     port: 3001,
