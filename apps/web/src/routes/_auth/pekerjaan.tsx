@@ -1,4 +1,3 @@
-import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
@@ -25,6 +24,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import z from "zod";
+import { Check, CircleDashed, CircleCheck, Ban } from "lucide-react";
 
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
@@ -32,6 +32,7 @@ import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
+import { StatusBadge } from "@/components/status-badge";
 
 
 type Role = "supervisor" | "kasir" | "mekanik";
@@ -80,19 +81,12 @@ type EmployeeRow = {
   role: string;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  proses: "PROSES",
-  selesai: "SELESAI",
-  diterima: "DITERIMA",
-  batal: "BATAL",
-};
-
-function statusVariant(status: string): "outline" | "secondary" | "default" | "destructive" {
-  if (status === "selesai") return "secondary";
-  if (status === "diterima") return "default";
-  if (status === "batal") return "destructive";
-  return "outline";
-}
+export const JOB_STATUS = {
+  proses: { label: "Proses", icon: CircleDashed, tone: "neutral" },
+  selesai: { label: "Selesai", icon: CircleCheck, tone: "neutral" },
+  diterima: { label: "Diterima", icon: Check, tone: "success" },
+  batal: { label: "Batal", icon: Ban, tone: "danger" },
+} as const;
 
 export const Route = createFileRoute("/_auth/pekerjaan")({
   beforeLoad: async () => {
@@ -386,7 +380,7 @@ function PekerjaanPage() {
                 >
                   {({ isSubmitting }) => (
                     <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                      <BusyLabel busy={isSubmitting}>Simpan</BusyLabel>
+                      <BusyLabel busy={isSubmitting}>Catat pekerjaan</BusyLabel>
                     </Button>
                   )}
                 </form.Subscribe>
@@ -430,10 +424,10 @@ function PekerjaanPage() {
                   <SelectValue placeholder="Semua" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="proses">PROSES</SelectItem>
-                  <SelectItem value="selesai">SELESAI</SelectItem>
-                  <SelectItem value="diterima">DITERIMA</SelectItem>
-                  <SelectItem value="batal">BATAL</SelectItem>
+                  <SelectItem value="proses">Proses</SelectItem>
+                  <SelectItem value="selesai">Selesai</SelectItem>
+                  <SelectItem value="diterima">Diterima</SelectItem>
+                  <SelectItem value="batal">Batal</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -482,9 +476,7 @@ function PekerjaanPage() {
                       trailing={<span className="tabular-nums">{formatIdr(job.amountIdr)}</span>}
                       meta={
                         <>
-                          <Badge variant={statusVariant(job.status)}>
-                            {STATUS_LABEL[job.status] ?? job.status.toUpperCase()}
-                          </Badge>
+                          <StatusBadge {...JOB_STATUS[job.status as keyof typeof JOB_STATUS]} />
                           {job.customerNote ? (
                             <span className="text-sm text-muted-foreground">{job.customerNote}</span>
                           ) : null}
@@ -504,6 +496,7 @@ function PekerjaanPage() {
                       (job.status === "proses" || job.status === "selesai") ? (
                         <Button
                           size="sm"
+                          variant="outline"
                           onClick={() => statusMut.mutate({ id: job.id, status: "diterima" })}
                         >
                           Diterima
@@ -559,9 +552,7 @@ function PekerjaanPage() {
                         </TableCell>
                         <TableCell>{job.struk ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant(job.status)}>
-                            {STATUS_LABEL[job.status] ?? job.status.toUpperCase()}
-                          </Badge>
+                          <StatusBadge {...JOB_STATUS[job.status as keyof typeof JOB_STATUS]} />
                         </TableCell>
                         <TableCell className="space-x-1">
                           {role === "mekanik" && job.status === "proses" ? (
@@ -577,6 +568,7 @@ function PekerjaanPage() {
                           (job.status === "proses" || job.status === "selesai") ? (
                             <Button
                               size="sm"
+                              variant="outline"
                               onClick={() => statusMut.mutate({ id: job.id, status: "diterima" })}
                             >
                               Diterima

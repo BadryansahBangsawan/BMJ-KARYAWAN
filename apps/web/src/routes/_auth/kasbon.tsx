@@ -1,4 +1,3 @@
-import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
@@ -23,6 +22,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { Check, Clock, HandCoins, X } from "lucide-react";
 import { useState } from "react";
 import z from "zod";
 
@@ -32,6 +32,7 @@ import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
 import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
+import { StatusBadge } from "@/components/status-badge";
 
 
 type Role = "supervisor" | "kasir" | "mekanik";
@@ -61,13 +62,13 @@ type KasbonRow = {
 
 type EmployeeRow = { id: string; name: string };
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "PENDING",
-  approved: "APPROVED",
-  rejected: "REJECTED",
-  disbursed: "DISBURSED",
-  lunas: "LUNAS",
-};
+export const KASBON_STATUS = {
+  pending: { label: "Menunggu", icon: Clock, tone: "neutral" },
+  approved: { label: "Disetujui", icon: Check, tone: "neutral" },
+  rejected: { label: "Ditolak", icon: X, tone: "danger" },
+  disbursed: { label: "Dicairkan", icon: HandCoins, tone: "neutral" },
+  lunas: { label: "Lunas", icon: Check, tone: "success" },
+} as const;
 
 export const Route = createFileRoute("/_auth/kasbon")({
   beforeLoad: async () => {
@@ -283,7 +284,7 @@ function KasbonPage() {
               >
                 {({ isSubmitting }) => (
                   <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                    <BusyLabel busy={isSubmitting}>Ajukan</BusyLabel>
+                    <BusyLabel busy={isSubmitting}>Ajukan kasbon</BusyLabel>
                   </Button>
                 )}
               </form.Subscribe>
@@ -311,7 +312,7 @@ function KasbonPage() {
                   subtitle={row.keperluan}
                   trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
                 >
-                  <Button size="sm" onClick={() => approveMut.mutate({ kasbonId: row.id })}>
+                  <Button size="sm" variant="outline" onClick={() => approveMut.mutate({ kasbonId: row.id })}>
                     Setujui
                   </Button>
                   <Button
@@ -322,7 +323,7 @@ function KasbonPage() {
                       setRejectReason("");
                     }}
                   >
-                    Tolak
+                    Tolak kasbon
                   </Button>
                   {rejectId === row.id ? (
                     <div className="flex w-full flex-wrap gap-3">
@@ -339,7 +340,10 @@ function KasbonPage() {
                           rejectMut.mutate({ kasbonId: row.id, reason: rejectReason.trim() })
                         }
                       >
-                        Kirim tolak
+                        Tolak kasbon
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setRejectId(null)}>
+                        Batal
                       </Button>
                     </div>
                   ) : null}
@@ -369,7 +373,7 @@ function KasbonPage() {
                   subtitle={row.keperluan}
                   trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
                 >
-                  <Button size="sm" onClick={() => disburseMut.mutate({ kasbonId: row.id })}>
+                  <Button size="sm" variant="outline" onClick={() => disburseMut.mutate({ kasbonId: row.id })}>
                     Cairkan
                   </Button>
                 </MobileListRow>
@@ -405,11 +409,11 @@ function KasbonPage() {
                   <SelectValue placeholder="Semua" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">PENDING</SelectItem>
-                  <SelectItem value="approved">APPROVED</SelectItem>
-                  <SelectItem value="rejected">REJECTED</SelectItem>
-                  <SelectItem value="disbursed">DISBURSED</SelectItem>
-                  <SelectItem value="lunas">LUNAS</SelectItem>
+                  <SelectItem value="pending">Menunggu</SelectItem>
+                  <SelectItem value="approved">Disetujui</SelectItem>
+                  <SelectItem value="rejected">Ditolak</SelectItem>
+                  <SelectItem value="disbursed">Dicairkan</SelectItem>
+                  <SelectItem value="lunas">Lunas</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -446,9 +450,7 @@ function KasbonPage() {
                         trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
                         meta={
                           <>
-                            <Badge variant={row.status === "lunas" ? "default" : "outline"}>
-                              {STATUS_LABEL[row.status] ?? row.status.toUpperCase()}
-                            </Badge>
+                            <StatusBadge {...(KASBON_STATUS[row.status as keyof typeof KASBON_STATUS] ?? { label: row.status, icon: Clock, tone: "neutral" })} />
                             <span className="text-sm text-muted-foreground">
                               Dibayar <span className="tabular-nums">{formatIdr(paid)}</span>
                               {" · "}
@@ -468,6 +470,7 @@ function KasbonPage() {
                               />
                               <Button
                                 size="sm"
+                                variant="outline"
                                 disabled={!(Number(payAmount) > 0)}
                                 onClick={() =>
                                   payMut.mutate({
@@ -526,9 +529,7 @@ function KasbonPage() {
                             <span className="tabular-nums">{formatIdr(sisa)}</span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={row.status === "lunas" ? "default" : "outline"}>
-                              {STATUS_LABEL[row.status] ?? row.status.toUpperCase()}
-                            </Badge>
+                            <StatusBadge {...(KASBON_STATUS[row.status as keyof typeof KASBON_STATUS] ?? { label: row.status, icon: Clock, tone: "neutral" })} />
                           </TableCell>
                           <TableCell>
                             {isKasirish && row.status === "disbursed" ? (
@@ -542,6 +543,7 @@ function KasbonPage() {
                                   />
                                   <Button
                                     size="sm"
+                                    variant="outline"
                                     disabled={!(Number(payAmount) > 0)}
                                     onClick={() =>
                                       payMut.mutate({

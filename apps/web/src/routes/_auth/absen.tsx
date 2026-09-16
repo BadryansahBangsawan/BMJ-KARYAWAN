@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
+import { Check, X } from "lucide-react";
 
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
@@ -194,11 +195,31 @@ function AbsenPage() {
                           <Button
                             type="button"
                             variant={value == null ? "ghost" : "outline"}
-                            className="min-h-11 min-w-11 w-full px-0 text-sm tabular-nums"
+                            className={`min-h-11 min-w-11 w-full px-0 text-sm tabular-nums${
+                              value === 100
+                                ? " text-success"
+                                : value === 50
+                                  ? " text-muted-foreground"
+                                  : value === 0
+                                    ? " text-destructive"
+                                    : ""
+                            }`}
                             aria-label={`${employee.name}, ${d.date}, ${cellLabel(value) || "kosong"}`}
                             onClick={() => cycle(employee.id, d.date)}
                           >
-                            {cellLabel(value) || "·"}
+                            {value === 100 ? (
+                              <>
+                                <Check className="size-3" aria-hidden="true" />
+                                {cellLabel(value)}
+                              </>
+                            ) : value === 0 ? (
+                              <>
+                                <X className="size-3" aria-hidden="true" />
+                                {cellLabel(value)}
+                              </>
+                            ) : (
+                              cellLabel(value) || "·"
+                            )}
                           </Button>
                         </TableCell>
                       );

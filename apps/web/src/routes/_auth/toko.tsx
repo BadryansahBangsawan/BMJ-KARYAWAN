@@ -56,7 +56,7 @@ type StoreTxn = {
 
 const KIND_LABEL: Record<string, string> = {
   kasir: "Tunai",
-  non_tunai: "Non Tunai",
+  non_tunai: "Non tunai",
   panjar: "Panjar",
 };
 
@@ -176,7 +176,7 @@ function TokoPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="kasir">Tunai</SelectItem>
-                      <SelectItem value="non_tunai">Non Tunai</SelectItem>
+                      <SelectItem value="non_tunai">Non tunai</SelectItem>
                       <SelectItem value="panjar">Panjar</SelectItem>
                     </SelectContent>
                   </Select>
@@ -216,7 +216,7 @@ function TokoPage() {
               >
                 {({ isSubmitting }) => (
                   <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                    <BusyLabel busy={isSubmitting}>Simpan</BusyLabel>
+                    <BusyLabel busy={isSubmitting}>Catat transaksi</BusyLabel>
                   </Button>
                 )}
               </form.Subscribe>

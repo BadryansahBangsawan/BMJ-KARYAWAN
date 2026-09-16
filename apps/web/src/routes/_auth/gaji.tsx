@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
+import { Lock, Pencil } from "lucide-react";
 
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
@@ -161,8 +162,16 @@ function GajiPage() {
             />
           </div>
           {period ? (
-            <Badge variant={period.status === "finalized" ? "default" : "outline"}>
-              {period.status === "finalized" ? "FINAL" : "DRAFT"}
+            <Badge
+              variant={period.status === "finalized" ? "secondary" : "outline"}
+              className="gap-1"
+            >
+              {period.status === "finalized" ? (
+                <Lock className="size-3" aria-hidden="true" />
+              ) : (
+                <Pencil className="size-3" aria-hidden="true" />
+              )}
+              {period.status === "finalized" ? "Final" : "Draf"}
             </Badge>
           ) : null}
           {period?.payDate ? (

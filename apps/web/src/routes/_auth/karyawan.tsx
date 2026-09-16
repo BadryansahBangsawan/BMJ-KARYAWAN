@@ -373,8 +373,14 @@ function KaryawanPage() {
                 selector={(state) => ({ isSubmitting: state.isSubmitting })}
               >
                 {({ isSubmitting }) => (
-                  <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                    <BusyLabel busy={isSubmitting}>Tambah</BusyLabel>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full"
+                    aria-busy={isSubmitting}
+                    variant={editingId === null ? undefined : "outline"}
+                  >
+                    <BusyLabel busy={isSubmitting}>Tambah karyawan</BusyLabel>
                   </Button>
                 )}
               </createForm.Subscribe>
