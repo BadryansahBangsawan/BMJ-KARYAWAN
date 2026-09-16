@@ -1,21 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// Cloudflare Workers AI binding type (minimal)
-interface CloudflareAI {
-  run(
-    model: string,
-    input: {
-      messages: Array<{
-        role: string;
-        content: Array<
-          | { type: "text"; text: string }
-          | { type: "image_url"; image_url: { url: string } }
-        >;
-      }>;
-    },
-  ): Promise<{ response?: string }>;
-}
-
 export const Route = createFileRoute("/api/extract-struk")({
   server: {
     handlers: {
@@ -35,34 +19,52 @@ export const Route = createFileRoute("/api/extract-struk")({
           return new Response("{}", { headers: { "Content-Type": "application/json" } });
         }
 
-        // Try to access Cloudflare AI binding (available in Workers runtime)
-        const ai = (globalThis as unknown as { env?: { AI?: CloudflareAI } }).env?.AI;
+        const apiKey = process.env["AI_API_KEY"];
+        const baseUrl = process.env["AI_BASE_URL"];
+        const model = process.env["AI_MODEL"] ?? "BMJ";
 
-        if (!ai) {
-          // AI binding not configured — return empty gracefully; flow continues without auto-fill
+        if (!apiKey || !baseUrl) {
+          // AI not configured — return empty gracefully; flow continues without auto-fill
           return new Response("{}", { headers: { "Content-Type": "application/json" } });
         }
 
         try {
-          const result = await ai.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-            messages: [
-              {
-                role: "user",
-                content: [
-                  {
-                    type: "image_url",
-                    image_url: { url: `data:image/jpeg;base64,${image}` },
-                  },
-                  {
-                    type: "text",
-                    text: 'Dari foto struk/nota ini, ekstrak: (1) nomor struk/nota jika ada, (2) tanggal nota dalam format YYYY-MM-DD. Jawab hanya JSON: {"nomorStruk": "...", "tanggal": "YYYY-MM-DD"}. Jika tidak ditemukan, omit field tersebut.',
-                  },
-                ],
-              },
-            ],
+          const resp = await fetch(`${baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    {
+                      type: "image_url",
+                      image_url: { url: `data:image/jpeg;base64,${image}` },
+                    },
+                    {
+                      type: "text",
+                      text: 'Dari foto struk/nota ini, ekstrak: (1) nomor struk/nota jika ada, (2) tanggal nota dalam format YYYY-MM-DD. Jawab hanya JSON: {"nomorStruk": "...", "tanggal": "YYYY-MM-DD"}. Jika tidak ditemukan, omit field tersebut.',
+                    },
+                  ],
+                },
+              ],
+              max_tokens: 256,
+            }),
           });
 
-          const text = result.response ?? "";
+          if (!resp.ok) {
+            return new Response("{}", { headers: { "Content-Type": "application/json" } });
+          }
+
+          const data = (await resp.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const text = data.choices?.[0]?.message?.content ?? "";
+
           // Pull out the first JSON object the model may have wrapped in prose/markdown
           const jsonMatch = text.match(/\{[^}]*\}/s);
           if (!jsonMatch) {
