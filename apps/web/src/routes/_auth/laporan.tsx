@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/compo
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
-import { Separator } from "@BMJ-KARYAWAN/ui/components/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@BMJ-KARYAWAN/ui/components/tabs";
 import {
   Table,
@@ -19,6 +18,7 @@ import { useMemo, useState } from "react";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -91,39 +91,21 @@ function LaporanTable({ rows }: { rows: LaporanRow[] }) {
   return (
     <ResponsiveRecords
       cards={
-        <>
+        <MobileList>
           {rows.map((row, index) => (
-            <Card key={`${row.name ?? row.employeeName ?? "row"}-${index}`}>
-              <CardHeader>
-                <CardTitle>{row.name ?? row.employeeName ?? "—"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                  <dt>Total</dt>
-                  <dd>
-                    <span className="tabular-nums">{formatIdr(row.totalAmount ?? 0)}</span>
-                  </dd>
-                  <dt>Diterima</dt>
-                  <dd>
-                    <span className="tabular-nums">{formatIdr(row.diterimaAmount ?? 0)}</span>
-                  </dd>
-                  <dt>Bagian mekanik</dt>
-                  <dd>
-                    <span className="tabular-nums">{formatIdr(row.mechanicShare ?? 0)}</span>
-                  </dd>
-                  <dt>Bagian bengkel</dt>
-                  <dd>
-                    <span className="tabular-nums">{formatIdr(row.bengkelShare ?? 0)}</span>
-                  </dd>
-                  <dt>Sisa kasbon</dt>
-                  <dd>
-                    <span className="tabular-nums">{formatIdr(row.kasbonSisa ?? 0)}</span>
-                  </dd>
-                </dl>
-              </CardContent>
-            </Card>
+            <MobileListRow
+              key={`${row.name ?? row.employeeName ?? "row"}-${index}`}
+              title={row.name ?? row.employeeName ?? "—"}
+              subtitle={`Diterima ${formatIdr(row.diterimaAmount ?? 0)} · Mekanik ${formatIdr(row.mechanicShare ?? 0)} · Bengkel ${formatIdr(row.bengkelShare ?? 0)}`}
+              trailing={<span className="tabular-nums">{formatIdr(row.totalAmount ?? 0)}</span>}
+              meta={
+                <span className="text-sm text-muted-foreground">
+                  Sisa kasbon <span className="tabular-nums">{formatIdr(row.kasbonSisa ?? 0)}</span>
+                </span>
+              }
+            />
           ))}
-        </>
+        </MobileList>
       }
       table={
         <Table>
@@ -183,7 +165,7 @@ function LaporanPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Periode</CardTitle>
@@ -200,34 +182,12 @@ function LaporanPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Pendapatan</CardTitle>
-          </CardHeader>
-          <CardContent className="text-lg">
-            <span className="tabular-nums">{formatIdr(diagram?.pendapatan ?? 0)}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Pengeluaran</CardTitle>
-          </CardHeader>
-          <CardContent className="text-lg">
-            <span className="tabular-nums">{formatIdr(diagram?.pengeluaran ?? 0)}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Bengkel</CardTitle>
-          </CardHeader>
-          <CardContent className="text-lg">
-            <span className="tabular-nums">{formatIdr(diagram?.bengkel ?? 0)}</span>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-3 gap-2">
+        <StatTile compact label="Pendapatan" value={<span className="tabular-nums">{formatIdr(diagram?.pendapatan ?? 0)}</span>} />
+        <StatTile compact label="Pengeluaran" value={<span className="tabular-nums">{formatIdr(diagram?.pengeluaran ?? 0)}</span>} />
+        <StatTile compact label="Bengkel" value={<span className="tabular-nums">{formatIdr(diagram?.bengkel ?? 0)}</span>} />
       </div>
 
-      <Separator />
 
       <Tabs defaultValue="ongkos">
         <TabsList>

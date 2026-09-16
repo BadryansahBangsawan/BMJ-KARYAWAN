@@ -20,6 +20,7 @@ import { useMemo, useState } from "react";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -133,7 +134,7 @@ function GajiPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Periode</CardTitle>
@@ -202,83 +203,68 @@ function GajiPage() {
           ) : (
             <ResponsiveRecords
               cards={
-                <>
+                <MobileList>
                   {lines.map((line) => (
-                    <Card key={line.id}>
-                      <CardHeader>
-                        <CardTitle>{line.employeeName ?? line.name ?? line.employeeId}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                          <dt>Hari</dt>
-                          <dd>{formatHari(line.daysPresent)}</dd>
-                          <dt>Tarif</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.dailyRateIdr)}</span>
-                          </dd>
-                          <dt>Gaji harian</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.dailyPayIdr)}</span>
-                          </dd>
-                          <dt>Kasbon</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.kasbonBalanceIdr)}</span>
-                          </dd>
-                          <dt>Potongan</dt>
-                          <dd>
-                            {role === "supervisor" && isDraft ? (
-                              <div className="flex min-w-40 gap-1">
-                                <Input
-                                  inputMode="numeric"
-                                  value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
-                                  onChange={(e) =>
-                                    setDraftPotongan((prev) => ({ ...prev, [line.id]: e.target.value }))
-                                  }
-                                />
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    deductionMut.mutate({
-                                      lineId: line.id,
-                                      kasbonDeductionIdr: Number(
-                                        draftPotongan[line.id] ?? line.kasbonDeductionIdr,
-                                      ),
-                                    })
-                                  }
-                                >
-                                  Simpan
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="tabular-nums">{formatIdr(line.kasbonDeductionIdr)}</span>
-                            )}
-                          </dd>
-                          <dt>Konsumsi</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.konsumsiIdr)}</span>
-                          </dd>
-                          <dt>Bonus</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.bonusIdr)}</span>
-                          </dd>
-                          <dt>Ongkos</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.jobShareIdr)}</span>
-                          </dd>
-                          <dt>Diterima</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
-                          </dd>
-                          <dt>Sisa kasbon</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(line.kasbonRemainingIdr)}</span>
-                          </dd>
-                        </dl>
-                      </CardContent>
-                    </Card>
+                    <MobileListRow
+                      key={line.id}
+                      title={line.employeeName ?? line.name ?? line.employeeId}
+                      subtitle={`${formatHari(line.daysPresent)} hari`}
+                      trailing={
+                        <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
+                      }
+                    >
+                      <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                        <dt className="text-muted-foreground">Tarif</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.dailyRateIdr)}</dd>
+                        <dt className="text-muted-foreground">Gaji harian</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.dailyPayIdr)}</dd>
+                        <dt className="text-muted-foreground">Kasbon</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.kasbonBalanceIdr)}</dd>
+                        <dt className="text-muted-foreground">Potongan</dt>
+                        <dd className="text-end">
+                          {role === "supervisor" && isDraft ? (
+                            <div className="flex justify-end gap-1">
+                              <Input
+                                inputMode="numeric"
+                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                                onChange={(e) =>
+                                  setDraftPotongan((prev) => ({
+                                    ...prev,
+                                    [line.id]: e.target.value,
+                                  }))
+                                }
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  deductionMut.mutate({
+                                    lineId: line.id,
+                                    kasbonDeductionIdr: Number(
+                                      draftPotongan[line.id] ?? line.kasbonDeductionIdr,
+                                    ),
+                                  })
+                                }
+                              >
+                                Simpan
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="tabular-nums">{formatIdr(line.kasbonDeductionIdr)}</span>
+                          )}
+                        </dd>
+                        <dt className="text-muted-foreground">Konsumsi</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.konsumsiIdr)}</dd>
+                        <dt className="text-muted-foreground">Bonus</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.bonusIdr)}</dd>
+                        <dt className="text-muted-foreground">Ongkos</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.jobShareIdr)}</dd>
+                        <dt className="text-muted-foreground">Sisa kasbon</dt>
+                        <dd className="text-end tabular-nums">{formatIdr(line.kasbonRemainingIdr)}</dd>
+                      </dl>
+                    </MobileListRow>
                   ))}
-                </>
+                </MobileList>
               }
               table={
                 <Table>

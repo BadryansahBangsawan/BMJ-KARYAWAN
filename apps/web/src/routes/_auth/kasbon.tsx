@@ -1,10 +1,9 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
-import { Separator } from "@BMJ-KARYAWAN/ui/components/separator";
 import {
   Select,
   SelectContent,
@@ -31,6 +30,7 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -204,34 +204,12 @@ function KasbonPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
-
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
       {isKasirish && summary ? (
-        <div className="grid gap-3 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>TTL</CardTitle>
-            </CardHeader>
-            <CardContent className="text-lg">
-              <span className="tabular-nums">{formatIdr(summary.ttlAmount ?? 0)}</span>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Telah dibayar</CardTitle>
-            </CardHeader>
-            <CardContent className="text-lg">
-              <span className="tabular-nums">{formatIdr(summary.ttlPaid ?? 0)}</span>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Sisa</CardTitle>
-            </CardHeader>
-            <CardContent className="text-lg">
-              <span className="tabular-nums">{formatIdr(summary.ttlSisa ?? 0)}</span>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-3 gap-2">
+          <StatTile compact label="TTL" value={<span className="tabular-nums">{formatIdr(summary.ttlAmount ?? 0)}</span>} />
+          <StatTile compact label="Dibayar" value={<span className="tabular-nums">{formatIdr(summary.ttlPaid ?? 0)}</span>} />
+          <StatTile compact label="Sisa" value={<span className="tabular-nums">{formatIdr(summary.ttlSisa ?? 0)}</span>} />
         </div>
       ) : null}
 
@@ -315,111 +293,91 @@ function KasbonPage() {
       </Card>
 
       {role === "supervisor" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Antrian persetujuan</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pending.length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyTitle>Tidak ada kasbon pending</EmptyTitle>
-                  <EmptyDescription>Pengajuan baru akan muncul di sini.</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              pending.map((row) => (
-                <Card key={row.id}>
-                  <CardContent className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="font-medium">{row.employeeName ?? row.name ?? row.employeeId}</div>
-                        <div className="text-muted-foreground text-sm">
-                          {row.keperluan} ·{" "}
-                          <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <Button size="sm" onClick={() => approveMut.mutate({ kasbonId: row.id })}>
-                          Setujui
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            setRejectId(row.id);
-                            setRejectReason("");
-                          }}
-                        >
-                          Tolak
-                        </Button>
-                      </div>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Antrian persetujuan</h2>
+          {pending.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Tidak ada kasbon pending</EmptyTitle>
+                <EmptyDescription>Pengajuan baru akan muncul di sini.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <MobileList>
+              {pending.map((row) => (
+                <MobileListRow
+                  key={row.id}
+                  title={row.employeeName ?? row.name ?? row.employeeId}
+                  subtitle={row.keperluan}
+                  trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
+                >
+                  <Button size="sm" onClick={() => approveMut.mutate({ kasbonId: row.id })}>
+                    Setujui
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      setRejectId(row.id);
+                      setRejectReason("");
+                    }}
+                  >
+                    Tolak
+                  </Button>
+                  {rejectId === row.id ? (
+                    <div className="flex w-full flex-wrap gap-3">
+                      <Input
+                        placeholder="Alasan"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={!rejectReason.trim()}
+                        onClick={() =>
+                          rejectMut.mutate({ kasbonId: row.id, reason: rejectReason.trim() })
+                        }
+                      >
+                        Kirim tolak
+                      </Button>
                     </div>
-                    {rejectId === row.id ? (
-                      <div className="flex flex-wrap gap-3">
-                        <Input
-                          placeholder="Alasan"
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                        />
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={!rejectReason.trim()}
-                          onClick={() =>
-                            rejectMut.mutate({ kasbonId: row.id, reason: rejectReason.trim() })
-                          }
-                        >
-                          Kirim tolak
-                        </Button>
-                      </div>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                  ) : null}
+                </MobileListRow>
+              ))}
+            </MobileList>
+          )}
+        </section>
       ) : null}
 
       {isKasirish ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Antrian pencairan</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {approved.length === 0 ? (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyTitle>Tidak ada kasbon siap dicairkan</EmptyTitle>
-                  <EmptyDescription>Setelah disetujui supervisor, kasbon muncul di sini.</EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              approved.map((row) => (
-                <Card key={row.id}>
-                  <CardContent className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{row.employeeName ?? row.name ?? row.employeeId}</div>
-                      <div className="text-muted-foreground text-sm">
-                        {row.keperluan} ·{" "}
-                        <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      <Button size="sm" onClick={() => disburseMut.mutate({ kasbonId: row.id })}>
-                        Cairkan
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </CardContent>
-        </Card>
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Antrian pencairan</h2>
+          {approved.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Tidak ada kasbon siap dicairkan</EmptyTitle>
+                <EmptyDescription>Setelah disetujui supervisor, kasbon muncul di sini.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <MobileList>
+              {approved.map((row) => (
+                <MobileListRow
+                  key={row.id}
+                  title={row.employeeName ?? row.name ?? row.employeeId}
+                  subtitle={row.keperluan}
+                  trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
+                >
+                  <Button size="sm" onClick={() => disburseMut.mutate({ kasbonId: row.id })}>
+                    Cairkan
+                  </Button>
+                </MobileListRow>
+              ))}
+            </MobileList>
+          )}
+        </section>
       ) : null}
-
-      <Separator />
 
       <Card>
         <CardHeader>
@@ -467,78 +425,70 @@ function KasbonPage() {
           ) : (
             <ResponsiveRecords
               cards={
-                <>
+                <MobileList>
                   {visible.map((row) => {
                     const paid = row.paidIdr ?? 0;
                     const sisa = row.sisaIdr ?? Math.max(0, row.amountIdr - paid);
                     return (
-                      <Card key={row.id}>
-                        <CardHeader>
-                          <CardTitle>{row.employeeName ?? row.name ?? "—"}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                            <dt>Keperluan</dt>
-                            <dd>
+                      <MobileListRow
+                        key={row.id}
+                        title={row.employeeName ?? row.name ?? "—"}
+                        subtitle={
+                          row.rejectedReason ? (
+                            <>
                               {row.keperluan}
-                              {row.rejectedReason ? (
-                                <div className="text-destructive text-xs">{row.rejectedReason}</div>
-                              ) : null}
-                            </dd>
-                            <dt>Jumlah</dt>
-                            <dd>
-                              <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
-                            </dd>
-                            <dt>Telah dibayar</dt>
-                            <dd>
-                              <span className="tabular-nums">{formatIdr(paid)}</span>
-                            </dd>
-                            <dt>Sisa</dt>
-                            <dd>
-                              <span className="tabular-nums">{formatIdr(sisa)}</span>
-                            </dd>
-                            <dt>Status</dt>
-                            <dd>
-                              <Badge variant={row.status === "lunas" ? "default" : "outline"}>
-                                {STATUS_LABEL[row.status] ?? row.status.toUpperCase()}
-                              </Badge>
-                            </dd>
-                          </dl>
-                        </CardContent>
+                              <span className="block text-destructive">{row.rejectedReason}</span>
+                            </>
+                          ) : (
+                            row.keperluan
+                          )
+                        }
+                        trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
+                        meta={
+                          <>
+                            <Badge variant={row.status === "lunas" ? "default" : "outline"}>
+                              {STATUS_LABEL[row.status] ?? row.status.toUpperCase()}
+                            </Badge>
+                            <span className="text-sm text-muted-foreground">
+                              Dibayar <span className="tabular-nums">{formatIdr(paid)}</span>
+                              {" · "}
+                              Sisa <span className="tabular-nums">{formatIdr(sisa)}</span>
+                            </span>
+                          </>
+                        }
+                      >
                         {isKasirish && row.status === "disbursed" ? (
-                          <CardFooter className="flex flex-wrap gap-3">
-                            {payId === row.id ? (
-                              <div className="flex flex-wrap gap-3">
-                                <Input
-                                  inputMode="numeric"
-                                  value={payAmount}
-                                  onChange={(e) => setPayAmount(e.target.value)}
-                                  placeholder="IDR"
-                                />
-                                <Button
-                                  size="sm"
-                                  disabled={!(Number(payAmount) > 0)}
-                                  onClick={() =>
-                                    payMut.mutate({
-                                      kasbonId: row.id,
-                                      amountIdr: Number(payAmount),
-                                    })
-                                  }
-                                >
-                                  Bayar
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button size="sm" variant="outline" onClick={() => setPayId(row.id)}>
+                          payId === row.id ? (
+                            <>
+                              <Input
+                                inputMode="numeric"
+                                value={payAmount}
+                                onChange={(e) => setPayAmount(e.target.value)}
+                                placeholder="IDR"
+                              />
+                              <Button
+                                size="sm"
+                                disabled={!(Number(payAmount) > 0)}
+                                onClick={() =>
+                                  payMut.mutate({
+                                    kasbonId: row.id,
+                                    amountIdr: Number(payAmount),
+                                  })
+                                }
+                              >
                                 Bayar
                               </Button>
-                            )}
-                          </CardFooter>
+                            </>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => setPayId(row.id)}>
+                              Bayar
+                            </Button>
+                          )
                         ) : null}
-                      </Card>
+                      </MobileListRow>
                     );
                   })}
-                </>
+                </MobileList>
               }
               table={
                 <Table>

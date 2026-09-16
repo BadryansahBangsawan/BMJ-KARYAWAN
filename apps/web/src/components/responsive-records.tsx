@@ -9,7 +9,7 @@ export function ResponsiveRecords({
 }) {
   return (
     <>
-      <div className="flex flex-col gap-3 md:hidden">{cards}</div>
+      <div className="md:hidden">{cards}</div>
       <div className="hidden overflow-x-auto md:block">{table}</div>
     </>
   );

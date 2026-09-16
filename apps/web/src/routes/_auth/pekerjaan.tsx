@@ -1,6 +1,6 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
@@ -30,6 +30,7 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -219,7 +220,7 @@ function PekerjaanPage() {
   const canCreate = role === "mekanik" || role === "supervisor";
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
 
       {canCreate ? (
         <Card>
@@ -468,77 +469,58 @@ function PekerjaanPage() {
           ) : (
             <ResponsiveRecords
               cards={
-                <>
+                <MobileList>
                   {jobs.map((job) => (
-                    <Card key={job.id}>
-                      <CardHeader>
-                        <CardTitle>
-                          {job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                          <dt>Tanggal</dt>
-                          <dd>{job.workDate}</dd>
-                          <dt>Pekerjaan</dt>
-                          <dd>
-                            <div>{job.description}</div>
-                            {job.customerNote ? (
-                              <div className="text-muted-foreground">{job.customerNote}</div>
-                            ) : null}
-                          </dd>
-                          <dt>Jenis</dt>
-                          <dd>
-                            {job.kind === "persenan"
-                              ? `Persenan${job.bengkelPercent != null ? ` ${job.bengkelPercent}%` : ""}`
-                              : "Ongkos"}
-                          </dd>
-                          <dt>Ongkos</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(job.amountIdr)}</span>
-                          </dd>
-                          <dt>Struk</dt>
-                          <dd>{job.struk ?? "—"}</dd>
-                          <dt>Status</dt>
-                          <dd>
-                            <Badge variant={statusVariant(job.status)}>
-                              {STATUS_LABEL[job.status] ?? job.status.toUpperCase()}
-                            </Badge>
-                          </dd>
-                        </dl>
-                      </CardContent>
-                      <CardFooter className="flex flex-wrap gap-3">
-                        {role === "mekanik" && job.status === "proses" ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => statusMut.mutate({ id: job.id, status: "selesai" })}
-                          >
-                            Selesai
-                          </Button>
-                        ) : null}
-                        {(role === "kasir" || role === "supervisor") &&
-                        (job.status === "proses" || job.status === "selesai") ? (
-                          <Button
-                            size="sm"
-                            onClick={() => statusMut.mutate({ id: job.id, status: "diterima" })}
-                          >
-                            Diterima
-                          </Button>
-                        ) : null}
-                        {role === "supervisor" && job.status !== "batal" ? (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => statusMut.mutate({ id: job.id, status: "batal" })}
-                          >
-                            Batal
-                          </Button>
-                        ) : null}
-                      </CardFooter>
-                    </Card>
+                    <MobileListRow
+                      key={job.id}
+                      title={job.description}
+                      subtitle={`${job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"} · ${job.workDate} · ${
+                        job.kind === "persenan"
+                          ? `Persenan${job.bengkelPercent != null ? ` ${job.bengkelPercent}%` : ""}`
+                          : "Ongkos"
+                      }${job.struk ? ` · ${job.struk}` : ""}`}
+                      trailing={<span className="tabular-nums">{formatIdr(job.amountIdr)}</span>}
+                      meta={
+                        <>
+                          <Badge variant={statusVariant(job.status)}>
+                            {STATUS_LABEL[job.status] ?? job.status.toUpperCase()}
+                          </Badge>
+                          {job.customerNote ? (
+                            <span className="text-sm text-muted-foreground">{job.customerNote}</span>
+                          ) : null}
+                        </>
+                      }
+                    >
+                      {role === "mekanik" && job.status === "proses" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => statusMut.mutate({ id: job.id, status: "selesai" })}
+                        >
+                          Selesai
+                        </Button>
+                      ) : null}
+                      {(role === "kasir" || role === "supervisor") &&
+                      (job.status === "proses" || job.status === "selesai") ? (
+                        <Button
+                          size="sm"
+                          onClick={() => statusMut.mutate({ id: job.id, status: "diterima" })}
+                        >
+                          Diterima
+                        </Button>
+                      ) : null}
+                      {role === "supervisor" && job.status !== "batal" ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => statusMut.mutate({ id: job.id, status: "batal" })}
+                        >
+                          Batal
+                        </Button>
+                      ) : null}
+                    </MobileListRow>
                   ))}
-                </>
+                </MobileList>
               }
               table={
                 <Table>

@@ -138,7 +138,7 @@ function AbsenPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Isi absen bulan ini</CardTitle>

@@ -29,6 +29,7 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -137,38 +138,12 @@ function TokoPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
-
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Transaksi {kali} Kali</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Tunai</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <span className="tabular-nums">{formatIdr(tunai)}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Non Tunai</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <span className="tabular-nums">{formatIdr(nonTunai)}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Panjar</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <span className="tabular-nums">{formatIdr(panjar)}</span>
-          </CardContent>
-        </Card>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <StatTile compact label={`Transaksi`} value={`${kali}×`} />
+        <StatTile compact label="Tunai" value={<span className="tabular-nums">{formatIdr(tunai)}</span>} />
+        <StatTile compact label="Non tunai" value={<span className="tabular-nums">{formatIdr(nonTunai)}</span>} />
+        <StatTile compact label="Panjar" value={<span className="tabular-nums">{formatIdr(panjar)}</span>} />
       </div>
 
       <Card>
@@ -265,29 +240,19 @@ function TokoPage() {
           ) : (
             <ResponsiveRecords
               cards={
-                <>
+                <MobileList>
                   {rows.map((row) => (
-                    <Card key={row.id}>
-                      <CardHeader>
-                        <CardTitle>{row.seq}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                          <dt>Jenis</dt>
-                          <dd>
-                            <Badge variant="outline">{KIND_LABEL[row.kind] ?? row.kind}</Badge>
-                          </dd>
-                          <dt>Jumlah</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
-                          </dd>
-                          <dt>Catatan</dt>
-                          <dd>{row.note ?? "—"}</dd>
-                        </dl>
-                      </CardContent>
-                    </Card>
+                    <MobileListRow
+                      key={row.id}
+                      title={KIND_LABEL[row.kind] ?? row.kind}
+                      subtitle={row.note ?? `No ${row.seq}`}
+                      trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
+                      meta={
+                        <span className="text-sm text-muted-foreground">No {row.seq}</span>
+                      }
+                    />
                   ))}
-                </>
+                </MobileList>
               }
               table={
                 <Table>

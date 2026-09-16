@@ -1,10 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import z from "zod";
 
-import { useTRPC } from "@/utils/trpc";
+import { StatTile } from "@/components/mobile-list";
 import { sessionRole } from "@/lib/session-role";
+import { useTRPC } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_auth/dashboard")({
   component: RouteComponent,
@@ -145,62 +145,32 @@ function RouteComponent() {
   const pendingKasbonCount = kasbonRows.filter((row) => row.status === "pending").length;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 pt-4">
       <p className="text-pretty text-muted-foreground">Halo, {session?.user.name}</p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sisa kasbon</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
-            <span className="tabular-nums">Rp {formatIdr(ownSisa)}</span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Pekerjaan berjalan</CardTitle>
-          </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
-            {inProgressCount}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-2 gap-2">
+        <StatTile
+          label="Sisa kasbon"
+          value={<span className="tabular-nums">Rp {formatIdr(ownSisa)}</span>}
+        />
+        <StatTile label="Pekerjaan berjalan" value={inProgressCount} />
       </div>
 
       {isStaff ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Kasbon menunggu</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
-              {pendingKasbonCount}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Pendapatan</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
-              <span className="tabular-nums">Rp {formatIdr(diagramData.pendapatan)}</span>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Pengeluaran</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
-              <span className="tabular-nums">Rp {formatIdr(diagramData.pengeluaran)}</span>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Bengkel</CardTitle>
-            </CardHeader>
-            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
-              <span className="tabular-nums">Rp {formatIdr(diagramData.bengkel)}</span>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-2">
+          <StatTile label="Kasbon menunggu" value={pendingKasbonCount} />
+          <StatTile
+            label="Pendapatan"
+            value={<span className="tabular-nums">Rp {formatIdr(diagramData.pendapatan)}</span>}
+          />
+          <StatTile
+            label="Pengeluaran"
+            value={<span className="tabular-nums">Rp {formatIdr(diagramData.pengeluaran)}</span>}
+          />
+          <StatTile
+            label="Bengkel"
+            value={<span className="tabular-nums">Rp {formatIdr(diagramData.bengkel)}</span>}
+          />
         </div>
       ) : null}
     </div>

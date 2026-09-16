@@ -1,6 +1,6 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
@@ -31,6 +31,7 @@ import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
+import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { ResponsiveRecords } from "@/components/responsive-records";
 
 
@@ -205,7 +206,7 @@ function KaryawanPage() {
   if (role !== "supervisor") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button
           variant="outline"
@@ -399,44 +400,30 @@ function KaryawanPage() {
           ) : (
             <ResponsiveRecords
               cards={
-                <>
+                <MobileList>
                   {rows.map((row) => (
-                    <Card key={row.id}>
-                      <CardHeader>
-                        <CardTitle>{row.name}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                          <dt>Peran</dt>
-                          <dd>
-                            <Badge variant="outline">{row.role}</Badge>
-                          </dd>
-                          <dt>Tarif</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(row.dailyRateIdr)}</span>
-                          </dd>
-                          <dt>Konsumsi</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(row.konsumsiMonthlyIdr)}</span>
-                          </dd>
-                          <dt>Bonus</dt>
-                          <dd>
-                            <span className="tabular-nums">{formatIdr(row.bonusIdr)}</span>
-                          </dd>
-                          <dt>Status</dt>
-                          <dd>
-                            {row.active === false || row.active === 0 ? "Nonaktif" : "Aktif"}
-                          </dd>
-                        </dl>
-                      </CardContent>
-                      <CardFooter className="flex flex-wrap gap-3">
-                        <Button size="sm" variant="outline" onClick={() => startEdit(row)}>
-                          Ubah
-                        </Button>
-                      </CardFooter>
-                    </Card>
+                    <MobileListRow
+                      key={row.id}
+                      title={row.name}
+                      subtitle={row.active === false || row.active === 0 ? "Nonaktif" : "Aktif"}
+                      trailing={<span className="tabular-nums">{formatIdr(row.dailyRateIdr)}</span>}
+                      meta={
+                        <>
+                          <Badge variant="outline">{row.role}</Badge>
+                          <span className="text-sm text-muted-foreground">
+                            Konsumsi <span className="tabular-nums">{formatIdr(row.konsumsiMonthlyIdr)}</span>
+                            {" · "}
+                            Bonus <span className="tabular-nums">{formatIdr(row.bonusIdr)}</span>
+                          </span>
+                        </>
+                      }
+                    >
+                      <Button size="sm" variant="outline" onClick={() => startEdit(row)}>
+                        Ubah
+                      </Button>
+                    </MobileListRow>
                   ))}
-                </>
+                </MobileList>
               }
               table={
                 <Table>
