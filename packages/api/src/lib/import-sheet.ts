@@ -445,6 +445,54 @@ function collectKasbon(
 	return { kasbons, payments };
 }
 
+/**
+ * Attempt to extract a year and 1-based month number from the rows that
+ * appear above the "ABS TGL" header row.  The ABSEN sheet typically has a
+ * title such as "ABSEN KARYAWAN BULAN SEPTEMBER 2026" somewhere in those
+ * rows.  We scan every cell for an Indonesian month name (or common
+ * abbreviations) followed by — or preceded by — a four-digit year.
+ */
+const INDONESIAN_MONTHS: Record<string, number> = {
+	januari: 1, jan: 1,
+	februari: 2, feb: 2,
+	maret: 3, mar: 3,
+	april: 4, apr: 4,
+	mei: 5,
+	juni: 6, jun: 6,
+	juli: 7, jul: 7,
+	agustus: 8, agu: 8, agst: 8,
+	september: 9, sep: 9, sept: 9,
+	oktober: 10, okt: 10,
+	november: 11, nov: 11,
+	desember: 12, des: 12,
+};
+
+function detectAbsenYearMonth(rows: string[][], headerIdx: number): { year: number; month: number } | null {
+	for (let r = 0; r < headerIdx; r++) {
+		for (const raw of rows[r]!) {
+			const text = raw.trim().toLowerCase();
+			// Try "bulan <month> <year>" or just "<month> <year>" or "<year> <month>"
+			const yearMatch = text.match(/\b(20\d{2})\b/);
+			if (!yearMatch) continue;
+			const year = Number(yearMatch[1]);
+			for (const [monthName, monthNum] of Object.entries(INDONESIAN_MONTHS)) {
+				if (text.includes(monthName)) {
+					return { year, month: monthNum };
+				}
+			}
+			// Fallback: numeric month "MM/YYYY" or "YYYY/MM" patterns
+			const numeric = text.match(/\b(0?[1-9]|1[0-2])\/(20\d{2})\b/) ??
+				text.match(/\b(20\d{2})\/(0?[1-9]|1[0-2])\b/);
+			if (numeric) {
+				const [, a, b] = numeric;
+				const [mo, yr] = Number(a) > 12 ? [Number(b), Number(a)] : [Number(a), Number(b)];
+				return { year: yr, month: mo };
+			}
+		}
+	}
+	return null;
+}
+
 function collectAttendance(
 	csv: string,
 	resolve: (name: string) => string | null,
@@ -455,6 +503,14 @@ function collectAttendance(
 		cell(r, 0).toLowerCase().includes("abs tgl"),
 	);
 	if (headerIdx < 0) return [];
+
+	// Determine the year/month from the sheet's title rows; fall back to the
+	// current UTC month so that a missing header never silently misdates rows.
+	const detected = detectAbsenYearMonth(rows, headerIdx);
+	const now = new Date();
+	const year = detected?.year ?? now.getUTCFullYear();
+	const month = detected?.month ?? (now.getUTCMonth() + 1);
+
 	const header = rows[headerIdx]!;
 	const colEmp: Array<string | null> = header.map((h, i) => {
 		if (i === 0) return null;
@@ -468,12 +524,13 @@ function collectAttendance(
 		workDate: string;
 		value: number;
 	}> = [];
+	const ym = `${year}-${String(month).padStart(2, "0")}`;
 	for (const row of rows.slice(headerIdx + 1)) {
 		const dayRaw = cell(row, 0);
 		if (!/^\d{1,2}$/.test(dayRaw)) continue;
 		const day = Number(dayRaw);
 		if (day < 1 || day > 31) continue;
-		const workDate = `2026-09-${String(day).padStart(2, "0")}`;
+		const workDate = `${ym}-${String(day).padStart(2, "0")}`;
 		for (let i = 1; i < row.length; i++) {
 			const employeeId = colEmp[i];
 			if (!employeeId) continue;
