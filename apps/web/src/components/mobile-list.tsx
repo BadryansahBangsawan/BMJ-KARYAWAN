@@ -25,7 +25,12 @@ export function MobileListRow({
     <li className="px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium leading-snug">{title}</div>
+          <div
+            className="break-word font-medium leading-[1.1]"
+            title={typeof title === "string" ? title : undefined}
+          >
+            {title}
+          </div>
           {subtitle ? (
             <div className="mt-0.5 text-pretty text-sm text-muted-foreground">{subtitle}</div>
           ) : null}

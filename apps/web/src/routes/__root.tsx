@@ -31,7 +31,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         name: "theme-color",
-        content: "#007bb6",
+        content: "#0079b5",
       },
     ],
     links: [
@@ -56,7 +56,7 @@ function RootDocument() {
       <body>
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-md focus:bg-background focus:px-3 focus:py-2"
+          className="sr-only focus-visible:not-sr-only focus-visible:absolute focus-visible:z-50 focus-visible:m-2 focus-visible:rounded-md focus-visible:bg-background focus-visible:px-3 focus-visible:py-2"
         >
           Lewat ke konten
         </a>

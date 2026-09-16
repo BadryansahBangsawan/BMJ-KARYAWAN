@@ -34,6 +34,7 @@ export default function UserMenu() {
       <DropdownMenuTrigger
         render={<Button variant="ghost" className="max-w-40 truncate" />}
         aria-label="Akun"
+        title={session.user.name}
       >
         {session.user.name}
       </DropdownMenuTrigger>
@@ -41,6 +42,7 @@ export default function UserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Akun</DropdownMenuLabel>
           <DropdownMenuSeparator />
+          <DropdownMenuItem className="whitespace-normal">{session.user.name}</DropdownMenuItem>
           <DropdownMenuItem>{session.user.email}</DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"

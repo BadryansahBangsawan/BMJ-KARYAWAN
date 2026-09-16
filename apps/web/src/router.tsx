@@ -16,7 +16,7 @@ function createQueryClient() {
       onError: (error, query) => {
         toast.error(error.message, {
           action: {
-            label: "retry",
+            label: "Coba lagi",
             onClick: () => {
               query.invalidate();
             },
@@ -70,7 +70,7 @@ export const getRouter = () => {
     defaultPreloadStaleTime: 0,
     context: { trpc, queryClient },
     defaultPendingComponent: () => <Loader />,
-    defaultNotFoundComponent: () => <div>Not Found</div>,
+    defaultNotFoundComponent: () => <div>Halaman tidak ditemukan</div>,
     Wrap: ({ children }) => (
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         {children}

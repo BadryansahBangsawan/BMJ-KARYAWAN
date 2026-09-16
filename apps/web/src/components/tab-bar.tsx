@@ -19,7 +19,7 @@ const TAB_ICONS = {
 } as const;
 
 const TAB_CONTROL =
-  "flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-xs font-medium leading-tight text-muted-foreground";
+  "flex min-h-12 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1 pt-1 text-center text-xs font-medium leading-tight break-words text-muted-foreground";
 
 const TAB_ACTIVE = "font-semibold text-primary";
 
@@ -65,7 +65,7 @@ export function TabBar() {
   return (
     <nav
       aria-label="Menu utama"
-      className={`app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-[20px] backdrop-saturate-150 ${
+      className={`app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-background/80 ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] backdrop-blur-[20px] backdrop-saturate-150 ${
         tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"
       }`}
     >
