@@ -42,12 +42,12 @@ export default function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" className="max-w-[7.5rem] truncate" />}
+        render={<Button variant="ghost" className="max-w-[7.5rem] justify-start overflow-hidden" />}
         aria-label="Akun"
         title={session.user.name}
         className={className}
       >
-        {session.user.name}
+        <span className="truncate">{session.user.name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="bg-card" align={align} side={side}>
         <DropdownMenuGroup>
