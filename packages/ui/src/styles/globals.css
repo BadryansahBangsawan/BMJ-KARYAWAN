@@ -45,7 +45,7 @@
   --card-foreground: var(--neutral-950);
   --popover: var(--neutral-50);
   --popover-foreground: var(--neutral-950);
-  --primary: var(--sky-600);
+  --primary: oklch(0.545 0.136 237.323);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: var(--neutral-100);
   --secondary-foreground: var(--neutral-900);
@@ -53,12 +53,12 @@
   --muted-foreground: oklch(0.54 0.016 237.323);
   --accent: var(--neutral-100);
   --accent-foreground: var(--neutral-900);
-  --destructive: oklch(0.57 0.22 27);
+  --destructive: oklch(0.52 0.22 27);
   --success: oklch(0.48 0.14 145);
   --success-foreground: oklch(0.985 0 0);
   --border: var(--neutral-200);
   --input: var(--neutral-200);
-  --ring: var(--sky-600);
+  --ring: oklch(0.545 0.136 237.323);
   --chart-1: var(--sky-400);
   --chart-2: var(--sky-600);
   --chart-3: var(--success);
@@ -67,12 +67,12 @@
   --radius: 0.625rem;
   --sidebar: var(--neutral-50);
   --sidebar-foreground: var(--neutral-950);
-  --sidebar-primary: var(--sky-600);
+  --sidebar-primary: oklch(0.545 0.136 237.323);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: var(--neutral-100);
   --sidebar-accent-foreground: var(--neutral-900);
   --sidebar-border: var(--neutral-200);
-  --sidebar-ring: var(--sky-600);
+  --sidebar-ring: oklch(0.545 0.136 237.323);
   --shadow-border:
     0px 0px 0px 1px oklch(0 0 0 / 0.06),
     0px 1px 2px -1px oklch(0 0 0 / 0.06),
@@ -122,7 +122,7 @@
   --muted-foreground: var(--neutral-400);
   --accent: var(--neutral-800);
   --accent-foreground: var(--neutral-50);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: oklch(0.85 0.16 22.216);
   --success: oklch(0.78 0.105 145);
   --success-foreground: oklch(0.25 0.04 145);
   --border: var(--neutral-800);
@@ -193,7 +193,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background font-sans text-foreground antialiased touch-manipulation;
