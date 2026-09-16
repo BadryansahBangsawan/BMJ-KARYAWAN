@@ -11,6 +11,27 @@ import {
   supervisorProcedure,
 } from "../index";
 
+// ---------------------------------------------------------------------------
+// Workshop location — update these coordinates to match the real workshop.
+// Radius is in metres; 150m gives reasonable tolerance for GPS drift.
+// ---------------------------------------------------------------------------
+const WORKSHOP_LAT = -2.5489;   // example: replace with actual latitude
+const WORKSHOP_LNG = 140.7172;  // example: replace with actual longitude
+const CHECKIN_RADIUS_M = 150;
+
+/** Haversine distance in metres between two WGS-84 coordinates. */
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6_371_000; // Earth radius in metres
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dPhi / 2) ** 2 +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 type Role = "supervisor" | "kasir" | "mekanik";
 
 function sessionRole(role: string | null | undefined): Role {
@@ -64,6 +85,80 @@ async function employeeByUserId(db: Database, userId: string) {
 }
 
 export const attendanceRouter = router({
+  // ---------------------------------------------------------------------------
+  // selfCheckin — any authenticated employee may call this.
+  // The client sends its GPS coordinates; we validate the distance server-side
+  // so that spoofing the UI alone is not enough.
+  // ---------------------------------------------------------------------------
+  selfCheckin: protectedProcedure
+    .input(
+      z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Reject Sundays (same rule as supervisor `set`)
+      if (isSundayJayapura(input.workDate)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Hari Minggu tidak bisa absen",
+        });
+      }
+
+      // Server-side distance check — client-side check is UX only
+      const distM = haversineM(input.lat, input.lng, WORKSHOP_LAT, WORKSHOP_LNG);
+      if (distM > CHECKIN_RADIUS_M) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Lokasi terlalu jauh dari bengkel (${Math.round(distM)} m). Absen hanya bisa dilakukan di bengkel.`,
+        });
+      }
+
+      // Look up the employee row linked to this user
+      const me = await employeeByUserId(ctx.db, ctx.session.user.id);
+      if (!me) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Data karyawan tidak ditemukan. Hubungi supervisor.",
+        });
+      }
+
+      // Upsert attendance = 100 (hadir)
+      const existing = await ctx.db
+        .select()
+        .from(attendance)
+        .where(
+          and(
+            eq(attendance.employeeId, me.id),
+            eq(attendance.workDate, input.workDate),
+          ),
+        )
+        .limit(1);
+
+      if (existing[0]) {
+        const updated = await ctx.db
+          .update(attendance)
+          .set({ value: 100, markedByUserId: ctx.session.user.id })
+          .where(eq(attendance.id, existing[0].id))
+          .returning();
+        return updated[0]!;
+      }
+
+      const inserted = await ctx.db
+        .insert(attendance)
+        .values({
+          id: crypto.randomUUID(),
+          employeeId: me.id,
+          workDate: input.workDate,
+          value: 100,
+          markedByUserId: ctx.session.user.id,
+        })
+        .returning();
+      return inserted[0]!;
+    }),
+
   month: protectedProcedure
     .input(
       z.object({

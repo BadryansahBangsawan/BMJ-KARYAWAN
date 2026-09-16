@@ -1,8 +1,14 @@
 import type { UserRole } from "./session-role";
 
 export type AppPath =
-  | "/dashboard" | "/kasbon" | "/pekerjaan" | "/gaji"
-  | "/toko" | "/absen" | "/laporan" | "/karyawan";
+  | "/dashboard"
+  | "/kasbon"
+  | "/pekerjaan"
+  | "/gaji"
+  | "/toko"
+  | "/absen"
+  | "/laporan"
+  | "/karyawan";
 
 export const PAGE_TITLE: Record<AppPath, string> = {
   "/dashboard": "Dasbor",
@@ -15,7 +21,30 @@ export const PAGE_TITLE: Record<AppPath, string> = {
   "/karyawan": "Karyawan",
 };
 
-export type TabItem = { to: AppPath; label: string; icon: "dasbor" | "kasbon" | "pekerjaan" | "gaji" | "toko" | "more" };
+export const PAGE_DESCRIPTION: Record<AppPath, string> = {
+  "/dashboard": "Lihat yang perlu dikerjakan hari ini, lalu pilih aksi berikutnya.",
+  "/kasbon": "Ajukan, setujui, cairkan, dan catat pembayaran kasbon.",
+  "/pekerjaan": "Catat ongkos, ubah status, dan pantau pekerjaan bengkel.",
+  "/gaji": "Hitung slip, atur potongan kasbon, lalu kunci periode.",
+  "/toko": "Catat transaksi tunai, non tunai, dan panjar.",
+  "/absen": "Absen mandiri berbasis GPS untuk karyawan; supervisor isi kehadiran manual.",
+  "/laporan": "Ringkasan pendapatan, pengeluaran, dan bagian bengkel.",
+  "/karyawan": "Tambah, ubah, dan impor data karyawan.",
+};
+
+export type NavIcon =
+  | "dasbor"
+  | "kasbon"
+  | "pekerjaan"
+  | "gaji"
+  | "toko"
+  | "absen"
+  | "laporan"
+  | "karyawan"
+  | "more";
+
+export type NavItem = { to: AppPath; label: string; icon: NavIcon };
+export type TabItem = NavItem;
 
 export function tabsForRole(role: UserRole): TabItem[] {
   if (role === "mekanik") {
@@ -23,6 +52,7 @@ export function tabsForRole(role: UserRole): TabItem[] {
       { to: "/dashboard", label: "Dasbor", icon: "dasbor" },
       { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
+      { to: "/absen", label: "Absen", icon: "absen" },
       { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
   }
@@ -31,6 +61,35 @@ export function tabsForRole(role: UserRole): TabItem[] {
       { to: "/dashboard", label: "Dasbor", icon: "dasbor" },
       { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
+      { to: "/absen", label: "Absen", icon: "absen" },
+      { to: "/toko", label: "Toko", icon: "toko" },
+    ];
+  }
+  return [
+    { to: "/dashboard", label: "Dasbor", icon: "dasbor" },
+    { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
+    { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
+    { to: "/gaji", label: "Gaji", icon: "gaji" },
+    { to: "/absen", label: "Lainnya", icon: "more" },
+  ];
+}
+
+export function navForRole(role: UserRole): NavItem[] {
+  if (role === "mekanik") {
+    return [
+      { to: "/dashboard", label: "Dasbor", icon: "dasbor" },
+      { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
+      { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
+      { to: "/absen", label: "Absen", icon: "absen" },
+      { to: "/gaji", label: "Gaji", icon: "gaji" },
+    ];
+  }
+  if (role === "kasir") {
+    return [
+      { to: "/dashboard", label: "Dasbor", icon: "dasbor" },
+      { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
+      { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
+      { to: "/absen", label: "Absen", icon: "absen" },
       { to: "/toko", label: "Toko", icon: "toko" },
       { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
@@ -40,7 +99,10 @@ export function tabsForRole(role: UserRole): TabItem[] {
     { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
     { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
     { to: "/gaji", label: "Gaji", icon: "gaji" },
-    { to: "/absen", label: "Lainnya", icon: "more" },
+    { to: "/absen", label: "Absen", icon: "absen" },
+    { to: "/toko", label: "Toko", icon: "toko" },
+    { to: "/laporan", label: "Laporan", icon: "laporan" },
+    { to: "/karyawan", label: "Karyawan", icon: "karyawan" },
   ];
 }
 
