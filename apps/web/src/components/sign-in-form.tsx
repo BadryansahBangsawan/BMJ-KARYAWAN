@@ -56,8 +56,8 @@ export default function SignInForm() {
   }
 
   return (
-    <div className="mx-auto mt-10 w-full max-w-md p-6">
-      <h1 className="mb-6 text-center text-3xl font-bold">Masuk</h1>
+    <div className="mx-auto flex min-h-svh w-full max-w-md flex-col justify-center px-4 py-8">
+      <h1 className="mb-6 text-center text-3xl font-bold text-balance tracking-tight">Masuk</h1>
 
       <form
         onSubmit={(e) => {
@@ -76,12 +76,16 @@ export default function SignInForm() {
                   id={field.name}
                   name={field.name}
                   type="email"
+                  autoComplete="email"
+                  inputMode="email"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={field.state.meta.errors.length > 0 ? "email-error" : undefined}
                 />
                 {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} className="text-red-500">
+                  <p key={error?.message} id="email-error" className="text-sm text-destructive">
                     {error?.message}
                   </p>
                 ))}
@@ -99,12 +103,17 @@ export default function SignInForm() {
                   id={field.name}
                   name={field.name}
                   type="password"
+                  autoComplete="current-password"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={
+                    field.state.meta.errors.length > 0 ? "password-error" : undefined
+                  }
                 />
                 {field.state.meta.errors.map((error) => (
-                  <p key={error?.message} className="text-red-500">
+                  <p key={error?.message} id="password-error" className="text-sm text-destructive">
                     {error?.message}
                   </p>
                 ))}
@@ -113,11 +122,9 @@ export default function SignInForm() {
           </form.Field>
         </div>
 
-        <form.Subscribe
-          selector={(state) => ({ canSubmit: state.canSubmit, isSubmitting: state.isSubmitting })}
-        >
-          {({ canSubmit, isSubmitting }) => (
-            <Button type="submit" className="w-full" disabled={!canSubmit || isSubmitting}>
+        <form.Subscribe selector={(state) => ({ isSubmitting: state.isSubmitting })}>
+          {({ isSubmitting }) => (
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "Memproses..." : "Masuk"}
             </Button>
           )}

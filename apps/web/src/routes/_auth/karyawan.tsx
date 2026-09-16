@@ -1,6 +1,6 @@
 import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
@@ -30,6 +30,8 @@ import z from "zod";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { ResponsiveRecords } from "@/components/responsive-records";
+
 
 type Role = "supervisor" | "kasir" | "mekanik";
 
@@ -202,9 +204,8 @@ function KaryawanPage() {
   if (role !== "supervisor") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Karyawan</h1>
         <Button
           variant="outline"
           disabled={importMut.isPending}
@@ -223,7 +224,7 @@ function KaryawanPage() {
             {ttlSisa != null ? (
               <p>
                 Sisa kasbon (ttlSisa):{" "}
-                <span className="font-medium">
+                <span className="font-medium tabular-nums">
                   {typeof ttlSisa === "number" ? formatIdr(ttlSisa) : String(ttlSisa)}
                 </span>
               </p>
@@ -373,7 +374,7 @@ function KaryawanPage() {
                 })}
               >
                 {({ canSubmit, isSubmitting }) => (
-                  <Button type="submit" disabled={!canSubmit || isSubmitting}>
+                  <Button type="submit" disabled={!canSubmit || isSubmitting} className="w-full">
                     {isSubmitting ? "Menyimpan..." : "Tambah"}
                   </Button>
                 )}
@@ -398,40 +399,90 @@ function KaryawanPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Peran</TableHead>
-                  <TableHead>Tarif</TableHead>
-                  <TableHead>Konsumsi</TableHead>
-                  <TableHead>Bonus</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{row.role}</Badge>
-                    </TableCell>
-                    <TableCell>{formatIdr(row.dailyRateIdr)}</TableCell>
-                    <TableCell>{formatIdr(row.konsumsiMonthlyIdr)}</TableCell>
-                    <TableCell>{formatIdr(row.bonusIdr)}</TableCell>
-                    <TableCell>
-                      {row.active === false || row.active === 0 ? "Nonaktif" : "Aktif"}
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="outline" onClick={() => startEdit(row)}>
-                        Ubah
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ResponsiveRecords
+              cards={
+                <>
+                  {rows.map((row) => (
+                    <Card key={row.id}>
+                      <CardHeader>
+                        <CardTitle>{row.name}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                          <dt>Peran</dt>
+                          <dd>
+                            <Badge variant="outline">{row.role}</Badge>
+                          </dd>
+                          <dt>Tarif</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(row.dailyRateIdr)}</span>
+                          </dd>
+                          <dt>Konsumsi</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(row.konsumsiMonthlyIdr)}</span>
+                          </dd>
+                          <dt>Bonus</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(row.bonusIdr)}</span>
+                          </dd>
+                          <dt>Status</dt>
+                          <dd>
+                            {row.active === false || row.active === 0 ? "Nonaktif" : "Aktif"}
+                          </dd>
+                        </dl>
+                      </CardContent>
+                      <CardFooter className="flex flex-wrap gap-3">
+                        <Button size="sm" variant="outline" onClick={() => startEdit(row)}>
+                          Ubah
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </>
+              }
+              table={
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nama</TableHead>
+                      <TableHead>Peran</TableHead>
+                      <TableHead>Tarif</TableHead>
+                      <TableHead>Konsumsi</TableHead>
+                      <TableHead>Bonus</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{row.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(row.dailyRateIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(row.konsumsiMonthlyIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(row.bonusIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          {row.active === false || row.active === 0 ? "Nonaktif" : "Aktif"}
+                        </TableCell>
+                        <TableCell>
+                          <Button size="sm" variant="outline" onClick={() => startEdit(row)}>
+                            Ubah
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              }
+            />
           )}
 
           {editingId ? (
@@ -557,9 +608,11 @@ function KaryawanPage() {
                   </div>
                 )}
               </editForm.Field>
-              <div className="flex gap-2 md:col-span-2">
-                <Button type="submit">Simpan perubahan</Button>
-                <Button type="button" variant="outline" onClick={() => setEditingId(null)}>
+              <div className="flex flex-wrap gap-3 md:col-span-2">
+                <Button type="submit" className="w-full">
+                  Simpan perubahan
+                </Button>
+                <Button type="button" variant="outline" className="w-full" onClick={() => setEditingId(null)}>
                   Batal
                 </Button>
               </div>

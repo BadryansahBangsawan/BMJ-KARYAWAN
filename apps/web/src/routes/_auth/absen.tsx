@@ -138,8 +138,7 @@ function AbsenPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-4 p-4">
-      <h1 className="text-xl font-semibold">Absen</h1>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Isi absen bulan ini</CardTitle>
@@ -174,9 +173,9 @@ function AbsenPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky left-0 bg-background">Nama</TableHead>
+                  <TableHead className="sticky left-0 min-w-28 bg-card">Nama</TableHead>
                   {days.map((d) => (
-                    <TableHead key={d.date} className="min-w-10 text-center">
+                    <TableHead key={d.date} className="min-w-11 text-center">
                       {d.day}
                     </TableHead>
                   ))}
@@ -185,7 +184,7 @@ function AbsenPage() {
               <TableBody>
                 {employees.map((employee) => (
                   <TableRow key={employee.id}>
-                    <TableCell className="sticky left-0 bg-background font-medium">
+                    <TableCell className="sticky left-0 min-w-28 bg-card font-medium">
                       {employee.name}
                     </TableCell>
                     {days.map((d) => {
@@ -194,9 +193,8 @@ function AbsenPage() {
                         <TableCell key={d.date} className="p-1 text-center">
                           <Button
                             type="button"
-                            size="xs"
                             variant={value == null ? "ghost" : "outline"}
-                            className="w-full"
+                            className="min-h-11 min-w-11 w-full px-0 text-sm tabular-nums"
                             onClick={() => cycle(employee.id, d.date)}
                           >
                             {cellLabel(value) || "·"}

@@ -19,6 +19,8 @@ import { useMemo, useState } from "react";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { ResponsiveRecords } from "@/components/responsive-records";
+
 
 type Role = "supervisor" | "kasir" | "mekanik";
 
@@ -87,30 +89,79 @@ function LaporanTable({ rows }: { rows: LaporanRow[] }) {
     );
   }
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Nama</TableHead>
-          <TableHead>Total</TableHead>
-          <TableHead>Diterima</TableHead>
-          <TableHead>Bagian mekanik</TableHead>
-          <TableHead>Bagian bengkel</TableHead>
-          <TableHead>Sisa kasbon</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map((row, index) => (
-          <TableRow key={`${row.name ?? row.employeeName ?? "row"}-${index}`}>
-            <TableCell>{row.name ?? row.employeeName ?? "—"}</TableCell>
-            <TableCell>{formatIdr(row.totalAmount ?? 0)}</TableCell>
-            <TableCell>{formatIdr(row.diterimaAmount ?? 0)}</TableCell>
-            <TableCell>{formatIdr(row.mechanicShare ?? 0)}</TableCell>
-            <TableCell>{formatIdr(row.bengkelShare ?? 0)}</TableCell>
-            <TableCell>{formatIdr(row.kasbonSisa ?? 0)}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <ResponsiveRecords
+      cards={
+        <>
+          {rows.map((row, index) => (
+            <Card key={`${row.name ?? row.employeeName ?? "row"}-${index}`}>
+              <CardHeader>
+                <CardTitle>{row.name ?? row.employeeName ?? "—"}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dt>Total</dt>
+                  <dd>
+                    <span className="tabular-nums">{formatIdr(row.totalAmount ?? 0)}</span>
+                  </dd>
+                  <dt>Diterima</dt>
+                  <dd>
+                    <span className="tabular-nums">{formatIdr(row.diterimaAmount ?? 0)}</span>
+                  </dd>
+                  <dt>Bagian mekanik</dt>
+                  <dd>
+                    <span className="tabular-nums">{formatIdr(row.mechanicShare ?? 0)}</span>
+                  </dd>
+                  <dt>Bagian bengkel</dt>
+                  <dd>
+                    <span className="tabular-nums">{formatIdr(row.bengkelShare ?? 0)}</span>
+                  </dd>
+                  <dt>Sisa kasbon</dt>
+                  <dd>
+                    <span className="tabular-nums">{formatIdr(row.kasbonSisa ?? 0)}</span>
+                  </dd>
+                </dl>
+              </CardContent>
+            </Card>
+          ))}
+        </>
+      }
+      table={
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nama</TableHead>
+              <TableHead>Total</TableHead>
+              <TableHead>Diterima</TableHead>
+              <TableHead>Bagian mekanik</TableHead>
+              <TableHead>Bagian bengkel</TableHead>
+              <TableHead>Sisa kasbon</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, index) => (
+              <TableRow key={`${row.name ?? row.employeeName ?? "row"}-${index}`}>
+                <TableCell>{row.name ?? row.employeeName ?? "—"}</TableCell>
+                <TableCell>
+                  <span className="tabular-nums">{formatIdr(row.totalAmount ?? 0)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="tabular-nums">{formatIdr(row.diterimaAmount ?? 0)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="tabular-nums">{formatIdr(row.mechanicShare ?? 0)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="tabular-nums">{formatIdr(row.bengkelShare ?? 0)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="tabular-nums">{formatIdr(row.kasbonSisa ?? 0)}</span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      }
+    />
   );
 }
 
@@ -132,8 +183,7 @@ function LaporanPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-      <h1 className="text-xl font-semibold">Laporan</h1>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Periode</CardTitle>
@@ -155,19 +205,25 @@ function LaporanPage() {
           <CardHeader>
             <CardTitle>Pendapatan</CardTitle>
           </CardHeader>
-          <CardContent className="text-lg">{formatIdr(diagram?.pendapatan ?? 0)}</CardContent>
+          <CardContent className="text-lg">
+            <span className="tabular-nums">{formatIdr(diagram?.pendapatan ?? 0)}</span>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Pengeluaran</CardTitle>
           </CardHeader>
-          <CardContent className="text-lg">{formatIdr(diagram?.pengeluaran ?? 0)}</CardContent>
+          <CardContent className="text-lg">
+            <span className="tabular-nums">{formatIdr(diagram?.pengeluaran ?? 0)}</span>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Bengkel</CardTitle>
           </CardHeader>
-          <CardContent className="text-lg">{formatIdr(diagram?.bengkel ?? 0)}</CardContent>
+          <CardContent className="text-lg">
+            <span className="tabular-nums">{formatIdr(diagram?.bengkel ?? 0)}</span>
+          </CardContent>
         </Card>
       </div>
 

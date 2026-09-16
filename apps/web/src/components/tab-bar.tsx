@@ -1,0 +1,93 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@BMJ-KARYAWAN/ui/components/dropdown-menu";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Banknote, Ellipsis, LayoutDashboard, Store, Wallet, Wrench } from "lucide-react";
+import { MORE_LINKS, tabsForRole } from "@/lib/app-nav";
+import { authClient } from "@/lib/auth-client";
+import { sessionRole } from "@/lib/session-role";
+
+const TAB_ICONS = {
+  dasbor: LayoutDashboard,
+  kasbon: Wallet,
+  pekerjaan: Wrench,
+  gaji: Banknote,
+  toko: Store,
+} as const;
+
+const TAB_CONTROL =
+  "flex min-h-11 flex-col items-center justify-center gap-0.5 px-1 pt-1 text-[11px] leading-none tracking-wide text-muted-foreground motion-safe:active:scale-[0.96]";
+
+const TAB_ACTIVE = "font-semibold text-foreground";
+
+const MORE_PATHS: Record<string, true> = {
+  "/absen": true,
+  "/laporan": true,
+  "/toko": true,
+  "/karyawan": true,
+};
+
+function MoreTab({ active }: { active: boolean }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<button type="button" />}
+        className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
+      >
+        <Ellipsis className={active ? "size-5 fill-current" : "size-5"} />
+        Lainnya
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="end" className="origin-bottom-right">
+        {MORE_LINKS.map((link) => (
+          <DropdownMenuItem key={link.to} render={<Link to={link.to} />}>
+            {link.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function TabBar() {
+  const { data: session } = authClient.useSession();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  if (!session) {
+    return null;
+  }
+
+  const tabs = tabsForRole(sessionRole(session.user));
+
+  return (
+    <nav
+      aria-label="Menu utama"
+      className={`app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-white/10 bg-background/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-[20px] backdrop-saturate-150 dark:border-white/10 ${
+        tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"
+      }`}
+    >
+      {tabs.map((item) => {
+        if (item.icon === "more") {
+          return <MoreTab key="more" active={MORE_PATHS[pathname] === true} />;
+        }
+
+        const active = pathname === item.to;
+        const Icon = TAB_ICONS[item.icon];
+        return (
+          <Link
+            key={item.to}
+            to={item.to}
+            activeOptions={{ exact: true }}
+            className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
+            activeProps={{ className: TAB_ACTIVE }}
+          >
+            <Icon className={active ? "size-5 fill-current" : "size-5"} />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

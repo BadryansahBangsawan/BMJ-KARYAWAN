@@ -7,6 +7,8 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
 import Header from "../components/header";
+import { TabBar } from "../components/tab-bar";
+import { authClient } from "../lib/auth-client";
 
 import appCss from "../index.css?url";
 export interface RouterAppContext {
@@ -22,10 +24,14 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1",
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
       {
         title: "BMJ Karyawan",
+      },
+      {
+        name: "theme-color",
+        content: "#1c1c1c",
       },
     ],
     links: [
@@ -40,19 +46,34 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+  const { data: session } = authClient.useSession();
+
   return (
     <html lang="id" className="dark">
       <head>
         <HeadContent />
       </head>
       <body>
-        <div className="grid h-svh grid-rows-[auto_1fr]">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-md focus:bg-background focus:px-3 focus:py-2"
+        >
+          Lewat ke konten
+        </a>
+        <div className="min-h-svh bg-background">
           <Header />
-          <Outlet />
+          <main id="main" className={session ? "pb-[calc(3.5rem+env(safe-area-inset-bottom))]" : undefined}>
+            <Outlet />
+          </main>
+          <TabBar />
         </div>
         <Toaster richColors />
-        <TanStackRouterDevtools position="bottom-left" />
-        <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        <div className="hidden md:block">
+          <TanStackRouterDevtools position="bottom-left" />
+        </div>
+        <div className="hidden md:block">
+          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+        </div>
         <Scripts />
       </body>
     </html>

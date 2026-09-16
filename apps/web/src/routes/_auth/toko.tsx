@@ -28,6 +28,8 @@ import z from "zod";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { ResponsiveRecords } from "@/components/responsive-records";
+
 
 type Role = "supervisor" | "kasir" | "mekanik";
 
@@ -134,8 +136,7 @@ function TokoPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-      <h1 className="text-xl font-semibold">Toko</h1>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
 
       <div className="grid gap-3 md:grid-cols-4">
         <Card>
@@ -147,19 +148,25 @@ function TokoPage() {
           <CardHeader>
             <CardTitle>Tunai</CardTitle>
           </CardHeader>
-          <CardContent>{formatIdr(tunai)}</CardContent>
+          <CardContent>
+            <span className="tabular-nums">{formatIdr(tunai)}</span>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Non Tunai</CardTitle>
           </CardHeader>
-          <CardContent>{formatIdr(nonTunai)}</CardContent>
+          <CardContent>
+            <span className="tabular-nums">{formatIdr(nonTunai)}</span>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Panjar</CardTitle>
           </CardHeader>
-          <CardContent>{formatIdr(panjar)}</CardContent>
+          <CardContent>
+            <span className="tabular-nums">{formatIdr(panjar)}</span>
+          </CardContent>
         </Card>
       </div>
 
@@ -235,7 +242,7 @@ function TokoPage() {
                 })}
               >
                 {({ canSubmit, isSubmitting }) => (
-                  <Button type="submit" disabled={!canSubmit || isSubmitting}>
+                  <Button type="submit" disabled={!canSubmit || isSubmitting} className="w-full">
                     {isSubmitting ? "Menyimpan..." : "Simpan"}
                   </Button>
                 )}
@@ -258,28 +265,59 @@ function TokoPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No</TableHead>
-                  <TableHead>Jenis</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Catatan</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.seq}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{KIND_LABEL[row.kind] ?? row.kind}</Badge>
-                    </TableCell>
-                    <TableCell>{formatIdr(row.amountIdr)}</TableCell>
-                    <TableCell>{row.note ?? "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ResponsiveRecords
+              cards={
+                <>
+                  {rows.map((row) => (
+                    <Card key={row.id}>
+                      <CardHeader>
+                        <CardTitle>{row.seq}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                          <dt>Jenis</dt>
+                          <dd>
+                            <Badge variant="outline">{KIND_LABEL[row.kind] ?? row.kind}</Badge>
+                          </dd>
+                          <dt>Jumlah</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
+                          </dd>
+                          <dt>Catatan</dt>
+                          <dd>{row.note ?? "—"}</dd>
+                        </dl>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              }
+              table={
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>No</TableHead>
+                      <TableHead>Jenis</TableHead>
+                      <TableHead>Jumlah</TableHead>
+                      <TableHead>Catatan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell>{row.seq}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{KIND_LABEL[row.kind] ?? row.kind}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
+                        </TableCell>
+                        <TableCell>{row.note ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              }
+            />
           )}
         </CardContent>
       </Card>

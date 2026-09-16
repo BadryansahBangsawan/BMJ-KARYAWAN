@@ -20,6 +20,8 @@ import { useMemo, useState } from "react";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
+import { ResponsiveRecords } from "@/components/responsive-records";
+
 
 type Role = "supervisor" | "kasir" | "mekanik";
 
@@ -131,8 +133,7 @@ function GajiPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
-      <h1 className="text-xl font-semibold">Gaji</h1>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 pt-4">
       <Card>
         <CardHeader>
           <CardTitle>Periode</CardTitle>
@@ -199,68 +200,167 @@ function GajiPage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Hari</TableHead>
-                  <TableHead>Tarif</TableHead>
-                  <TableHead>Gaji harian</TableHead>
-                  <TableHead>Kasbon</TableHead>
-                  <TableHead>Potongan</TableHead>
-                  <TableHead>Konsumsi</TableHead>
-                  <TableHead>Bonus</TableHead>
-                  <TableHead>Ongkos</TableHead>
-                  <TableHead>Diterima</TableHead>
-                  <TableHead>Sisa kasbon</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lines.map((line) => (
-                  <TableRow key={line.id}>
-                    <TableCell>{line.employeeName ?? line.name ?? line.employeeId}</TableCell>
-                    <TableCell>{formatHari(line.daysPresent)}</TableCell>
-                    <TableCell>{formatIdr(line.dailyRateIdr)}</TableCell>
-                    <TableCell>{formatIdr(line.dailyPayIdr)}</TableCell>
-                    <TableCell>{formatIdr(line.kasbonBalanceIdr)}</TableCell>
-                    <TableCell>
-                      {role === "supervisor" && isDraft ? (
-                        <div className="flex min-w-40 gap-1">
-                          <Input
-                            inputMode="numeric"
-                            value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
-                            onChange={(e) =>
-                              setDraftPotongan((prev) => ({ ...prev, [line.id]: e.target.value }))
-                            }
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              deductionMut.mutate({
-                                lineId: line.id,
-                                kasbonDeductionIdr: Number(
-                                  draftPotongan[line.id] ?? line.kasbonDeductionIdr,
-                                ),
-                              })
-                            }
-                          >
-                            Simpan
-                          </Button>
-                        </div>
-                      ) : (
-                        formatIdr(line.kasbonDeductionIdr)
-                      )}
-                    </TableCell>
-                    <TableCell>{formatIdr(line.konsumsiIdr)}</TableCell>
-                    <TableCell>{formatIdr(line.bonusIdr)}</TableCell>
-                    <TableCell>{formatIdr(line.jobShareIdr)}</TableCell>
-                    <TableCell>{formatIdr(line.takeHomeIdr)}</TableCell>
-                    <TableCell>{formatIdr(line.kasbonRemainingIdr)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ResponsiveRecords
+              cards={
+                <>
+                  {lines.map((line) => (
+                    <Card key={line.id}>
+                      <CardHeader>
+                        <CardTitle>{line.employeeName ?? line.name ?? line.employeeId}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                          <dt>Hari</dt>
+                          <dd>{formatHari(line.daysPresent)}</dd>
+                          <dt>Tarif</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.dailyRateIdr)}</span>
+                          </dd>
+                          <dt>Gaji harian</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.dailyPayIdr)}</span>
+                          </dd>
+                          <dt>Kasbon</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.kasbonBalanceIdr)}</span>
+                          </dd>
+                          <dt>Potongan</dt>
+                          <dd>
+                            {role === "supervisor" && isDraft ? (
+                              <div className="flex min-w-40 gap-1">
+                                <Input
+                                  inputMode="numeric"
+                                  value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                                  onChange={(e) =>
+                                    setDraftPotongan((prev) => ({ ...prev, [line.id]: e.target.value }))
+                                  }
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    deductionMut.mutate({
+                                      lineId: line.id,
+                                      kasbonDeductionIdr: Number(
+                                        draftPotongan[line.id] ?? line.kasbonDeductionIdr,
+                                      ),
+                                    })
+                                  }
+                                >
+                                  Simpan
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="tabular-nums">{formatIdr(line.kasbonDeductionIdr)}</span>
+                            )}
+                          </dd>
+                          <dt>Konsumsi</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.konsumsiIdr)}</span>
+                          </dd>
+                          <dt>Bonus</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.bonusIdr)}</span>
+                          </dd>
+                          <dt>Ongkos</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.jobShareIdr)}</span>
+                          </dd>
+                          <dt>Diterima</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
+                          </dd>
+                          <dt>Sisa kasbon</dt>
+                          <dd>
+                            <span className="tabular-nums">{formatIdr(line.kasbonRemainingIdr)}</span>
+                          </dd>
+                        </dl>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              }
+              table={
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nama</TableHead>
+                      <TableHead>Hari</TableHead>
+                      <TableHead>Tarif</TableHead>
+                      <TableHead>Gaji harian</TableHead>
+                      <TableHead>Kasbon</TableHead>
+                      <TableHead>Potongan</TableHead>
+                      <TableHead>Konsumsi</TableHead>
+                      <TableHead>Bonus</TableHead>
+                      <TableHead>Ongkos</TableHead>
+                      <TableHead>Diterima</TableHead>
+                      <TableHead>Sisa kasbon</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lines.map((line) => (
+                      <TableRow key={line.id}>
+                        <TableCell>{line.employeeName ?? line.name ?? line.employeeId}</TableCell>
+                        <TableCell>{formatHari(line.daysPresent)}</TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.dailyRateIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.dailyPayIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.kasbonBalanceIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          {role === "supervisor" && isDraft ? (
+                            <div className="flex min-w-40 gap-1">
+                              <Input
+                                inputMode="numeric"
+                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                                onChange={(e) =>
+                                  setDraftPotongan((prev) => ({ ...prev, [line.id]: e.target.value }))
+                                }
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  deductionMut.mutate({
+                                    lineId: line.id,
+                                    kasbonDeductionIdr: Number(
+                                      draftPotongan[line.id] ?? line.kasbonDeductionIdr,
+                                    ),
+                                  })
+                                }
+                              >
+                                Simpan
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="tabular-nums">{formatIdr(line.kasbonDeductionIdr)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.konsumsiIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.bonusIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.jobShareIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="tabular-nums">{formatIdr(line.kasbonRemainingIdr)}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              }
+            />
           )}
           <p className="text-muted-foreground text-sm">
             Bonus diberikan jika hadir minimal 20 hari dan alpa &lt; 5 hari.

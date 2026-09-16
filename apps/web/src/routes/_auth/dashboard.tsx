@@ -4,12 +4,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import z from "zod";
 
 import { useTRPC } from "@/utils/trpc";
+import { sessionRole } from "@/lib/session-role";
 
 export const Route = createFileRoute("/_auth/dashboard")({
   component: RouteComponent,
 });
 
-type UserRole = "supervisor" | "kasir" | "mekanik";
 
 const employeeMeSchema = z.object({ id: z.string() }).nullable();
 
@@ -34,12 +34,6 @@ const diagramSchema = z.object({
   bengkel: z.number(),
 });
 
-function sessionRole(user: { role?: string } | undefined): UserRole {
-  if (user?.role === "supervisor" || user?.role === "kasir") {
-    return user.role;
-  }
-  return "mekanik";
-}
 
 function formatIdr(n: number) {
   return n.toLocaleString("id-ID");
@@ -151,22 +145,25 @@ function RouteComponent() {
   const pendingKasbonCount = kasbonRows.filter((row) => row.status === "pending").length;
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-6">
-      <h1 className="mb-1 text-2xl font-medium">Dasbor</h1>
-      <p className="mb-6 text-muted-foreground">Halo, {session?.user.name}</p>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-4">
+      <p className="text-pretty text-muted-foreground">Halo, {session?.user.name}</p>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Sisa kasbon</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-medium">Rp {formatIdr(ownSisa)}</CardContent>
+          <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
+            <span className="tabular-nums">Rp {formatIdr(ownSisa)}</span>
+          </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Pekerjaan berjalan</CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-medium">{inProgressCount}</CardContent>
+          <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
+            {inProgressCount}
+          </CardContent>
         </Card>
       </div>
 
@@ -176,30 +173,32 @@ function RouteComponent() {
             <CardHeader>
               <CardTitle>Kasbon menunggu</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-medium">{pendingKasbonCount}</CardContent>
+            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
+              {pendingKasbonCount}
+            </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle>Pendapatan</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-medium">
-              Rp {formatIdr(diagramData.pendapatan)}
+            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
+              <span className="tabular-nums">Rp {formatIdr(diagramData.pendapatan)}</span>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle>Pengeluaran</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-medium">
-              Rp {formatIdr(diagramData.pengeluaran)}
+            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
+              <span className="tabular-nums">Rp {formatIdr(diagramData.pengeluaran)}</span>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle>Bengkel</CardTitle>
             </CardHeader>
-            <CardContent className="text-2xl font-medium">
-              Rp {formatIdr(diagramData.bengkel)}
+            <CardContent className="text-3xl font-semibold tracking-tight tabular-nums leading-none">
+              <span className="tabular-nums">Rp {formatIdr(diagramData.bengkel)}</span>
             </CardContent>
           </Card>
         </div>
