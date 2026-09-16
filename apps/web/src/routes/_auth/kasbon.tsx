@@ -1,7 +1,4 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
-import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
   Select,
@@ -10,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@BMJ-KARYAWAN/ui/components/select";
+import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
 import {
   Table,
   TableBody,
@@ -28,26 +26,23 @@ import z from "zod";
 
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
+import { PAGE_DESCRIPTION } from "@/lib/app-nav";
+import { formatRp } from "@/lib/format";
+import { sessionRole, roleLabel } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
-import { BusyLabel } from "@/components/busy-label";
 import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import { ClearFiltersButton, FilterBar, FilterChips } from "@/components/filter-bar";
+import { FormDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
-import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
+import { MetricCard } from "@/components/metric-card";
+import { MobileList, MobileListRow } from "@/components/mobile-list";
+import { MoneyField } from "@/components/money-field";
+import { PageHeader } from "@/components/page-header";
+import { PageShell } from "@/components/page-shell";
 import { ResponsiveRecords } from "@/components/responsive-records";
+import { SectionHeader } from "@/components/section-header";
+import { PageError, StatePanel } from "@/components/state-panel";
 import { StatusBadge } from "@/components/status-badge";
-
-
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function userRole(user: { role?: string | null } | null | undefined): Role {
-  const role = user?.role;
-  if (role === "supervisor" || role === "kasir" || role === "mekanik") return role;
-  return "mekanik";
-}
-
-function formatIdr(n: number) {
-  return n.toLocaleString("id-ID");
-}
 
 type KasbonRow = {
   id: string;
@@ -63,9 +58,10 @@ type KasbonRow = {
 };
 
 type EmployeeRow = { id: string; name: string };
+type StatusFilter = "" | "pending" | "approved" | "rejected" | "disbursed" | "lunas";
 
 export const KASBON_STATUS = {
-  pending: { label: "Menunggu", icon: Clock, tone: "neutral" },
+  pending: { label: "Menunggu", icon: Clock, tone: "warning" },
   approved: { label: "Disetujui", icon: Check, tone: "neutral" },
   rejected: { label: "Ditolak", icon: X, tone: "danger" },
   disbursed: { label: "Dicairkan", icon: HandCoins, tone: "neutral" },
@@ -87,11 +83,10 @@ function KasbonPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
-  const role = userRole(session?.user);
+  const role = sessionRole(session?.user);
   const isKasirish = role === "kasir" || role === "supervisor";
-  const [statusFilter, setStatusFilter] = useState<
-    "" | "pending" | "approved" | "rejected" | "disbursed" | "lunas"
-  >("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
+  const [createOpen, setCreateOpen] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [payId, setPayId] = useState<string | null>(null);
@@ -128,6 +123,7 @@ function KasbonPage() {
     trpc.kasbon.create.mutationOptions({
       onSuccess: async () => {
         toast.success("Kasbon diajukan");
+        setCreateOpen(false);
         await invalidate();
       },
       onError: (error) => toast.error(error.message),
@@ -202,420 +198,435 @@ function KasbonPage() {
 
   const pending = rows.filter((row) => row.status === "pending");
   const approved = rows.filter((row) => row.status === "approved");
-  const visible = statusFilter
-    ? rows
-    : rows.filter((row) =>
-        ["pending", "approved", "disbursed", "lunas"].includes(row.status),
-      );
-
-  function focusAjukan() {
-    document.getElementById("keperluan")?.focus();
-  }
+  const visible = rows;
+  const rejectRow = rows.find((row) => row.id === rejectId);
+  const payRow = rows.find((row) => row.id === payId);
+  const paySisa = payRow
+    ? (payRow.sisaIdr ?? Math.max(0, payRow.amountIdr - (payRow.paidIdr ?? 0)))
+    : 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
+    <PageShell>
+      <PageHeader
+        title="Kasbon"
+        description={PAGE_DESCRIPTION["/kasbon"]}
+        actions={
+          <Button type="button" onClick={() => setCreateOpen(true)}>
+            Ajukan kasbon
+          </Button>
+        }
+      />
+
       {isKasirish && summary ? (
-        <div className="grid grid-cols-3 gap-2">
-          <StatTile compact label="Total" value={<span className="tabular-nums">{formatIdr(summary.ttlAmount ?? 0)}</span>} />
-          <StatTile compact label="Dibayar" value={<span className="tabular-nums">{formatIdr(summary.ttlPaid ?? 0)}</span>} />
-          <StatTile compact label="Sisa" value={<span className="tabular-nums">{formatIdr(summary.ttlSisa ?? 0)}</span>} />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <MetricCard label="Total kasbon" value={formatRp(summary.ttlAmount ?? 0)} />
+          <MetricCard label="Telah dibayar" value={formatRp(summary.ttlPaid ?? 0)} />
+          <MetricCard label="Sisa" value={formatRp(summary.ttlSisa ?? 0)} />
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Ajukan kasbon</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void form.handleSubmit();
-              focusFirstInvalid();
-            }}
-            className="grid gap-3 md:grid-cols-2"
-          >
-            {role === "supervisor" ? (
-              <form.Field name="employeeId">
-                {(field) => (
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor={field.name}>Karyawan</Label>
-                    <Select
-                      value={field.state.value || null}
-                      onValueChange={(value) => field.handleChange(value ?? "")}
+      {listQuery.isError ? (
+        <PageError onRetry={() => void listQuery.refetch()} />
+      ) : (
+        <>
+          {role === "supervisor" ? (
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Antrian persetujuan" count={pending.length} />
+              {listQuery.isPending ? (
+                <Loader />
+              ) : pending.length === 0 ? (
+                <StatePanel
+                  title="Tidak ada kasbon menunggu"
+                  description="Pengajuan baru muncul di antrian ini."
+                  action={
+                    <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}>
+                      Ajukan kasbon
+                    </Button>
+                  }
+                />
+              ) : (
+                <MobileList>
+                  {pending.map((row) => (
+                    <MobileListRow
+                      key={row.id}
+                      title={row.employeeName ?? row.name ?? row.employeeId}
+                      subtitle={row.keperluan}
+                      trailing={formatRp(row.amountIdr)}
                     >
-                      <SelectTrigger id={field.name} className="w-full">
-                        <SelectValue placeholder="Diri sendiri / pilih karyawan" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((row) => (
-                          <SelectItem key={row.id} value={row.id}>
-                            {row.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </form.Field>
-            ) : null}
-            <form.Field name="keperluan">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>Keperluan</Label>
-                  <Input
-                    id={field.name}
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    aria-invalid={field.state.meta.errors.length > 0}
-                    aria-describedby={fieldDescribedBy("keperluan-error", field.state.meta.errors)}
-                  />
-                  <FieldError id="keperluan-error" errors={field.state.meta.errors} />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="amountIdr">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>Jumlah</Label>
-                  <Input
-                    id={field.name}
-                    inputMode="numeric"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="50000"
-                    aria-invalid={field.state.meta.errors.length > 0}
-                    aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
-                  />
-                  <FieldError id="amount-error" errors={field.state.meta.errors} />
-                </div>
-              )}
-            </form.Field>
-            <div className="md:col-span-2">
-              <form.Subscribe
-                selector={(state) => ({ isSubmitting: state.isSubmitting })}
-              >
-                {({ isSubmitting }) => (
-                  <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                    <BusyLabel busy={isSubmitting}>Ajukan kasbon</BusyLabel>
-                  </Button>
-                )}
-              </form.Subscribe>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {role === "supervisor" ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Antrian persetujuan</h2>
-          {listQuery.isPending ? (
-            <Loader />
-          ) : pending.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Tidak ada kasbon menunggu</EmptyTitle>
-                <EmptyDescription>Pengajuan baru muncul di antrian ini.</EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button type="button" variant="outline" onClick={focusAjukan}>
-                  Ajukan kasbon
-                </Button>
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <MobileList>
-              {pending.map((row) => (
-                <MobileListRow
-                  key={row.id}
-                  title={row.employeeName ?? row.name ?? row.employeeId}
-                  subtitle={row.keperluan}
-                  trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
-                >
-                  <Button size="sm" variant="outline" onClick={() => approveMut.mutate({ kasbonId: row.id })}>
-                    Setujui
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      setRejectId(row.id);
-                      setRejectReason("");
-                    }}
-                  >
-                    Tolak kasbon
-                  </Button>
-                  {rejectId === row.id ? (
-                    <div className="flex w-full flex-wrap gap-3">
-                      <div className="w-full space-y-2">
-                        <Label htmlFor={`reject-reason-${row.id}`}>Alasan</Label>
-                        <Input
-                          id={`reject-reason-${row.id}`}
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder="Mis. stok belum lunas"
-                        />
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => approveMut.mutate({ kasbonId: row.id })}
+                      >
+                        Setujui
+                      </Button>
                       <Button
                         size="sm"
                         variant="destructive"
-                        disabled={!rejectReason.trim()}
-                        onClick={() =>
-                          rejectMut.mutate({ kasbonId: row.id, reason: rejectReason.trim() })
-                        }
+                        onClick={() => {
+                          setRejectId(row.id);
+                          setRejectReason("");
+                        }}
                       >
                         Tolak kasbon
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setRejectId(null)}>
-                        Batal
-                      </Button>
-                    </div>
-                  ) : null}
-                </MobileListRow>
-              ))}
-            </MobileList>
-          )}
-        </section>
-      ) : null}
-
-      {isKasirish ? (
-        <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Antrian pencairan</h2>
-          {listQuery.isPending ? (
-            <Loader />
-          ) : approved.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Tidak ada kasbon siap dicairkan</EmptyTitle>
-                <EmptyDescription>Setelah disetujui supervisor, kasbon muncul di sini.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <MobileList>
-              {approved.map((row) => (
-                <MobileListRow
-                  key={row.id}
-                  title={row.employeeName ?? row.name ?? row.employeeId}
-                  subtitle={row.keperluan}
-                  trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
-                >
-                  <Button size="sm" variant="outline" onClick={() => disburseMut.mutate({ kasbonId: row.id })}>
-                    Cairkan
-                  </Button>
-                </MobileListRow>
-              ))}
-            </MobileList>
-          )}
-        </section>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Daftar kasbon</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isKasirish ? (
-            <div className="max-w-xs space-y-2">
-              <Label htmlFor="kasbon-status">Status</Label>
-              <Select
-                value={statusFilter || null}
-                onValueChange={(value) =>
-                  setStatusFilter(
-                    (value ?? "") as
-                      | ""
-                      | "pending"
-                      | "approved"
-                      | "rejected"
-                      | "disbursed"
-                      | "lunas",
-                  )
-                }
-              >
-                <SelectTrigger id="kasbon-status" className="w-full">
-                  <SelectValue placeholder="Semua" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Menunggu</SelectItem>
-                  <SelectItem value="approved">Disetujui</SelectItem>
-                  <SelectItem value="rejected">Ditolak</SelectItem>
-                  <SelectItem value="disbursed">Dicairkan</SelectItem>
-                  <SelectItem value="lunas">Lunas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                    </MobileListRow>
+                  ))}
+                </MobileList>
+              )}
+            </section>
           ) : null}
 
-          {listQuery.isPending ? (
-            <Loader />
-          ) : visible.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Belum ada kasbon</EmptyTitle>
-                <EmptyDescription>Ajukan kasbon baru dari formulir di atas.</EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button type="button" variant="outline" onClick={focusAjukan}>
-                  Ajukan kasbon
-                </Button>
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <ResponsiveRecords
-              cards={
+          {isKasirish ? (
+            <section className="flex flex-col gap-3">
+              <SectionHeader title="Antrian pencairan" count={approved.length} />
+              {listQuery.isPending ? (
+                <Loader />
+              ) : approved.length === 0 ? (
+                <StatePanel
+                  title="Tidak ada kasbon siap dicairkan"
+                  description="Setelah disetujui supervisor, kasbon muncul di sini."
+                />
+              ) : (
                 <MobileList>
-                  {visible.map((row) => {
-                    const paid = row.paidIdr ?? 0;
-                    const sisa = row.sisaIdr ?? Math.max(0, row.amountIdr - paid);
-                    return (
-                      <MobileListRow
-                        key={row.id}
-                        title={row.employeeName ?? row.name ?? "—"}
-                        subtitle={
-                          row.rejectedReason ? (
-                            <>
-                              {row.keperluan}
-                              <span className="block text-destructive">{row.rejectedReason}</span>
-                            </>
-                          ) : (
-                            row.keperluan
-                          )
-                        }
-                        trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
-                        meta={
-                          <>
-                            <StatusBadge {...(KASBON_STATUS[row.status as keyof typeof KASBON_STATUS] ?? { label: row.status, icon: Clock, tone: "neutral" })} />
-                            <span className="text-sm text-muted-foreground">
-                              Dibayar <span className="tabular-nums">{formatIdr(paid)}</span>
-                              {" · "}
-                              Sisa <span className="tabular-nums">{formatIdr(sisa)}</span>
-                            </span>
-                          </>
-                        }
+                  {approved.map((row) => (
+                    <MobileListRow
+                      key={row.id}
+                      title={row.employeeName ?? row.name ?? row.employeeId}
+                      subtitle={row.keperluan}
+                      trailing={formatRp(row.amountIdr)}
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => disburseMut.mutate({ kasbonId: row.id })}
                       >
-                        {isKasirish && row.status === "disbursed" ? (
-                          payId === row.id ? (
-                            <>
-                              <div className="w-full space-y-2">
-                                <Label htmlFor={`pay-${row.id}`}>Jumlah</Label>
-                                <Input
-                                  id={`pay-${row.id}`}
-                                  inputMode="numeric"
-                                  value={payAmount}
-                                  onChange={(e) => setPayAmount(e.target.value)}
-                                  placeholder="50000"
-                                />
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={!(Number(payAmount) > 0)}
-                                onClick={() =>
-                                  payMut.mutate({
-                                    kasbonId: row.id,
-                                    amountIdr: Number(payAmount),
-                                  })
-                                }
-                              >
-                                Bayar
-                              </Button>
-                            </>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => setPayId(row.id)}>
-                              Bayar
-                            </Button>
-                          )
-                        ) : null}
-                      </MobileListRow>
-                    );
-                  })}
+                        Cairkan
+                      </Button>
+                    </MobileListRow>
+                  ))}
                 </MobileList>
-              }
-              table={
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nama</TableHead>
-                      <TableHead>Keperluan</TableHead>
-                      <TableHead>Jumlah</TableHead>
-                      <TableHead>Telah dibayar</TableHead>
-                      <TableHead>Sisa</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+              )}
+            </section>
+          ) : null}
+
+          <section className="flex flex-col gap-3">
+            <SectionHeader title="Riwayat kasbon" count={visible.length} />
+            <FilterBar>
+              <FilterChips
+                ariaLabel="Filter status kasbon"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: "", label: "Semua" },
+                  { value: "pending", label: "Menunggu" },
+                  { value: "approved", label: "Disetujui" },
+                  { value: "rejected", label: "Ditolak" },
+                  { value: "disbursed", label: "Dicairkan" },
+                  { value: "lunas", label: "Lunas" },
+                ]}
+              />
+              <ClearFiltersButton visible={statusFilter !== ""} onClick={() => setStatusFilter("")} />
+            </FilterBar>
+
+            {listQuery.isPending ? (
+              <Loader />
+            ) : visible.length === 0 ? (
+              <StatePanel
+                title={statusFilter ? "Tidak ada kasbon untuk filter ini" : "Belum ada kasbon"}
+                description={
+                  statusFilter
+                    ? "Hapus filter untuk melihat riwayat lain."
+                    : "Ajukan kasbon baru dari tombol di atas."
+                }
+                action={
+                  statusFilter ? (
+                    <Button type="button" variant="outline" onClick={() => setStatusFilter("")}>
+                      Hapus filter
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}>
+                      Ajukan kasbon
+                    </Button>
+                  )
+                }
+              />
+            ) : (
+              <ResponsiveRecords
+                cards={
+                  <MobileList>
                     {visible.map((row) => {
                       const paid = row.paidIdr ?? 0;
                       const sisa = row.sisaIdr ?? Math.max(0, row.amountIdr - paid);
                       return (
-                        <TableRow key={row.id}>
-                          <TableCell>{row.employeeName ?? row.name ?? "—"}</TableCell>
-                          <TableCell>
-                            {row.keperluan}
-                            {row.rejectedReason ? (
-                              <div className="text-destructive text-xs">{row.rejectedReason}</div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>
-                            <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="tabular-nums">{formatIdr(paid)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="tabular-nums">{formatIdr(sisa)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge {...(KASBON_STATUS[row.status as keyof typeof KASBON_STATUS] ?? { label: row.status, icon: Clock, tone: "neutral" })} />
-                          </TableCell>
-                          <TableCell>
-                            {isKasirish && row.status === "disbursed" ? (
-                              payId === row.id ? (
-                                <div className="flex flex-wrap items-end gap-2">
-                                  <div className="min-w-32 space-y-2">
-                                    <Label htmlFor={`pay-table-${row.id}`}>Jumlah</Label>
-                                    <Input
-                                      id={`pay-table-${row.id}`}
-                                      inputMode="numeric"
-                                      value={payAmount}
-                                      onChange={(e) => setPayAmount(e.target.value)}
-                                      placeholder="50000"
-                                    />
-                                  </div>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!(Number(payAmount) > 0)}
-                                    onClick={() =>
-                                      payMut.mutate({
-                                        kasbonId: row.id,
-                                        amountIdr: Number(payAmount),
-                                      })
-                                    }
-                                  >
-                                    Bayar
-                                  </Button>
-                                </div>
-                              ) : (
-                                <Button size="sm" variant="outline" onClick={() => setPayId(row.id)}>
-                                  Bayar
-                                </Button>
-                              )
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
+                        <MobileListRow
+                          key={row.id}
+                          title={row.employeeName ?? row.name ?? "—"}
+                          subtitle={
+                            row.rejectedReason ? (
+                              <>
+                                {row.keperluan}
+                                <span className="block text-destructive">{row.rejectedReason}</span>
+                              </>
+                            ) : (
+                              row.keperluan
+                            )
+                          }
+                          trailing={formatRp(row.amountIdr)}
+                          meta={
+                            <>
+                              <StatusBadge
+                                {...(KASBON_STATUS[row.status as keyof typeof KASBON_STATUS] ?? {
+                                  label: row.status,
+                                  icon: Clock,
+                                  tone: "neutral",
+                                })}
+                              />
+                              <span className="text-sm text-muted-foreground">
+                                Dibayar <span className="tabular-nums">{formatRp(paid)}</span>
+                                {" · "}
+                                Sisa <span className="tabular-nums">{formatRp(sisa)}</span>
+                              </span>
+                            </>
+                          }
+                        >
+                          {isKasirish && row.status === "disbursed" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setPayId(row.id);
+                                setPayAmount("");
+                              }}
+                            >
+                              Catat pembayaran
+                            </Button>
+                          ) : null}
+                        </MobileListRow>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              }
-            />
+                  </MobileList>
+                }
+                table={
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama</TableHead>
+                        <TableHead>Keperluan</TableHead>
+                        <TableHead className="text-end">Jumlah</TableHead>
+                        <TableHead className="text-end">Telah dibayar</TableHead>
+                        <TableHead className="text-end">Sisa</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Aksi</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {visible.map((row) => {
+                        const paid = row.paidIdr ?? 0;
+                        const sisa = row.sisaIdr ?? Math.max(0, row.amountIdr - paid);
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.employeeName ?? row.name ?? "—"}</TableCell>
+                            <TableCell>
+                              {row.keperluan}
+                              {row.rejectedReason ? (
+                                <div className="text-sm text-destructive">{row.rejectedReason}</div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-end tabular-nums">{formatRp(row.amountIdr)}</TableCell>
+                            <TableCell className="text-end tabular-nums">{formatRp(paid)}</TableCell>
+                            <TableCell className="text-end tabular-nums">{formatRp(sisa)}</TableCell>
+                            <TableCell>
+                              <StatusBadge
+                                {...(KASBON_STATUS[row.status as keyof typeof KASBON_STATUS] ?? {
+                                  label: row.status,
+                                  icon: Clock,
+                                  tone: "neutral",
+                                })}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {isKasirish && row.status === "disbursed" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setPayId(row.id);
+                                    setPayAmount("");
+                                  }}
+                                >
+                                  Catat pembayaran
+                                </Button>
+                              ) : null}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                }
+              />
+            )}
+          </section>
+        </>
+      )}
+
+      <FormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Ajukan kasbon"
+        description="Masukkan keperluan dan jumlah. Nominal dalam rupiah utuh."
+        submitLabel="Ajukan kasbon"
+        submitting={createMut.isPending}
+        onSubmit={() => form.handleSubmit()}
+      >
+        {role === "supervisor" ? (
+          <form.Field name="employeeId">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Karyawan</Label>
+                <Select
+                  value={field.state.value || null}
+                  onValueChange={(value) => field.handleChange(value ?? "")}
+                >
+                  <SelectTrigger id={field.name} className="w-full">
+                    <SelectValue placeholder="Pilih karyawan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </form.Field>
+        ) : null}
+        {role !== "supervisor" ? (
+          <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+            <span className="text-muted-foreground">Mengajukan atas nama </span>
+            <span className="font-medium">{session?.user.name}</span>
+            <span className="text-muted-foreground"> · {roleLabel(role)}</span>
+          </div>
+        ) : null}
+        <form.Field name="keperluan">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Keperluan</Label>
+              <Textarea
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="Mis. beli oli motor"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={fieldDescribedBy("keperluan-error", field.state.meta.errors)}
+              />
+              <FieldError id="keperluan-error" errors={field.state.meta.errors} />
+            </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </form.Field>
+        <form.Field name="amountIdr">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Jumlah</Label>
+              <MoneyField
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="50000"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
+              />
+              <FieldError id="amount-error" errors={field.state.meta.errors} />
+            </div>
+          )}
+        </form.Field>
+      </FormDialog>
+
+      <FormDialog
+        open={rejectId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectId(null);
+            setRejectReason("");
+          }
+        }}
+        title="Tolak kasbon"
+        description={
+          rejectRow
+            ? `Kasbon ${rejectRow.employeeName ?? rejectRow.name ?? ""} sebesar ${formatRp(rejectRow.amountIdr)} akan ditolak.`
+            : "Kasbon akan ditolak."
+        }
+        submitLabel="Tolak kasbon"
+        submitVariant="destructive"
+        submitting={rejectMut.isPending}
+        onSubmit={() => {
+          if (!rejectId || !rejectReason.trim()) {
+            focusFirstInvalid();
+            return;
+          }
+          rejectMut.mutate({ kasbonId: rejectId, reason: rejectReason.trim() });
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="reject-reason">Alasan</Label>
+          <Textarea
+            id="reject-reason"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Mis. stok belum lunas"
+            aria-invalid={!rejectReason.trim()}
+            aria-describedby={!rejectReason.trim() ? "reject-reason-error" : undefined}
+          />
+          {!rejectReason.trim() ? (
+            <p id="reject-reason-error" className="text-sm text-destructive">
+              Masukkan alasan penolakan.
+            </p>
+          ) : null}
+        </div>
+      </FormDialog>
+
+      <FormDialog
+        open={payId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPayId(null);
+            setPayAmount("");
+          }
+        }}
+        title="Catat pembayaran"
+        description={`Sisa yang masih harus dibayar ${formatRp(paySisa)}.`}
+        submitLabel="Catat pembayaran"
+        submitting={payMut.isPending}
+        onSubmit={() => {
+          if (!payId || !(Number(payAmount) > 0)) {
+            focusFirstInvalid();
+            return;
+          }
+          payMut.mutate({ kasbonId: payId, amountIdr: Number(payAmount) });
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="pay-amount">Jumlah</Label>
+          <MoneyField
+            id="pay-amount"
+            value={payAmount}
+            onChange={(e) => setPayAmount(e.target.value)}
+            placeholder="50000"
+            aria-invalid={!(Number(payAmount) > 0)}
+            aria-describedby={!(Number(payAmount) > 0) ? "pay-amount-error" : undefined}
+          />
+          {!(Number(payAmount) > 0) ? (
+            <p id="pay-amount-error" className="text-sm text-destructive">
+              Masukkan jumlah lebih dari 0.
+            </p>
+          ) : null}
+        </div>
+      </FormDialog>
+    </PageShell>
   );
 }

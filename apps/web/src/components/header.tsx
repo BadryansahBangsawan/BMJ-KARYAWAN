@@ -16,11 +16,11 @@ export default function Header() {
   const title = PAGE_TITLE[pathname as AppPath] ?? "BMJ";
 
   return (
-    <header className="app-chrome sticky top-0 z-40 flex min-h-12 items-center justify-between gap-3 border-b border-border bg-background/80 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] backdrop-blur-[20px] backdrop-saturate-150">
-      <h1 className="min-w-0 flex-1 text-start text-base font-semibold leading-[1.1] tracking-tight text-balance">
+    <header className="app-chrome sticky top-0 z-40 flex min-h-12 items-center justify-between gap-3 border-b border-border bg-background/80 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] backdrop-blur-[20px] backdrop-saturate-150 lg:hidden">
+      <h1 className="min-w-0 flex-1 truncate text-start text-base font-semibold leading-[1.1] tracking-tight">
         {title}
       </h1>
-      <UserMenu />
+      <UserMenu className="shrink-0" />
     </header>
   );
 }

@@ -12,18 +12,28 @@ import { Skeleton } from "@BMJ-KARYAWAN/ui/components/skeleton";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
+import { sessionRole, roleLabel } from "@/lib/session-role";
 
-export default function UserMenu() {
+export default function UserMenu({
+  align = "end",
+  side = "bottom",
+  className,
+}: {
+  align?: "start" | "end" | "center";
+  side?: "top" | "bottom";
+  className?: string;
+}) {
   const navigate = useNavigate();
   const { data: session, isPending } = authClient.useSession();
+  const role = sessionRole(session?.user);
 
   if (isPending) {
-    return <Skeleton className="h-11 w-24" />;
+    return <Skeleton className={`h-11 w-24 ${className ?? ""}`.trim()} />;
   }
 
   if (!session) {
     return (
-      <Link to="/login">
+      <Link to="/login" className={className}>
         <Button variant="outline">Masuk</Button>
       </Link>
     );
@@ -32,17 +42,21 @@ export default function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" className="max-w-40 truncate" />}
+        render={<Button variant="ghost" className="max-w-[7.5rem] truncate" />}
         aria-label="Akun"
         title={session.user.name}
+        className={className}
       >
         {session.user.name}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="bg-card">
+      <DropdownMenuContent className="bg-card" align={align} side={side}>
         <DropdownMenuGroup>
           <DropdownMenuLabel>Akun</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="whitespace-normal">{session.user.name}</DropdownMenuItem>
+          <DropdownMenuItem className="pointer-events-none select-none text-xs text-muted-foreground">
+            {roleLabel(role)}
+          </DropdownMenuItem>
           <DropdownMenuItem>{session.user.email}</DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"

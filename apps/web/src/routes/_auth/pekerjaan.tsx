@@ -1,6 +1,12 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@BMJ-KARYAWAN/ui/components/dialog";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
@@ -18,49 +24,34 @@ import {
   TableHeader,
   TableRow,
 } from "@BMJ-KARYAWAN/ui/components/table";
+import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { useMemo, useState } from "react";
+import { Ban, Check, CircleCheck, CircleDashed, Loader2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import z from "zod";
-import { Check, CircleDashed, CircleCheck, Ban } from "lucide-react";
+import { toast } from "sonner";
 
-import { getUser } from "@/functions/get-user";
-import { authClient } from "@/lib/auth-client";
-import { useTRPC } from "@/utils/trpc";
-import { BusyLabel } from "@/components/busy-label";
-import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import { FieldError, fieldDescribedBy } from "@/components/field-error";
+import { ClearFiltersButton, FilterBar, FilterChips } from "@/components/filter-bar";
+import { ConfirmDialog, FormDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
+import { MoneyField } from "@/components/money-field";
+import { PageHeader } from "@/components/page-header";
+import { PageShell } from "@/components/page-shell";
+import { DateRangeFields } from "@/components/period-fields";
 import { ResponsiveRecords } from "@/components/responsive-records";
+import { SectionHeader } from "@/components/section-header";
+import { PageError, StatePanel } from "@/components/state-panel";
 import { StatusBadge } from "@/components/status-badge";
-
-
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function userRole(user: { role?: string | null } | null | undefined): Role {
-  const role = user?.role;
-  if (role === "supervisor" || role === "kasir" || role === "mekanik") return role;
-  return "mekanik";
-}
-
-function formatIdr(n: number) {
-  return n.toLocaleString("id-ID");
-}
-
-function todayYmd() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jayapura" });
-}
-
-function monthBounds(ymd: string) {
-  const [year, month] = ymd.split("-");
-  const last = new Date(Number(year), Number(month), 0).getDate();
-  return {
-    from: `${year}-${month}-01`,
-    to: `${year}-${month}-${String(last).padStart(2, "0")}`,
-  };
-}
+import { getUser } from "@/functions/get-user";
+import { PAGE_DESCRIPTION } from "@/lib/app-nav";
+import { authClient } from "@/lib/auth-client";
+import { formatRp, monthBounds, todayYmd } from "@/lib/format";
+import { sessionRole, type UserRole } from "@/lib/session-role";
+import { useTRPC } from "@/utils/trpc";
 
 type JobRow = {
   id: string;
@@ -83,6 +74,8 @@ type EmployeeRow = {
   role: string;
 };
 
+type StatusFilter = "" | "proses" | "selesai" | "diterima" | "batal";
+
 export const JOB_STATUS = {
   proses: { label: "Proses", icon: CircleDashed, tone: "neutral" },
   selesai: { label: "Selesai", icon: CircleCheck, tone: "neutral" },
@@ -101,24 +94,130 @@ export const Route = createFileRoute("/_auth/pekerjaan")({
   component: PekerjaanPage,
 });
 
+function jobKindLabel(job: JobRow) {
+  if (job.kind === "persenan") {
+    return job.bengkelPercent != null ? `Persenan ${job.bengkelPercent}%` : "Persenan";
+  }
+  return "Ongkos";
+}
+
+function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
+  return job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—";
+}
+
+function jobNeedsAction(job: JobRow, role: UserRole) {
+  if (role === "mekanik") return job.status === "proses";
+  return job.status === "proses" || job.status === "selesai";
+}
+
+function jobStatusMeta(status: string) {
+  return (
+    JOB_STATUS[status as keyof typeof JOB_STATUS] ?? {
+      label: status,
+      icon: CircleDashed,
+      tone: "neutral" as const,
+    }
+  );
+}
+
+function isStrukImage(value: string) {
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed) || /^data:image\//i.test(trimmed)) return true;
+  return /\.(avif|gif|jpe?g|png|svg|webp)(\?|#|$)/i.test(trimmed);
+}
+
+async function extractStruk(
+  base64: string,
+  signal?: AbortSignal,
+): Promise<{ tanggal?: string; nomorStruk?: string }> {
+  const raw = base64.replace(/^data:image\/\w+;base64,/, "");
+  try {
+    const res = await fetch("/api/extract-struk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: raw }),
+      signal,
+    });
+    if (!res.ok) return {};
+    return (await res.json()) as { tanggal?: string; nomorStruk?: string };
+  } catch {
+    return {};
+  }
+}
+
+function JobRowActions({
+  job,
+  role,
+  busy,
+  onSelesai,
+  onTerima,
+  onBatal,
+  onDetail,
+}: {
+  job: JobRow;
+  role: UserRole;
+  busy: boolean;
+  onSelesai: () => void;
+  onTerima: () => void;
+  onBatal: () => void;
+  onDetail: () => void;
+}) {
+  const canSelesai = role === "mekanik" && job.status === "proses";
+  const canTerima =
+    (role === "kasir" || role === "supervisor") &&
+    (job.status === "proses" || job.status === "selesai");
+  const canBatal = role === "supervisor" && job.status !== "batal";
+  const hasDetail = Boolean(job.customerNote || job.struk);
+
+  if (!canSelesai && !canTerima && !canBatal && !hasDetail) return null;
+
+  return (
+    <>
+      {canSelesai ? (
+        <Button size="sm" variant="outline" disabled={busy} onClick={onSelesai}>
+          Tandai selesai
+        </Button>
+      ) : null}
+      {canTerima ? (
+        <Button size="sm" variant="outline" disabled={busy} onClick={onTerima}>
+          Terima pekerjaan
+        </Button>
+      ) : null}
+      {hasDetail ? (
+        <Button size="sm" variant="outline" onClick={onDetail}>
+          Lihat detail
+        </Button>
+      ) : null}
+      {canBatal ? (
+        <Button size="sm" variant="destructive" disabled={busy} onClick={onBatal}>
+          Batalkan pekerjaan
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 function PekerjaanPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
-  const role = userRole(session?.user);
-  const bounds = useMemo(() => monthBounds(todayYmd()), []);
+  const role = sessionRole(session?.user);
+  const canCreate = role === "mekanik" || role === "supervisor";
+  const bounds = useMemo(() => monthBounds(), []);
   const [from, setFrom] = useState(bounds.from);
   const [to, setTo] = useState(bounds.to);
-  const [statusFilter, setStatusFilter] = useState<
-    "" | "proses" | "selesai" | "diterima" | "batal"
-  >("");
-  const [employeeIdFilter, setEmployeeIdFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
+  const [employeeIdFilter, setEmployeeIdFilter] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [strukturInfo, setStrukturInfo] = useState("");
+  const extractAbortRef = useRef<AbortController | null>(null);
 
   const listInput = {
     from,
     to,
-    ...(statusFilter ? { status: statusFilter } : {}),
     ...(employeeIdFilter ? { employeeId: employeeIdFilter } : {}),
   };
 
@@ -135,7 +234,30 @@ function PekerjaanPage() {
   for (const row of allEmployees) {
     nameById[row.id] = row.name;
   }
+
+  const statusCounts = {
+    "": jobs.length,
+    proses: 0,
+    selesai: 0,
+    diterima: 0,
+    batal: 0,
+  };
+  for (const job of jobs) {
+    if (job.status === "proses" || job.status === "selesai" || job.status === "diterima" || job.status === "batal") {
+      statusCounts[job.status] += 1;
+    }
+  }
+
+  const visible = (statusFilter ? jobs.filter((job) => job.status === statusFilter) : jobs).slice().sort((a, b) => {
+    const aNeed = jobNeedsAction(a, role) ? 0 : 1;
+    const bNeed = jobNeedsAction(b, role) ? 0 : 1;
+    return aNeed - bNeed;
+  });
+
   const hasPersenan = jobs.some((job) => job.kind === "persenan");
+  const filtersActive = statusFilter !== "" || employeeIdFilter !== "" || from !== bounds.from || to !== bounds.to;
+  const cancelRow = jobs.find((job) => job.id === cancelId);
+  const detailRow = jobs.find((job) => job.id === detailId);
 
   const invalidateJobs = async () => {
     await queryClient.invalidateQueries({ queryKey: trpc.job.list.queryKey() });
@@ -145,6 +267,7 @@ function PekerjaanPage() {
     trpc.job.create.mutationOptions({
       onSuccess: async () => {
         toast.success("Pekerjaan disimpan");
+        setCreateOpen(false);
         await invalidateJobs();
       },
       onError: (error) => toast.error(error.message),
@@ -153,8 +276,15 @@ function PekerjaanPage() {
 
   const statusMut = useMutation(
     trpc.job.setStatus.mutationOptions({
-      onSuccess: async () => {
-        toast.success("Status diperbarui");
+      onSuccess: async (_row, input) => {
+        toast.success(
+          input.status === "selesai"
+            ? "Pekerjaan ditandai selesai"
+            : input.status === "diterima"
+              ? "Pekerjaan diterima"
+              : "Pekerjaan dibatalkan",
+        );
+        setCancelId(null);
         await invalidateJobs();
       },
       onError: (error) => toast.error(error.message),
@@ -173,7 +303,6 @@ function PekerjaanPage() {
       bengkelPercent: "",
     },
     onSubmit: async ({ value }) => {
-      const amountIdr = Number(value.amountIdr);
       const payload: {
         workDate: string;
         description: string;
@@ -186,7 +315,7 @@ function PekerjaanPage() {
       } = {
         workDate: value.workDate,
         description: value.description,
-        amountIdr,
+        amountIdr: Number(value.amountIdr),
         kind: value.kind,
       };
       if (value.struk) payload.struk = value.struk;
@@ -201,253 +330,92 @@ function PekerjaanPage() {
       form.reset();
     },
     validators: {
-      onSubmit: z.object({
-        employeeId: z.string(),
-        workDate: z.string().min(1, "Masukkan tanggal pekerjaan."),
-        description: z.string().min(1, "Masukkan uraian pekerjaan."),
-        amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan ongkos lebih dari 0."),
-        struk: z.string(),
-        customerNote: z.string(),
-        kind: z.enum(["ongkos", "persenan"]),
-        bengkelPercent: z.string(),
-      }),
+      onSubmit: z
+        .object({
+          employeeId: z.string(),
+          workDate: z.string().min(1, "Masukkan tanggal pekerjaan."),
+          description: z.string().min(1, "Masukkan uraian pekerjaan."),
+          amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan ongkos lebih dari 0."),
+          struk: z.string(),
+          customerNote: z.string(),
+          kind: z.enum(["ongkos", "persenan"]),
+          bengkelPercent: z.string(),
+        })
+        .superRefine((value, ctx) => {
+          if (role === "supervisor" && !value.employeeId) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["employeeId"],
+              message: "Pilih mekanik.",
+            });
+          }
+          if (value.kind === "persenan") {
+            const percent = Number(value.bengkelPercent);
+            if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["bengkelPercent"],
+                message: "Masukkan persen bengkel 0–100.",
+              });
+            }
+          }
+        }),
     },
   });
 
-  const canCreate = role === "mekanik" || role === "supervisor";
+  function clearFilters() {
+    setFrom(bounds.from);
+    setTo(bounds.to);
+    setStatusFilter("");
+    setEmployeeIdFilter("");
+  }
+
+  function rowBusy(jobId: string) {
+    return statusMut.isPending && statusMut.variables?.id === jobId;
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
-
-      {canCreate ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Catat pekerjaan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void form.handleSubmit();
-                focusFirstInvalid();
-              }}
-              className="grid gap-3 md:grid-cols-2"
-            >
-              {role === "supervisor" ? (
-                <form.Field name="employeeId">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={field.name}>Mekanik</Label>
-                      <Select
-                        value={field.state.value || null}
-                        onValueChange={(value) => field.handleChange(value ?? "")}
-                      >
-                        <SelectTrigger id={field.name} className="w-full">
-                          <SelectValue placeholder="Pilih mekanik" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employees.map((row) => (
-                            <SelectItem key={row.id} value={row.id}>
-                              {row.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </form.Field>
-              ) : null}
-
-              <form.Field name="workDate">
-                {(field) => (
-                  <div className="space-y-2">
-                    <Label htmlFor={field.name}>Tanggal</Label>
-                    <Input
-                      id={field.name}
-                      type="date"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      aria-invalid={field.state.meta.errors.length > 0}
-                      aria-describedby={fieldDescribedBy("workDate-error", field.state.meta.errors)}
-                    />
-                    <FieldError id="workDate-error" errors={field.state.meta.errors} />
-                  </div>
-                )}
-              </form.Field>
-
-              <form.Field name="description">
-                {(field) => (
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor={field.name}>Pekerjaan</Label>
-                    <Input
-                      id={field.name}
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      aria-invalid={field.state.meta.errors.length > 0}
-                      aria-describedby={fieldDescribedBy("description-error", field.state.meta.errors)}
-                    />
-                    <FieldError id="description-error" errors={field.state.meta.errors} />
-                  </div>
-                )}
-              </form.Field>
-
-              <form.Field name="amountIdr">
-                {(field) => (
-                  <div className="space-y-2">
-                    <Label htmlFor={field.name}>Ongkos</Label>
-                    <Input
-                      id={field.name}
-                      inputMode="numeric"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                      placeholder="50000"
-                      aria-invalid={field.state.meta.errors.length > 0}
-                      aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
-                    />
-                    <FieldError id="amount-error" errors={field.state.meta.errors} />
-                  </div>
-                )}
-              </form.Field>
-
-              <form.Field name="struk">
-                {(field) => (
-                  <div className="space-y-2">
-                    <Label htmlFor={field.name}>Struk</Label>
-                    <Input
-                      id={field.name}
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
-                  </div>
-                )}
-              </form.Field>
-
-              <form.Field name="customerNote">
-                {(field) => (
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor={field.name}>Ket / pelanggan</Label>
-                    <Input
-                      id={field.name}
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(e) => field.handleChange(e.target.value)}
-                    />
-                  </div>
-                )}
-              </form.Field>
-
-              <form.Field name="kind">
-                {(field) => (
-                  <div className="space-y-2">
-                    <Label htmlFor={field.name}>Jenis</Label>
-                    <Select
-                      value={field.state.value}
-                      onValueChange={(value) => {
-                        if (value === "ongkos" || value === "persenan") {
-                          field.handleChange(value);
-                        }
-                      }}
-                    >
-                      <SelectTrigger id={field.name} className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ongkos">Ongkos</SelectItem>
-                        <SelectItem value="persenan">Persenan</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </form.Field>
-
-              <form.Subscribe selector={(state) => state.values.kind}>
-                {(kind) =>
-                  kind === "persenan" ? (
-                    <form.Field name="bengkelPercent">
-                      {(field) => (
-                        <div className="space-y-2">
-                          <Label htmlFor={field.name}>Persen bengkel (0–100)</Label>
-                          <Input
-                            id={field.name}
-                            inputMode="numeric"
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                          />
-                        </div>
-                      )}
-                    </form.Field>
-                  ) : (
-                    <div />
-                  )
-                }
-              </form.Subscribe>
-
-              <div className="md:col-span-2">
-                <form.Subscribe
-                  selector={(state) => ({ isSubmitting: state.isSubmitting })}
-                >
-                  {({ isSubmitting }) => (
-                    <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                      <BusyLabel busy={isSubmitting}>Catat pekerjaan</BusyLabel>
-                    </Button>
-                  )}
-                </form.Subscribe>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
+    <PageShell>
+      <PageHeader
+        title="Pekerjaan"
+        description={PAGE_DESCRIPTION["/pekerjaan"]}
+        actions={
+          canCreate ? (
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              Catat pekerjaan
+            </Button>
+          ) : null
+        }
+      />
 
       {hasPersenan ? (
-        <div className="border border-border bg-muted/40 px-3 py-2 text-sm">
+        <p className="rounded-xl bg-muted/40 px-4 py-3 text-pretty text-sm">
           Komplain = pembatalan ongkos kerja
-        </div>
+        </p>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Daftar pekerjaan</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="from">Dari</Label>
-              <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to">Sampai</Label>
-              <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={statusFilter || null}
-                onValueChange={(value) =>
-                  setStatusFilter(
-                    (value ?? "") as "" | "proses" | "selesai" | "diterima" | "batal",
-                  )
-                }
-              >
-                <SelectTrigger id="status" className="w-full">
-                  <SelectValue placeholder="Semua" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="proses">Proses</SelectItem>
-                  <SelectItem value="selesai">Selesai</SelectItem>
-                  <SelectItem value="diterima">Diterima</SelectItem>
-                  <SelectItem value="batal">Batal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {jobsQuery.isError ? (
+        <PageError onRetry={() => void jobsQuery.refetch()} />
+      ) : (
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="Daftar pekerjaan" count={visible.length} />
+          <FilterBar>
+            <DateRangeFields from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+            <FilterChips
+              ariaLabel="Filter status pekerjaan"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "", label: "Semua", count: statusCounts[""] },
+                { value: "proses", label: "Proses", count: statusCounts.proses },
+                { value: "selesai", label: "Selesai", count: statusCounts.selesai },
+                { value: "diterima", label: "Diterima", count: statusCounts.diterima },
+                { value: "batal", label: "Batal", count: statusCounts.batal },
+              ]}
+            />
             {role !== "mekanik" ? (
-              <div className="space-y-2">
-                <Label htmlFor="employee">Karyawan</Label>
+              <div className="min-w-0 space-y-2 sm:max-w-xs">
+                <Label htmlFor="employee">Mekanik</Label>
                 <Select
                   value={employeeIdFilter || null}
                   onValueChange={(value) => setEmployeeIdFilter(value ?? "")}
@@ -465,184 +433,102 @@ function PekerjaanPage() {
                 </Select>
               </div>
             ) : null}
-          </div>
+            <ClearFiltersButton visible={filtersActive} onClick={clearFilters} />
+          </FilterBar>
 
           {jobsQuery.isPending ? (
             <Loader />
-          ) : jobs.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Belum ada pekerjaan</EmptyTitle>
-                <EmptyDescription>Catat pekerjaan baru atau ubah filter tanggal.</EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                {canCreate ? (
-                  <Button type="button" variant="outline" onClick={() => document.getElementById("description")?.focus()}>
+          ) : visible.length === 0 ? (
+            <StatePanel
+              title={filtersActive ? "Tidak ada pekerjaan untuk filter ini" : "Belum ada pekerjaan"}
+              description={
+                filtersActive
+                  ? "Hapus filter untuk melihat pekerjaan lain."
+                  : canCreate
+                    ? "Catat pekerjaan baru dari tombol di atas."
+                    : "Belum ada pekerjaan pada periode ini."
+              }
+              action={
+                filtersActive ? (
+                  <Button type="button" variant="outline" onClick={clearFilters}>
+                    Hapus filter
+                  </Button>
+                ) : canCreate ? (
+                  <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}>
                     Catat pekerjaan
                   </Button>
-                ) : (
-                  <Button type="button" variant="outline" onClick={() => document.getElementById("from")?.focus()}>
-                    Ubah filter
-                  </Button>
-                )}
-              </EmptyContent>
-            </Empty>
+                ) : null
+              }
+            />
           ) : (
             <ResponsiveRecords
               cards={
                 <MobileList>
-                  {jobs.map((job) => (
+                  {visible.map((job) => (
                     <MobileListRow
                       key={job.id}
                       title={job.description}
                       subtitle={
                         <>
-                          {job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"} ·{" "}
-                          <span className="tabular-nums">{job.workDate}</span> ·{" "}
-                          {job.kind === "persenan"
-                            ? `Persenan${job.bengkelPercent != null ? ` ${job.bengkelPercent}%` : ""}`
-                            : "Ongkos"}
-                          {job.struk ? ` · ${job.struk}` : ""}
+                          {jobKindLabel(job)}
+                          {" · "}
+                          {jobMechanicName(job, nameById)}
+                          {" · "}
+                          <span className="tabular-nums">{job.workDate}</span>
                         </>
                       }
-                      trailing={<span className="tabular-nums">{formatIdr(job.amountIdr)}</span>}
-                      meta={
-                        <>
-                          <StatusBadge {...JOB_STATUS[job.status as keyof typeof JOB_STATUS]} />
-                          {job.customerNote ? (
-                            <span className="text-sm text-muted-foreground">{job.customerNote}</span>
-                          ) : null}
-                        </>
-                      }
+                      trailing={formatRp(job.amountIdr)}
+                      meta={<StatusBadge {...jobStatusMeta(job.status)} />}
                     >
-                      {role === "mekanik" && job.status === "proses" ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => statusMut.mutate({ id: job.id, status: "selesai" })}
-                        >
-                          Selesai
-                        </Button>
-                      ) : null}
-                      {(role === "kasir" || role === "supervisor") &&
-                      (job.status === "proses" || job.status === "selesai") ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => statusMut.mutate({ id: job.id, status: "diterima" })}
-                        >
-                          Diterima
-                        </Button>
-                      ) : null}
-                      {role === "supervisor" && job.status !== "batal" ? (
-                        cancelId === job.id ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => {
-                                statusMut.mutate({ id: job.id, status: "batal" });
-                                setCancelId(null);
-                              }}
-                            >
-                              Batalkan pekerjaan
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setCancelId(null)}>
-                              Batal
-                            </Button>
-                          </>
-                        ) : (
-                          <Button size="sm" variant="destructive" onClick={() => setCancelId(job.id)}>
-                            Batal
-                          </Button>
-                        )
-                      ) : null}
+                      <JobRowActions
+                        job={job}
+                        role={role}
+                        busy={rowBusy(job.id)}
+                        onSelesai={() => statusMut.mutate({ id: job.id, status: "selesai" })}
+                        onTerima={() => statusMut.mutate({ id: job.id, status: "diterima" })}
+                        onBatal={() => setCancelId(job.id)}
+                        onDetail={() => setDetailId(job.id)}
+                      />
                     </MobileListRow>
                   ))}
                 </MobileList>
               }
               table={
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background">
                     <TableRow>
                       <TableHead>Tanggal</TableHead>
-                      <TableHead>Nama</TableHead>
-                      <TableHead>Pekerjaan</TableHead>
+                      <TableHead>Mekanik</TableHead>
+                      <TableHead>Uraian</TableHead>
                       <TableHead>Jenis</TableHead>
-                      <TableHead>Ongkos</TableHead>
-                      <TableHead>Struk</TableHead>
+                      <TableHead className="text-end">Ongkos</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {jobs.map((job) => (
+                    {visible.map((job) => (
                       <TableRow key={job.id}>
                         <TableCell className="tabular-nums">{job.workDate}</TableCell>
+                        <TableCell>{jobMechanicName(job, nameById)}</TableCell>
+                        <TableCell className="max-w-xs whitespace-normal">{job.description}</TableCell>
+                        <TableCell>{jobKindLabel(job)}</TableCell>
+                        <TableCell className="text-end tabular-nums">{formatRp(job.amountIdr)}</TableCell>
                         <TableCell>
-                          {job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—"}
+                          <StatusBadge {...jobStatusMeta(job.status)} />
                         </TableCell>
                         <TableCell>
-                          <div>{job.description}</div>
-                          {job.customerNote ? (
-                            <div className="text-muted-foreground">{job.customerNote}</div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
-                          {job.kind === "persenan"
-                            ? `Persenan${job.bengkelPercent != null ? ` ${job.bengkelPercent}%` : ""}`
-                            : "Ongkos"}
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(job.amountIdr)}</span>
-                        </TableCell>
-                        <TableCell>{job.struk ?? "—"}</TableCell>
-                        <TableCell>
-                          <StatusBadge {...JOB_STATUS[job.status as keyof typeof JOB_STATUS]} />
-                        </TableCell>
-                        <TableCell className="space-x-1">
-                          {role === "mekanik" && job.status === "proses" ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => statusMut.mutate({ id: job.id, status: "selesai" })}
-                            >
-                              Selesai
-                            </Button>
-                          ) : null}
-                          {(role === "kasir" || role === "supervisor") &&
-                          (job.status === "proses" || job.status === "selesai") ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => statusMut.mutate({ id: job.id, status: "diterima" })}
-                            >
-                              Diterima
-                            </Button>
-                          ) : null}
-                          {role === "supervisor" && job.status !== "batal" ? (
-                            cancelId === job.id ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => {
-                                    statusMut.mutate({ id: job.id, status: "batal" });
-                                    setCancelId(null);
-                                  }}
-                                >
-                                  Batalkan pekerjaan
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => setCancelId(null)}>
-                                  Batal
-                                </Button>
-                              </>
-                            ) : (
-                              <Button size="sm" variant="destructive" onClick={() => setCancelId(job.id)}>
-                                Batal
-                              </Button>
-                            )
-                          ) : null}
+                          <div className="flex flex-wrap gap-2">
+                            <JobRowActions
+                              job={job}
+                              role={role}
+                              busy={rowBusy(job.id)}
+                              onSelesai={() => statusMut.mutate({ id: job.id, status: "selesai" })}
+                              onTerima={() => statusMut.mutate({ id: job.id, status: "diterima" })}
+                              onBatal={() => setCancelId(job.id)}
+                              onDetail={() => setDetailId(job.id)}
+                            />
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -651,8 +537,353 @@ function PekerjaanPage() {
               }
             />
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </section>
+      )}
+
+      {canCreate ? (
+        <FormDialog
+          open={createOpen}
+          onOpenChange={(open) => {
+            setCreateOpen(open);
+            if (!open) {
+              setStrukturInfo("");
+              setExtracting(false);
+              extractAbortRef.current?.abort();
+            }
+          }}
+          title="Catat pekerjaan"
+          description="Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
+          submitLabel="Catat pekerjaan"
+          submitting={createMut.isPending}
+          onSubmit={() => form.handleSubmit()}
+        >
+          {role === "supervisor" ? (
+            <form.Field name="employeeId">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>Mekanik</Label>
+                  <Select
+                    value={field.state.value || null}
+                    onValueChange={(value) => field.handleChange(value ?? "")}
+                  >
+                    <SelectTrigger
+                      id={field.name}
+                      className="w-full"
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      aria-describedby={fieldDescribedBy("employeeId-error", field.state.meta.errors)}
+                    >
+                      <SelectValue placeholder="Pilih mekanik" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees.map((row) => (
+                        <SelectItem key={row.id} value={row.id}>
+                          {row.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError id="employeeId-error" errors={field.state.meta.errors} />
+                </div>
+              )}
+            </form.Field>
+          ) : null}
+
+          {/* Struk (foto) — hanya untuk mekanik, muncul paling atas */}
+          {role === "mekanik" ? (
+            <form.Field name="struk">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label>Struk</Label>
+                  {field.state.value && isStrukImage(field.state.value) ? (
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={field.state.value}
+                        alt="Preview struk"
+                        className="max-h-20 w-auto max-w-[6rem] rounded-[8px] object-contain outline outline-1 outline-border"
+                      />
+                      <div className="flex flex-col gap-1">
+                        {strukturInfo ? (
+                          <p className="text-xs text-muted-foreground">{strukturInfo}</p>
+                        ) : null}
+                        <label className="cursor-pointer text-sm font-medium text-primary underline-offset-2 hover:underline">
+                          Ganti
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="sr-only"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = async (ev) => {
+                                const base64 = ev.target?.result as string;
+                                field.handleChange(base64);
+                                setStrukturInfo("");
+                                extractAbortRef.current?.abort();
+                                const ctrl = new AbortController();
+                                extractAbortRef.current = ctrl;
+                                setExtracting(true);
+                                const result = await extractStruk(base64, ctrl.signal);
+                                setExtracting(false);
+                                if (result.tanggal) {
+                                  form.setFieldValue("workDate", result.tanggal);
+                                }
+                                if (result.nomorStruk) {
+                                  setStrukturInfo(`No. struk: ${result.nomorStruk}`);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                              e.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50">
+                      {extracting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <span>📷</span>
+                      )}
+                      Foto struk
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = async (ev) => {
+                            const base64 = ev.target?.result as string;
+                            field.handleChange(base64);
+                            setStrukturInfo("");
+                            extractAbortRef.current?.abort();
+                            const ctrl = new AbortController();
+                            extractAbortRef.current = ctrl;
+                            setExtracting(true);
+                            const result = await extractStruk(base64, ctrl.signal);
+                            setExtracting(false);
+                            if (result.tanggal) {
+                              form.setFieldValue("workDate", result.tanggal);
+                            }
+                            if (result.nomorStruk) {
+                              setStrukturInfo(`No. struk: ${result.nomorStruk}`);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+            </form.Field>
+          ) : null}
+
+          <form.Field name="workDate">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Tanggal</Label>
+                <Input
+                  id={field.name}
+                  type="date"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={fieldDescribedBy("workDate-error", field.state.meta.errors)}
+                />
+                <FieldError id="workDate-error" errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="description">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Uraian</Label>
+                <Textarea
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Mis. ganti oli mesin"
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={fieldDescribedBy("description-error", field.state.meta.errors)}
+                />
+                <FieldError id="description-error" errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="amountIdr">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Ongkos</Label>
+                <MoneyField
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="50000"
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
+                />
+                <FieldError id="amount-error" errors={field.state.meta.errors} />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Field name="customerNote">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Ket / pelanggan</Label>
+                <Input
+                  id={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  placeholder="Catatan singkat"
+                />
+              </div>
+            )}
+          </form.Field>
+
+          {/* Struk teks — hanya untuk supervisor, di bawah Ket */}
+          {role === "supervisor" ? (
+            <form.Field name="struk">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>Struk</Label>
+                  <Input
+                    id={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    placeholder="Nomor atau tautan struk"
+                  />
+                </div>
+              )}
+            </form.Field>
+          ) : null}
+
+          <form.Field name="kind">
+            {(field) => (
+              <div className="space-y-2">
+                <span className="text-sm font-medium">Jenis</span>
+                <FilterChips
+                  ariaLabel="Jenis ongkos"
+                  value={field.state.value}
+                  onChange={(value) => field.handleChange(value)}
+                  options={[
+                    { value: "ongkos", label: "Ongkos" },
+                    { value: "persenan", label: "Persenan" },
+                  ]}
+                />
+              </div>
+            )}
+          </form.Field>
+
+          <form.Subscribe selector={(state) => state.values.kind}>
+            {(kind) =>
+              kind === "persenan" ? (
+                <form.Field name="bengkelPercent">
+                  {(field) => (
+                    <div className="space-y-2">
+                      <Label htmlFor={field.name}>Persen bengkel (0–100)</Label>
+                      <Input
+                        id={field.name}
+                        inputMode="numeric"
+                        className="tabular-nums"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        placeholder="30"
+                        aria-invalid={field.state.meta.errors.length > 0}
+                        aria-describedby={fieldDescribedBy("bengkelPercent-error", field.state.meta.errors)}
+                      />
+                      <FieldError id="bengkelPercent-error" errors={field.state.meta.errors} />
+                    </div>
+                  )}
+                </form.Field>
+              ) : null
+            }
+          </form.Subscribe>
+        </FormDialog>
+      ) : null}
+
+      <ConfirmDialog
+        open={cancelId !== null}
+        onOpenChange={(open) => {
+          if (!open) setCancelId(null);
+        }}
+        title="Batalkan pekerjaan"
+        description={
+          cancelRow
+            ? `Pekerjaan ${cancelRow.description} sebesar ${formatRp(cancelRow.amountIdr)} akan dibatalkan dan tidak dihitung.`
+            : "Pekerjaan akan dibatalkan dan tidak dihitung."
+        }
+        confirmLabel="Batalkan pekerjaan"
+        confirming={statusMut.isPending && statusMut.variables?.status === "batal"}
+        onConfirm={() => {
+          if (!cancelId) return;
+          statusMut.mutate({ id: cancelId, status: "batal" });
+        }}
+      />
+
+      <Dialog
+        open={detailId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Detail pekerjaan</DialogTitle>
+            <DialogDescription>
+              {detailRow
+                ? `${detailRow.description} · ${formatRp(detailRow.amountIdr)}`
+                : "Catatan dan struk pekerjaan."}
+            </DialogDescription>
+          </DialogHeader>
+          {detailRow ? (
+            <div className="grid gap-4">
+              {detailRow.customerNote ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Catatan</p>
+                  <p className="text-pretty text-sm text-muted-foreground">{detailRow.customerNote}</p>
+                </div>
+              ) : null}
+              {detailRow.struk ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Struk</p>
+                  {isStrukImage(detailRow.struk) ? (
+                    <a href={detailRow.struk} target="_blank" rel="noreferrer">
+                      <img
+                        src={detailRow.struk}
+                        alt="Struk pekerjaan"
+                        className="max-h-80 w-auto max-w-full rounded-[10px] outline outline-1 outline-border"
+                      />
+                    </a>
+                  ) : (
+                    <p className="break-all text-sm text-muted-foreground">{detailRow.struk}</p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDetailId(null)}>
+              Tutup
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </PageShell>
   );
 }
