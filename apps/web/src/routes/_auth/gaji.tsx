@@ -15,14 +15,14 @@ import { useMemo, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
-import { formatRp, jayapuraYearMonth } from "@/lib/format";
+import { formatRp, jayapuraYearMonth, monthLabel } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
 import { ConfirmDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
 import { MetricCard } from "@/components/metric-card";
-import { MobileList, MobileListRow } from "@/components/mobile-list";
+import { PaySlip } from "@/components/pay-slip";
 import { MoneyField } from "@/components/money-field";
 import { PageHeader } from "@/components/page-header";
 import { PageShell } from "@/components/page-shell";
@@ -274,57 +274,45 @@ function GajiPage() {
                   ) : undefined
                 }
               />
+            ) : role === "mekanik" ? (
+              <div className="flex flex-col gap-3">
+                {lines.map((line) => (
+                  <PaySlip
+                    key={line.id}
+                    line={line}
+                    periodLabel={monthLabel(year, month)}
+                    payDate={period?.payDate}
+                    showName={false}
+                  />
+                ))}
+              </div>
             ) : (
               <ResponsiveRecords
                 cards={
-                  <MobileList>
+                  <div className="flex flex-col gap-3">
                     {lines.map((line) => (
-                      <MobileListRow
+                      <PaySlip
                         key={line.id}
-                        title={lineName(line)}
-                        subtitle={
-                          <span className="tabular-nums">{formatHari(line.daysPresent)} hari</span>
+                        line={line}
+                        periodLabel={monthLabel(year, month)}
+                        payDate={period?.payDate}
+                        potongan={
+                          canEditDraft ? (
+                            <PotonganEditor
+                              id={`potongan-${line.id}`}
+                              line={line}
+                              value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                              onChange={(value) =>
+                                setDraftPotongan((prev) => ({ ...prev, [line.id]: value }))
+                              }
+                              onSave={() => savePotongan(line)}
+                              saving={deductionMut.isPending}
+                            />
+                          ) : undefined
                         }
-                        trailing={formatRp(line.takeHomeIdr)}
-                      >
-                        <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                          <dt className="text-muted-foreground">Gaji</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.dailyPayIdr)}</dd>
-                          <dt className="text-muted-foreground">Ongkos</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.jobShareIdr)}</dd>
-                          {line.konsumsiIdr > 0 ? (
-                            <>
-                              <dt className="text-muted-foreground">Uang makan</dt>
-                              <dd className="text-end tabular-nums">{formatRp(line.konsumsiIdr)}</dd>
-                            </>
-                          ) : null}
-                          {line.bonusIdr > 0 ? (
-                            <>
-                              <dt className="text-muted-foreground">Bonus</dt>
-                              <dd className="text-end tabular-nums">{formatRp(line.bonusIdr)}</dd>
-                            </>
-                          ) : null}
-                          <dt className="text-muted-foreground">Potongan kasbon</dt>
-                          <dd className="text-end">
-                            {canEditDraft ? (
-                              <PotonganEditor
-                                id={`potongan-${line.id}`}
-                                line={line}
-                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
-                                onChange={(value) =>
-                                  setDraftPotongan((prev) => ({ ...prev, [line.id]: value }))
-                                }
-                                onSave={() => savePotongan(line)}
-                                saving={deductionMut.isPending}
-                              />
-                            ) : (
-                              <span className="tabular-nums">{formatRp(line.kasbonDeductionIdr)}</span>
-                            )}
-                          </dd>
-                        </dl>
-                      </MobileListRow>
+                      />
                     ))}
-                  </MobileList>
+                  </div>
                 }
                 table={
                   <Table>

@@ -395,7 +395,7 @@ function PekerjaanPage() {
 
   async function handleStrukFile(file: File, onPreview: (url: string) => void) {
     try {
-      const vision = await jpegDataUrlFromFile(file, 1024, 400_000);
+      const vision = await jpegDataUrlFromFile(file, 768, 70_000);
       onPreview(vision);
       setStrukturInfo("");
       setNomorStruk("");

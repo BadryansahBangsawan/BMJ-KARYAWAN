@@ -1,6 +1,7 @@
 import type { Database } from "@BMJ-KARYAWAN/db";
 import * as schema from "@BMJ-KARYAWAN/db/schema/auth";
 import { betterAuth } from "better-auth";
+import { hashPassword } from "better-auth/crypto";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
@@ -55,3 +56,5 @@ export function createAuth(env: AuthConfig, database: Database) {
     plugins: [tanstackStartCookies()],
   });
 }
+
+export { hashPassword };

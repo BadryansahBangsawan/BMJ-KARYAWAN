@@ -1,9 +1,8 @@
-import { createAuth, type AuthConfig } from "@BMJ-KARYAWAN/auth";
+import { hashPassword } from "@BMJ-KARYAWAN/auth";
 import type { Database } from "@BMJ-KARYAWAN/db";
-import { user } from "@BMJ-KARYAWAN/db/schema/auth";
+import { account, user } from "@BMJ-KARYAWAN/db/schema/auth";
 import { employee } from "@BMJ-KARYAWAN/db/schema/karyawan";
 import { TRPCError } from "@trpc/server";
-import { env } from "cloudflare:workers";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -55,22 +54,26 @@ async function signUpWithRole(
     throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
   }
 
-  const auth = createAuth(env as AuthConfig, db);
-  let userId: string;
+  const userId = crypto.randomUUID();
+  const passwordHash = await hashPassword(input.password);
   try {
-    const result = await auth.api.signUpEmail({
-      body: {
-        name: input.name,
-        email: input.email.trim(),
-        password: input.password,
-      },
+    await db.insert(user).values({
+      id: userId,
+      name: input.name,
+      email: input.email.trim(),
+      emailVerified: true,
+      role: input.role,
     });
-    userId = result.user.id;
+    await db.insert(account).values({
+      id: crypto.randomUUID(),
+      accountId: userId,
+      providerId: "credential",
+      userId,
+      password: passwordHash,
+    });
   } catch {
     throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
   }
-
-  await db.update(user).set({ role: input.role, emailVerified: true }).where(eq(user.id, userId));
   return userId;
 }
 

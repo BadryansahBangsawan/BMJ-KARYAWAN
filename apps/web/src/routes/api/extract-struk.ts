@@ -3,7 +3,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env } from "../../env.server";
 import { createAuth } from "../../services";
 
-const RETRY_STATUSES = new Set([429, 502, 503, 530]);
+const RETRY_STATUSES = new Set([502, 503, 530]);
+const MAX_IMAGE_CHARS = 80_000;
+const THROTTLE_WINDOW_MS = 60_000;
+const THROTTLE_MAX = 8;
+const extractHits = new Map<string, number[]>();
+
+function allowExtract(userId: string) {
+  const now = Date.now();
+  const times = (extractHits.get(userId) ?? []).filter((stamp) => now - stamp < THROTTLE_WINDOW_MS);
+  if (times.length >= THROTTLE_MAX) {
+    extractHits.set(userId, times);
+    return false;
+  }
+  times.push(now);
+  extractHits.set(userId, times);
+  return true;
+}
 
 function asString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -63,6 +79,13 @@ export const Route = createFileRoute("/api/extract-struk")({
         if (!session) {
           return Response.json({ error: "Authentication required" }, { status: 401 });
         }
+        const role = session.user.role ?? "mekanik";
+        if (role !== "mekanik" && role !== "supervisor") {
+          return Response.json({ error: "Tidak boleh baca struk." }, { status: 403 });
+        }
+        if (!allowExtract(session.user.id)) {
+          return Response.json({ error: "Tunggu sebentar sebelum scan struk lagi." }, { status: 429 });
+        }
 
         let image: string | undefined;
         try {
@@ -74,6 +97,9 @@ export const Route = createFileRoute("/api/extract-struk")({
 
         if (!image) {
           return Response.json({ error: "Foto struk kosong." }, { status: 400 });
+        }
+        if (image.length > MAX_IMAGE_CHARS) {
+          return Response.json({ error: "Foto struk terlalu besar. Ambil ulang lebih dekat." }, { status: 413 });
         }
 
         const apiKey = asString(env.AI_API_KEY ?? process.env["AI_API_KEY"]);
@@ -90,6 +116,10 @@ export const Route = createFileRoute("/api/extract-struk")({
           temperature: 0,
           max_tokens: 512,
           messages: [
+            {
+              role: "system",
+              content: "Balas HANYA JSON valid, tanpa markdown.",
+            },
             {
               role: "user",
               content: [
@@ -153,6 +183,12 @@ export const Route = createFileRoute("/api/extract-struk")({
             }
 
             if (!RETRY_STATUSES.has(lastStatus) || attempt === 2) {
+              if (lastStatus === 429) {
+                return Response.json({ error: "AI sedang sibuk. Coba lagi." }, { status: 429 });
+              }
+              if (lastStatus === 401 || lastStatus === 403) {
+                return Response.json({ error: "AI baca struk ditolak. Cek konfigurasi." }, { status: 502 });
+              }
               return Response.json({ error: "Gagal membaca struk. Coba foto lebih jelas." }, { status: 502 });
             }
             await sleep(1000 * (attempt + 1));
