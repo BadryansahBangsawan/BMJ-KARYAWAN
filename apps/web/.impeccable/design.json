@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-17T01:30:00.000Z",
+  "title": "Design System: BMJ Karyawan",
+  "extensions": {
+    "colorMeta": {
+      "marker": {
+        "role": "primary",
+        "displayName": "Spidol merah",
+        "canonical": "oklch(0.5 0.205 27)"
+      },
+      "wall": {
+        "role": "neutral",
+        "displayName": "Dinding bengkel",
+        "canonical": "oklch(0.86 0.018 236)"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Kertas kalender",
+        "canonical": "oklch(0.985 0.012 92)"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "oklch(0.24 0.018 40)"
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Tanggal hari ini saja." },
+      "body": { "displayName": "Body", "purpose": "Copy operasional Indonesia." }
+    },
+    "shadows": [
+      {
+        "name": "sheet",
+        "value": "0px 1px 2px oklch(0.24 0.018 40 / 0.08), 0px 6px 16px -8px oklch(0.24 0.018 40 / 0.18)",
+        "purpose": "Lembar kertas di dinding."
+      }
+    ],
+    "motion": [
+      {
+        "name": "today-settle",
+        "value": "520ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Angka tanggal muncul sekali, bukan setiap section."
+      }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "Kalender dinding bengkel",
+    "overview": "Hari ini mengisi layar. Aksi berikutnya adalah mencentang kotak. Spidol merah jarang.",
+    "keyCharacteristics": [
+      "Tanggal condensed raksasa",
+      "Satu aksen spidol",
+      "Hit target kotak kalender"
+    ],
+    "rules": [
+      { "name": "The Marker Rule", "body": "Merah hanya untuk hari ini dan aksi.", "section": "colors" }
+    ],
+    "dos": [
+      "Biarkan tanggal mendominasi first viewport.",
+      "Satu tombol merah untuk aksi berikutnya."
+    ],
+    "donts": [
+      "Jangan kartu metrik sama ukuran.",
+      "Jangan grid 31 hari.",
+      "Jangan sky blue atau kaca."
+    ]
+  }
+}

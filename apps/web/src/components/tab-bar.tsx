@@ -5,23 +5,17 @@ import {
   DropdownMenuTrigger,
 } from "@BMJ-KARYAWAN/ui/components/dropdown-menu";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Banknote, Ellipsis, LayoutDashboard, Store, Wallet, Wrench } from "lucide-react";
+import { Ellipsis } from "lucide-react";
+
+import { NAV_ICONS } from "@/components/nav-icons";
 import { MORE_LINKS, tabsForRole } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
 import { sessionRole } from "@/lib/session-role";
 
-const TAB_ICONS = {
-  dasbor: LayoutDashboard,
-  kasbon: Wallet,
-  pekerjaan: Wrench,
-  gaji: Banknote,
-  toko: Store,
-} as const;
-
 const TAB_CONTROL =
-  "flex min-h-12 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1 pt-1 text-center text-xs font-medium leading-tight break-words text-muted-foreground";
+  "relative flex min-h-12 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1 pt-1 text-center text-xs font-medium leading-tight break-words text-muted-foreground";
 
-const TAB_ACTIVE = "font-semibold text-primary";
+const TAB_ACTIVE = "rounded-md bg-primary font-semibold text-primary-foreground";
 
 const MORE_PATHS: Record<string, true> = {
   "/absen": true,
@@ -65,7 +59,7 @@ export function TabBar() {
   return (
     <nav
       aria-label="Menu utama"
-      className={`app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-background/80 ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] backdrop-blur-[20px] backdrop-saturate-150 ${
+      className={`app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-card ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] lg:hidden ${
         tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"
       }`}
     >
@@ -75,7 +69,7 @@ export function TabBar() {
         }
 
         const active = pathname === item.to;
-        const Icon = TAB_ICONS[item.icon];
+        const Icon = NAV_ICONS[item.icon];
         return (
           <Link
             key={item.to}

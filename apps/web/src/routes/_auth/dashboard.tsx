@@ -1,8 +1,13 @@
+import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import z from "zod";
 
-import { StatTile } from "@/components/mobile-list";
+import { ActionQueue } from "@/components/action-queue";
+import Loader from "@/components/loader";
+import { PageShell } from "@/components/page-shell";
+import { PageError } from "@/components/state-panel";
+import { formatRp, monthBounds, todayParts, weekDays } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 
@@ -10,11 +15,14 @@ export const Route = createFileRoute("/_auth/dashboard")({
   component: RouteComponent,
 });
 
-
 const employeeMeSchema = z.object({ id: z.string() }).nullable();
 
 const kasbonRowSchema = z.object({
+  id: z.string().optional(),
   employeeId: z.string(),
+  employeeName: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  keperluan: z.string().optional(),
   amountIdr: z.number(),
   status: z.string(),
   sisaIdr: z.number().optional(),
@@ -24,7 +32,11 @@ const kasbonRowSchema = z.object({
 });
 
 const jobRowSchema = z.object({
+  id: z.string().optional(),
   employeeId: z.string(),
+  employeeName: z.string().nullable().optional(),
+  name: z.string().nullable().optional(),
+  description: z.string().optional(),
   status: z.string(),
 });
 
@@ -34,15 +46,8 @@ const diagramSchema = z.object({
   bengkel: z.number(),
 });
 
-
-function formatIdr(n: number) {
-  return n.toLocaleString("id-ID");
-}
-
 function listPayload(data: unknown): unknown[] {
-  if (Array.isArray(data)) {
-    return data;
-  }
+  if (Array.isArray(data)) return data;
   if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
     return data.items;
   }
@@ -53,23 +58,15 @@ function parseList<T>(data: unknown, schema: z.ZodType<T>): T[] {
   const parsed: T[] = [];
   for (const row of listPayload(data)) {
     const result = schema.safeParse(row);
-    if (result.success) {
-      parsed.push(result.data);
-    }
+    if (result.success) parsed.push(result.data);
   }
   return parsed;
 }
 
 function kasbonSisa(row: z.infer<typeof kasbonRowSchema>): number {
-  if (row.status !== "disbursed" && row.status !== "lunas") {
-    return 0;
-  }
-  if (typeof row.sisaIdr === "number") {
-    return row.sisaIdr;
-  }
-  if (typeof row.sisa === "number") {
-    return row.sisa;
-  }
+  if (row.status !== "disbursed" && row.status !== "lunas") return 0;
+  if (typeof row.sisaIdr === "number") return row.sisaIdr;
+  if (typeof row.sisa === "number") return row.sisa;
   const paid =
     typeof row.paidIdr === "number"
       ? row.paidIdr
@@ -77,28 +74,13 @@ function kasbonSisa(row: z.infer<typeof kasbonRowSchema>): number {
   return row.amountIdr - paid;
 }
 
-function currentJayapuraMonthRange() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jayapura",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const year = Number(parts.find((part) => part.type === "year")?.value);
-  const month = Number(parts.find((part) => part.type === "month")?.value);
-  const lastDay = new Date(year, month, 0).getDate();
-  const monthText = String(month).padStart(2, "0");
-  return {
-    from: `${year}-${monthText}-01`,
-    to: `${year}-${monthText}-${String(lastDay).padStart(2, "0")}`,
-  };
-}
-
 function RouteComponent() {
   const { session } = Route.useRouteContext();
   const role = sessionRole(session?.user);
   const isStaff = role === "kasir" || role === "supervisor";
-  const month = currentJayapuraMonthRange();
+  const today = todayParts();
+  const days = weekDays();
+  const month = monthBounds();
   const trpc = useTRPC();
 
   const me = useQuery(trpc.employee.me.queryOptions());
@@ -117,6 +99,9 @@ function RouteComponent() {
     enabled: isStaff,
   });
 
+
+  const failed = me.isError || kasbon.isError || jobs.isError || (isStaff && diagram.isError);
+
   const employee = employeeMeSchema.safeParse(me.data);
   const employeeId = employee.success ? employee.data?.id : undefined;
   const kasbonRows = parseList(kasbon.data, kasbonRowSchema);
@@ -125,6 +110,7 @@ function RouteComponent() {
   const diagramData = diagramParsed.success
     ? diagramParsed.data
     : { pendapatan: 0, pengeluaran: 0, bengkel: 0 };
+
 
   const ownKasbon = employeeId
     ? kasbonRows.filter((row) => row.employeeId === employeeId)
@@ -138,41 +124,142 @@ function RouteComponent() {
     : role === "mekanik"
       ? jobRows
       : [];
-  const inProgressCount = ownJobs.filter(
-    (row) => row.status === "proses" || row.status === "selesai",
-  ).length;
+  const waitingConfirm = ownJobs.filter((row) => row.status === "selesai");
 
-  const pendingKasbonCount = kasbonRows.filter((row) => row.status === "pending").length;
+  const pendingKasbon = kasbonRows.filter((row) => row.status === "pending");
+  const approvedKasbon = kasbonRows.filter((row) => row.status === "approved");
+  const selesaiJobs = jobRows.filter((row) => row.status === "selesai");
+
+  const queueItems =
+    role === "supervisor"
+      ? pendingKasbon.slice(0, 6).map((row, index) => ({
+          id: row.id ?? `pending-${index}`,
+          title: row.employeeName ?? row.name ?? "Kasbon menunggu",
+          subtitle: row.keperluan,
+          trailing: formatRp(row.amountIdr),
+          to: "/kasbon" as const,
+        }))
+      : role === "kasir"
+        ? [
+            ...approvedKasbon.slice(0, 4).map((row, index) => ({
+              id: row.id ?? `approved-${index}`,
+              title: row.employeeName ?? row.name ?? "Siap dicairkan",
+              subtitle: row.keperluan,
+              trailing: formatRp(row.amountIdr),
+              to: "/kasbon" as const,
+            })),
+            ...selesaiJobs.slice(0, 2).map((row, index) => ({
+              id: row.id ?? `job-${index}`,
+              title: row.description ?? "Pekerjaan selesai",
+              subtitle: row.employeeName ?? row.name ?? "Menunggu diterima",
+              to: "/pekerjaan" as const,
+            })),
+          ]
+        : waitingConfirm.slice(0, 6).map((row, index) => ({
+            id: row.id ?? `wait-${index}`,
+            title: row.description ?? "Menunggu konfirmasi",
+            subtitle: "Status selesai, menunggu kasir atau supervisor",
+            to: "/pekerjaan" as const,
+          }));
+
+  const shortcuts =
+    role === "supervisor"
+      ? [
+          { to: "/kasbon" as const, label: "Tinjau kasbon" },
+          { to: "/gaji" as const, label: "Buka gaji" },
+          { to: "/absen" as const, label: "Isi absen" },
+        ]
+      : role === "kasir"
+        ? [
+            { to: "/kasbon" as const, label: "Cairkan kasbon" },
+            { to: "/toko" as const, label: "Catat transaksi" },
+            { to: "/pekerjaan" as const, label: "Tinjau pekerjaan" },
+          ]
+        : [
+            { to: "/pekerjaan" as const, label: "Catat pekerjaan" },
+            { to: "/kasbon" as const, label: "Ajukan kasbon" },
+            { to: "/gaji" as const, label: "Lihat gaji" },
+          ];
+
+  const primary = shortcuts[0];
+  const rest = shortcuts.slice(1);
+  const moneyLabel = role === "mekanik" ? "Sisa kasbon" : "Pendapatan bulan ini";
+  const moneyValue = role === "mekanik" ? formatRp(ownSisa) : formatRp(diagramData.pendapatan);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
-      <p className="text-pretty text-muted-foreground">Halo, {session?.user.name}</p>
+    <PageShell className="gap-6">
+      <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
+        <p className="today-settle font-display text-[clamp(4.5rem,22vw,6rem)] leading-none text-foreground">
+          {String(today.day).padStart(2, "0")}
+        </p>
+        <p className="mt-3 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
+        <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
 
-      <div className="grid grid-cols-2 gap-2">
-        <StatTile
-          label="Sisa kasbon"
-          value={<span className="tabular-nums">Rp {formatIdr(ownSisa)}</span>}
+        <ol className="mt-6 grid grid-cols-7 gap-1.5" aria-label="Minggu ini">
+          {days.map((day) => (
+            <li key={day.ymd}>
+              <div
+                className={
+                  day.isToday
+                    ? "flex aspect-square flex-col items-center justify-center rounded-md bg-primary text-primary-foreground"
+                    : "flex aspect-square flex-col items-center justify-center rounded-md bg-muted text-foreground"
+                }
+              >
+                <span className="text-[0.65rem] font-semibold uppercase">{day.label}</span>
+                <span className="font-display text-xl leading-none">{day.day}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        {primary ? (
+          <Button className="mt-6 h-14 min-h-14 w-full text-base" size="lg" render={<Link to={primary.to} />}>
+            {primary.label}
+          </Button>
+        ) : null}
+      </section>
+
+      {failed ? (
+        <PageError
+          onRetry={() => {
+            void me.refetch();
+            void kasbon.refetch();
+            void jobs.refetch();
+            if (isStaff) void diagram.refetch();
+          }}
         />
-        <StatTile label="Pekerjaan berjalan" value={inProgressCount} />
-      </div>
+      ) : me.isPending || kasbon.isPending || jobs.isPending || (isStaff && diagram.isPending) ? (
+        <Loader />
+      ) : (
+        <>
+          <p className="px-1">
+            <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
+            <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
+          </p>
 
-      {isStaff ? (
-        <div className="grid grid-cols-2 gap-2">
-          <StatTile label="Kasbon menunggu" value={pendingKasbonCount} />
-          <StatTile
-            label="Pendapatan"
-            value={<span className="tabular-nums">Rp {formatIdr(diagramData.pendapatan)}</span>}
+          <ActionQueue
+            title="Centang hari ini"
+            items={queueItems}
+            emptyTitle="Tidak ada yang perlu dicentang"
+            emptyDescription="Semua pekerjaan untuk peran ini sudah selesai."
           />
-          <StatTile
-            label="Pengeluaran"
-            value={<span className="tabular-nums">Rp {formatIdr(diagramData.pengeluaran)}</span>}
-          />
-          <StatTile
-            label="Bengkel"
-            value={<span className="tabular-nums">Rp {formatIdr(diagramData.bengkel)}</span>}
-          />
-        </div>
-      ) : null}
-    </div>
+
+          {rest.length > 0 ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {rest.map((item) => (
+                <Button
+                  key={item.to}
+                  variant="outline"
+                  className="h-14 min-h-14 bg-card"
+                  render={<Link to={item.to} />}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      )}
+    </PageShell>
   );
 }
