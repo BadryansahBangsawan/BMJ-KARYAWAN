@@ -106,9 +106,15 @@ function KasbonPage() {
       }
     | undefined;
 
+  const isKasbonListQuery = (query: { queryKey: readonly unknown[] }) => {
+    const path = query.queryKey[0];
+    return Array.isArray(path) && path[0] === "kasbon";
+  };
+
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: trpc.kasbon.list.queryKey() });
-    await queryClient.invalidateQueries({ queryKey: trpc.kasbon.summary.queryKey() });
+    await queryClient.invalidateQueries({ predicate: isKasbonListQuery });
+    await listQuery.refetch();
+    if (isKasirish) await summaryQuery.refetch();
   };
 
   const createMut = useMutation(
@@ -123,6 +129,15 @@ function KasbonPage() {
   );
   const approveMut = useMutation(
     trpc.kasbon.approve.mutationOptions({
+      onMutate: async ({ kasbonId }) => {
+        await queryClient.cancelQueries({ predicate: isKasbonListQuery });
+        queryClient.setQueriesData({ predicate: isKasbonListQuery }, (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((row: KasbonRow) =>
+            row.id === kasbonId ? { ...row, status: "approved" } : row,
+          );
+        });
+      },
       onSuccess: async () => {
         toast.success("Kasbon disetujui");
         await invalidate();
@@ -132,6 +147,15 @@ function KasbonPage() {
   );
   const rejectMut = useMutation(
     trpc.kasbon.reject.mutationOptions({
+      onMutate: async ({ kasbonId }) => {
+        await queryClient.cancelQueries({ predicate: isKasbonListQuery });
+        queryClient.setQueriesData({ predicate: isKasbonListQuery }, (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((row: KasbonRow) =>
+            row.id === kasbonId ? { ...row, status: "rejected" } : row,
+          );
+        });
+      },
       onSuccess: async () => {
         toast.success("Kasbon ditolak");
         setRejectId(null);
@@ -143,6 +167,15 @@ function KasbonPage() {
   );
   const disburseMut = useMutation(
     trpc.kasbon.disburse.mutationOptions({
+      onMutate: async ({ kasbonId }) => {
+        await queryClient.cancelQueries({ predicate: isKasbonListQuery });
+        queryClient.setQueriesData({ predicate: isKasbonListQuery }, (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((row: KasbonRow) =>
+            row.id === kasbonId ? { ...row, status: "disbursed" } : row,
+          );
+        });
+      },
       onSuccess: async () => {
         toast.success("Kasbon dicairkan");
         await invalidate();
