@@ -90,6 +90,16 @@ function todayYmdJayapura() {
   return new Date().toLocaleDateString("en-CA", { timeZone: TZ });
 }
 
+function assertNotFutureWorkDate(workDate: string) {
+  if (workDate > todayYmdJayapura()) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Tidak bisa absen untuk tanggal yang belum terjadi",
+    });
+  }
+}
+
+
 function assertWorkshopPresence(lat: number, lng: number, workDate: string) {
   if (isSundayJayapura(workDate)) {
     throw new TRPCError({
@@ -363,6 +373,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      assertNotFutureWorkDate(input.workDate);
       if (isSundayJayapura(input.workDate)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -426,6 +437,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      assertNotFutureWorkDate(input.workDate);
       const deleted = await ctx.db
         .delete(attendance)
         .where(

@@ -154,6 +154,12 @@ export const jobRouter = router({
 
       const kind = role === "mekanik" ? "ongkos" : input.kind;
       const workDate = role === "mekanik" ? todayYmd() : input.workDate;
+      if (workDate > todayYmd()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Tidak bisa catat pekerjaan di tanggal yang belum terjadi",
+        });
+      }
 
       if (kind === "persenan" && input.bengkelPercent === undefined) {
         throw new TRPCError({
@@ -307,11 +313,20 @@ export const jobRouter = router({
         .where(eq(job.id, input.id))
         .limit(1);
       if (!row) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Job not found" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Job not found",
+        });
       }
 
       await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
       if (input.workDate && input.workDate !== row.workDate) {
+        if (input.workDate > todayYmd()) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Tidak bisa catat pekerjaan di tanggal yang belum terjadi",
+          });
+        }
         await assertJobUnlocked(ctx.db, row.employeeId, input.workDate);
       }
 

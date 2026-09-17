@@ -88,6 +88,7 @@ function AttendanceCell({
   date,
   value,
   busy,
+  locked,
   onChange,
 }: {
   employeeName: string;
@@ -95,13 +96,14 @@ function AttendanceCell({
   date: string;
   value: number | undefined;
   busy: boolean;
+  locked?: boolean;
   onChange: (employeeId: string, workDate: string, next: 0 | 50 | 100 | null) => void;
 }) {
   const selectValue = value === 100 ? "100" : value === 50 ? "50" : value === 0 ? "0" : "none";
   return (
     <Select
       value={selectValue}
-      disabled={busy}
+      disabled={busy || locked}
       onValueChange={(next) => {
         if (next === "100") onChange(employeeId, date, 100);
         else if (next === "50") onChange(employeeId, date, 50);
@@ -111,7 +113,7 @@ function AttendanceCell({
     >
       <SelectTrigger
         className="h-11 min-h-11 w-14 min-w-14 justify-center px-1 text-sm tabular-nums [&_svg]:hidden"
-        aria-label={`${employeeName}, ${date}, ${cellLabel(value) || "kosong"}`}
+        aria-label={`${employeeName}, ${date}, ${locked ? "belum terjadi" : cellLabel(value) || "kosong"}`}
         aria-busy={busy}
       >
         {busy ? <Loader2 className="size-4 motion-safe:animate-spin" /> : <SelectValue />}
@@ -306,7 +308,13 @@ function AbsenPage() {
     }),
   );
 
+  const today = todayYmd();
+
   function setMark(employeeId: string, workDate: string, next: 0 | 50 | 100 | null) {
+    if (workDate > today) {
+      toast.error("Tidak bisa absen untuk tanggal yang belum terjadi");
+      return;
+    }
     if (pendingRef.current.has(markKey(employeeId, workDate))) return;
     const current = byKey[markKey(employeeId, workDate)]?.value;
     if (next === null) {
@@ -324,7 +332,19 @@ function AbsenPage() {
       <PageHeader title="Absen" description={PAGE_DESCRIPTION["/absen"]}>
         {isSupervisor ? (
           <div className="mt-3">
-            <PeriodFields year={year} month={month} onYearChange={setYear} onMonthChange={setMonth} />
+            <PeriodFields
+              year={year}
+              month={month}
+              onYearChange={(next) => {
+                if (next > now.year) return;
+                setYear(next);
+                if (next === now.year && month > now.month) setMonth(now.month);
+              }}
+              onMonthChange={(next) => {
+                if (year > now.year || (year === now.year && next > now.month)) return;
+                setMonth(next);
+              }}
+            />
           </div>
         ) : null}
       </PageHeader>
@@ -352,7 +372,7 @@ function AbsenPage() {
             <div className="flex min-w-0 flex-col gap-4">
               <AttendanceLegend />
               <p className="text-sm text-muted-foreground">
-                Pilih 1 hadir, 0,5 setengah, atau 0 alpa. · = kosong. Geser tabel untuk hari lain.
+                Pilih 1 hadir, 0,5 setengah, atau 0 alpa. Tanggal setelah hari ini tidak bisa diisi.
               </p>
               <div className="overflow-x-auto rounded-xl bg-card shadow-[var(--shadow-border)]">
                 <Table>
@@ -382,6 +402,7 @@ function AbsenPage() {
                                 date={d.date}
                                 value={byKey[key]?.value}
                                 busy={pendingKeys.has(key)}
+                                locked={d.date > today}
                                 onChange={setMark}
                               />
                             </TableCell>

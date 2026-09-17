@@ -351,6 +351,13 @@ function PekerjaanPage() {
               message: "Pilih mekanik.",
             });
           }
+          if (role === "supervisor" && value.workDate > todayYmd()) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["workDate"],
+              message: "Tanggal tidak boleh setelah hari ini.",
+            });
+          }
           if (value.kind === "persenan") {
             const percent = Number(value.bengkelPercent);
             if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
@@ -389,7 +396,9 @@ function PekerjaanPage() {
       const vision = await jpegDataUrlFromFile(file, 1024, 400_000);
       const result = await extractStruk(vision, ctrl.signal);
       if (ctrl.signal.aborted) return;
-      if (result.tanggal && role !== "mekanik") form.setFieldValue("workDate", result.tanggal);
+      if (result.tanggal && role !== "mekanik" && result.tanggal <= todayYmd()) {
+        form.setFieldValue("workDate", result.tanggal);
+      }
       if (result.nomorStruk) {
         setNomorStruk(result.nomorStruk);
         setStrukturInfo(`No. struk: ${result.nomorStruk}`);
@@ -701,6 +710,7 @@ function PekerjaanPage() {
                   <Input
                     id={field.name}
                     type="date"
+                    max={todayYmd()}
                     className="w-full min-w-0 max-w-full"
                     value={field.state.value}
                     onBlur={field.handleBlur}
