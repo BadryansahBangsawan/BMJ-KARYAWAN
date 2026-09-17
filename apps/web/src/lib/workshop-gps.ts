@@ -24,10 +24,20 @@ export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }>
   return promise;
 }
 
+const MAX_PHOTO_CHARS = 50_000;
+const MAX_EDGE = 320;
+
+function jpegDataUrlFromCanvas(canvas: HTMLCanvasElement): string {
+  for (const quality of [0.45, 0.35, 0.25, 0.18]) {
+    const url = canvas.toDataURL("image/jpeg", quality);
+    if (url.length <= MAX_PHOTO_CHARS) return url;
+  }
+  return canvas.toDataURL("image/jpeg", 0.12);
+}
+
 export async function jpegDataUrlFromFile(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const maxEdge = 720;
-  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
   const canvas = document.createElement("canvas");
@@ -40,38 +50,25 @@ export async function jpegDataUrlFromFile(file: File): Promise<string> {
   }
   ctx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
-  return canvas.toDataURL("image/jpeg", 0.7);
+  return jpegDataUrlFromCanvas(canvas);
 }
 
-export function jpegFileFromVideo(video: HTMLVideoElement): Promise<File> {
-  const { promise, resolve, reject } = Promise.withResolvers<File>();
-  const maxEdge = 720;
-  const sourceW = video.videoWidth || 720;
-  const sourceH = video.videoHeight || 720;
-  const scale = Math.min(1, maxEdge / Math.max(sourceW, sourceH));
+export async function jpegFileFromVideo(video: HTMLVideoElement): Promise<File> {
+  const sourceW = video.videoWidth || MAX_EDGE;
+  const sourceH = video.videoHeight || MAX_EDGE;
+  const scale = Math.min(1, MAX_EDGE / Math.max(sourceW, sourceH));
   const width = Math.max(1, Math.round(sourceW * scale));
   const height = Math.max(1, Math.round(sourceH * scale));
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    reject(new Error("Kamera gagal mengambil foto."));
-    return promise;
-  }
+  if (!ctx) throw new Error("Kamera gagal mengambil foto.");
   ctx.drawImage(video, 0, 0, width, height);
-  canvas.toBlob(
-    (blob) => {
-      if (!blob) {
-        reject(new Error("Kamera gagal mengambil foto."));
-        return;
-      }
-      resolve(new File([blob], "absen.jpg", { type: "image/jpeg" }));
-    },
-    "image/jpeg",
-    0.7,
-  );
-  return promise;
+  const url = jpegDataUrlFromCanvas(canvas);
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new File([blob], "absen.jpg", { type: "image/jpeg" });
 }
 
 export async function captureClockProof(file: File): Promise<{

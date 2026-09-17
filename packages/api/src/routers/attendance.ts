@@ -112,7 +112,14 @@ export const attendanceRouter = router({
     if (!me) return null;
     const workDate = todayYmdJayapura();
     const [row] = await ctx.db
-      .select()
+      .select({
+        id: attendance.id,
+        employeeId: attendance.employeeId,
+        workDate: attendance.workDate,
+        value: attendance.value,
+        checkInAt: attendance.checkInAt,
+        checkOutAt: attendance.checkOutAt,
+      })
       .from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
       .limit(1);
@@ -128,7 +135,7 @@ export const attendanceRouter = router({
         photo: z
           .string()
           .min(32)
-          .max(400_000)
+          .max(80_000)
           .refine((value) => value.startsWith("data:image/"), "Foto absen wajib"),
       }),
     )
@@ -151,7 +158,10 @@ export const attendanceRouter = router({
       }
 
       const [existing] = await ctx.db
-        .select()
+        .select({
+          id: attendance.id,
+          checkInAt: attendance.checkInAt,
+        })
         .from(attendance)
         .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
         .limit(1);
@@ -174,7 +184,14 @@ export const attendanceRouter = router({
             checkInPhoto: input.photo,
           })
           .where(eq(attendance.id, existing.id))
-          .returning();
+          .returning({
+            id: attendance.id,
+            employeeId: attendance.employeeId,
+            workDate: attendance.workDate,
+            value: attendance.value,
+            checkInAt: attendance.checkInAt,
+            checkOutAt: attendance.checkOutAt,
+          });
         return updated!;
       }
 
@@ -189,7 +206,14 @@ export const attendanceRouter = router({
           checkInAt: now,
           checkInPhoto: input.photo,
         })
-        .returning();
+        .returning({
+          id: attendance.id,
+          employeeId: attendance.employeeId,
+          workDate: attendance.workDate,
+          value: attendance.value,
+          checkInAt: attendance.checkInAt,
+          checkOutAt: attendance.checkOutAt,
+        });
       return inserted!;
     }),
 
@@ -202,7 +226,7 @@ export const attendanceRouter = router({
         photo: z
           .string()
           .min(32)
-          .max(400_000)
+          .max(80_000)
           .refine((value) => value.startsWith("data:image/"), "Foto absen wajib"),
       }),
     )
@@ -225,7 +249,11 @@ export const attendanceRouter = router({
       }
 
       const [existing] = await ctx.db
-        .select()
+        .select({
+          id: attendance.id,
+          checkInAt: attendance.checkInAt,
+          checkOutAt: attendance.checkOutAt,
+        })
         .from(attendance)
         .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
         .limit(1);
@@ -251,7 +279,14 @@ export const attendanceRouter = router({
           checkOutPhoto: input.photo,
         })
         .where(eq(attendance.id, existing.id))
-        .returning();
+        .returning({
+          id: attendance.id,
+          employeeId: attendance.employeeId,
+          workDate: attendance.workDate,
+          value: attendance.value,
+          checkInAt: attendance.checkInAt,
+          checkOutAt: attendance.checkOutAt,
+        });
       return updated!;
     }),
 
@@ -284,7 +319,12 @@ export const attendanceRouter = router({
         employeeIds.length === 0
           ? []
           : await ctx.db
-              .select()
+              .select({
+                id: attendance.id,
+                employeeId: attendance.employeeId,
+                workDate: attendance.workDate,
+                value: attendance.value,
+              })
               .from(attendance)
               .where(
                 and(
