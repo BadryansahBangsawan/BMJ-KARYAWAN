@@ -3,7 +3,7 @@ name: BMJ Karyawan
 description: Kalender dinding bengkel — hari ini besar, aksi seperti mencentang tanggal.
 colors:
   marker: "oklch(0.5 0.205 27)"
-  wall: "oklch(0.86 0.018 236)"
+  wall: "oklch(0.955 0.01 92)"
   paper: "oklch(0.985 0.012 92)"
   ink: "oklch(0.24 0.018 40)"
   ink-soft: "oklch(0.42 0.02 40)"
@@ -67,7 +67,7 @@ components:
 
 Hari ini mengisi layar seperti lembar kalender yang dipaku di dinding bengkel. Angka tanggal tidak bisa tidak dilihat. Aksi berikutnya adalah mencentang kotak, bukan membaca kartu metrik.
 
-Dinding abu-biru dingin, kertas gading, spidol merah hanya untuk hari ini dan tombol utama. Mekanik yang tidak mahir digital harus paham tanpa belajar menu.
+Dinding putih sedikit lebih gelap dari kertas sidebar, kertas gading, spidol merah hanya untuk hari ini dan tombol utama. Mekanik yang tidak mahir digital harus paham tanpa belajar menu.
 
 **Key Characteristics:**
 - Tanggal condensed raksasa, maksimum 6rem
@@ -83,7 +83,7 @@ Satu aksen di atas kertas dan dinding.
 - **Spidol merah** (`oklch(0.5 0.205 27)`): hari ini, tab aktif, tombol aksi. Jarang.
 
 ### Neutral
-- **Dinding** (`oklch(0.86 0.018 236)`): canvas halaman
+- **Dinding** (`oklch(0.955 0.01 92)`): canvas halaman, putih lebih gelap dari sidebar
 - **Kertas** (`oklch(0.985 0.012 92)`): lembar kerja, form, chrome
 - **Tinta** (`oklch(0.24 0.018 40)`): teks
 - **Tinta lunak** (`oklch(0.42 0.02 40)`): sekunder, diwarnai dari tinta, bukan abu netral

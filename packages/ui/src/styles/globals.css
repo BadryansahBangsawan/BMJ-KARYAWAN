@@ -42,7 +42,7 @@
 }
 
 :root {
-  --wall: oklch(0.86 0.018 236);
+  --wall: oklch(0.955 0.01 92);
   --paper: oklch(0.985 0.012 92);
   --ink: oklch(0.24 0.018 40);
   --ink-soft: oklch(0.42 0.02 40);
@@ -95,7 +95,7 @@
 }
 
 .dark {
-  --wall: oklch(0.22 0.02 236);
+  --wall: oklch(0.22 0.012 80);
   --paper: oklch(0.28 0.016 80);
   --ink: oklch(0.95 0.012 92);
   --ink-soft: oklch(0.78 0.02 80);
