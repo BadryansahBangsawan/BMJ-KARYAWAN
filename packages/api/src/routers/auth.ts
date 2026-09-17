@@ -41,7 +41,7 @@ export const authRouter = router({
 
       await ctx.db
         .update(user)
-        .set({ role: "supervisor" })
+        .set({ role: "supervisor", emailVerified: true })
         .where(eq(user.id, result.user.id));
 
       return { ok: true as const, userId: result.user.id };

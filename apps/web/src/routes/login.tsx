@@ -4,6 +4,7 @@ import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -17,6 +18,10 @@ import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: z.object({
+    error: z.string().optional(),
+    error_description: z.string().optional(),
+  }),
   beforeLoad: async () => {
     const session = await getUser();
     if (session) {
@@ -42,6 +47,22 @@ export const Route = createFileRoute("/login")({
 
 function RouteComponent() {
   const { bootstrapNeeded, googleClientId } = Route.useLoaderData();
+  const { error } = Route.useSearch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!error) return;
+    toast.error(
+      error === "account_not_linked"
+        ? "Email Google ini sudah terdaftar. Coba lagi, atau masuk dengan email dan kata sandi."
+        : error === "signup_disabled"
+          ? "Email Google ini belum terdaftar. Minta supervisor menambahkan karyawan dengan email itu."
+          : "Gagal masuk dengan Google. Coba lagi.",
+      { id: "login-oauth-error" },
+    );
+    void navigate({ to: "/login", search: {}, replace: true });
+  }, [error, navigate]);
+
   return bootstrapNeeded ? <BootstrapSupervisorForm /> : <SignInForm googleClientId={googleClientId} />;
 }
 

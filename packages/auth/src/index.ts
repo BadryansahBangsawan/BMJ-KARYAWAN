@@ -36,7 +36,11 @@ export function createAuth(env: AuthConfig, database: Database) {
       accountLinking: {
         enabled: true,
         trustedProviders: ["google"],
+        requireLocalEmailVerified: false,
       },
+    },
+    onAPIError: {
+      errorURL: `${env.BETTER_AUTH_URL.replace(/\/$/, "")}/login`,
     },
     user: {
       additionalFields: {

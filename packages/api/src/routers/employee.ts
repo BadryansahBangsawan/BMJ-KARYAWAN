@@ -70,7 +70,7 @@ async function signUpWithRole(
     throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
   }
 
-  await db.update(user).set({ role: input.role }).where(eq(user.id, userId));
+  await db.update(user).set({ role: input.role, emailVerified: true }).where(eq(user.id, userId));
   return userId;
 }
 
