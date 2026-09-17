@@ -98,11 +98,15 @@ function RootDocument() {
         </a>
         <div className="flex min-h-svh bg-background">
           {session ? <AppSidebar /> : null}
-          <div className="flex min-h-svh min-w-0 flex-1 flex-col">
+          <div className="flex min-h-svh min-w-0 flex-1 flex-col overflow-x-clip">
             <Header />
             <main
               id="main"
-              className={session ? "flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0" : "flex-1"}
+              className={
+                session
+                  ? "min-w-0 flex-1 overflow-x-clip pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0"
+                  : "min-w-0 flex-1 overflow-x-clip"
+              }
             >
               <Outlet />
             </main>

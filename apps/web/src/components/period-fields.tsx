@@ -52,7 +52,7 @@ export function DateRangeFields({
   onToChange: (value: string) => void;
 }) {
   return (
-    <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="min-w-0 space-y-2">
         <Label htmlFor="from">Dari</Label>
         <Input

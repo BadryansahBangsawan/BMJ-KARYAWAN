@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export function MobileList({ children }: { children: ReactNode }) {
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-[1.25rem] bg-card shadow-[var(--shadow-border)]">
+    <ul className="divide-y divide-border overflow-hidden rounded-xl bg-card shadow-[var(--shadow-border)]">
       {children}
     </ul>
   );
@@ -26,7 +26,7 @@ export function MobileListRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div
-            className="break-word font-medium leading-[1.1]"
+            className="break-words font-medium leading-[1.1]"
             title={typeof title === "string" ? title : undefined}
           >
             {title}
@@ -57,7 +57,7 @@ export function StatTile({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-[1.25rem] bg-card px-3 py-3 shadow-[var(--shadow-border)] sm:px-4">
+    <div className="rounded-xl bg-card px-3 py-3 shadow-[var(--shadow-border)] sm:px-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p
         className={

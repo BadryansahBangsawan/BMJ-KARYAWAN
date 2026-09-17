@@ -5,6 +5,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@BMJ-KARYAWAN/ui/components/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@BMJ-KARYAWAN/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -78,7 +86,6 @@ function AttendanceCell({
   employeeName,
   employeeId,
   date,
-  day,
   value,
   busy,
   onChange,
@@ -86,40 +93,36 @@ function AttendanceCell({
   employeeName: string;
   employeeId: string;
   date: string;
-  day: number;
   value: number | undefined;
   busy: boolean;
   onChange: (employeeId: string, workDate: string, next: 0 | 50 | 100 | null) => void;
 }) {
   const selectValue = value === 100 ? "100" : value === 50 ? "50" : value === 0 ? "0" : "none";
   return (
-    <div className="min-w-0 space-y-1">
-      <span className="block text-center text-xs tabular-nums text-muted-foreground">{day}</span>
-      <Select
-        value={selectValue}
-        disabled={busy}
-        onValueChange={(next) => {
-          if (next === "100") onChange(employeeId, date, 100);
-          else if (next === "50") onChange(employeeId, date, 50);
-          else if (next === "0") onChange(employeeId, date, 0);
-          else onChange(employeeId, date, null);
-        }}
+    <Select
+      value={selectValue}
+      disabled={busy}
+      onValueChange={(next) => {
+        if (next === "100") onChange(employeeId, date, 100);
+        else if (next === "50") onChange(employeeId, date, 50);
+        else if (next === "0") onChange(employeeId, date, 0);
+        else onChange(employeeId, date, null);
+      }}
+    >
+      <SelectTrigger
+        className="h-11 min-h-11 w-14 min-w-14 justify-center px-1 text-sm tabular-nums [&_svg]:hidden"
+        aria-label={`${employeeName}, ${date}, ${cellLabel(value) || "kosong"}`}
+        aria-busy={busy}
       >
-        <SelectTrigger
-          className="h-11 min-h-11 w-full px-2 text-sm tabular-nums"
-          aria-label={`${employeeName}, ${date}, ${cellLabel(value) || "kosong"}`}
-          aria-busy={busy}
-        >
-          {busy ? <Loader2 className="size-4 motion-safe:animate-spin" /> : <SelectValue />}
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">·</SelectItem>
-          <SelectItem value="100">1</SelectItem>
-          <SelectItem value="50">0,5</SelectItem>
-          <SelectItem value="0">0</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+        {busy ? <Loader2 className="size-4 motion-safe:animate-spin" /> : <SelectValue />}
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">·</SelectItem>
+        <SelectItem value="100">1</SelectItem>
+        <SelectItem value="50">0,5</SelectItem>
+        <SelectItem value="0">0</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -315,13 +318,6 @@ function AbsenPage() {
     setMut.mutate({ employeeId, workDate, value: next });
   }
 
-  function filledCount(employeeId: string) {
-    let count = 0;
-    for (const d of days) {
-      if (byKey[markKey(employeeId, d.date)]) count += 1;
-    }
-    return count;
-  }
 
   return (
     <PageShell>
@@ -353,41 +349,49 @@ function AbsenPage() {
               description="Absen hanya menampilkan karyawan aktif selain supervisor."
             />
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex min-w-0 flex-col gap-4">
               <AttendanceLegend />
               <p className="text-sm text-muted-foreground">
-                Pilih 1 hadir, 0,5 setengah, atau 0 alpa. · = kosong.
+                Pilih 1 hadir, 0,5 setengah, atau 0 alpa. · = kosong. Geser tabel untuk hari lain.
               </p>
-              {employees.map((employee) => (
-                <div
-                  key={employee.id}
-                  className="space-y-3 rounded-xl bg-card p-3 shadow-[var(--shadow-border)]"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="font-medium">{employee.name}</p>
-                    <p className="text-sm tabular-nums text-muted-foreground">
-                      {filledCount(employee.id)}/{days.length}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-                    {days.map((d) => {
-                      const key = markKey(employee.id, d.date);
-                      return (
-                        <AttendanceCell
-                          key={d.date}
-                          employeeName={employee.name}
-                          employeeId={employee.id}
-                          date={d.date}
-                          day={d.day}
-                          value={byKey[key]?.value}
-                          busy={pendingKeys.has(key)}
-                          onChange={setMark}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              <div className="overflow-x-auto rounded-xl bg-card shadow-[var(--shadow-border)]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky start-0 z-20 min-w-28 bg-card">Nama</TableHead>
+                      {days.map((d) => (
+                        <TableHead key={d.date} className="min-w-16 text-center tabular-nums">
+                          {d.day}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employees.map((employee) => (
+                      <TableRow key={employee.id}>
+                        <TableCell className="sticky start-0 z-10 min-w-28 bg-card font-medium">
+                          {employee.name}
+                        </TableCell>
+                        {days.map((d) => {
+                          const key = markKey(employee.id, d.date);
+                          return (
+                            <TableCell key={d.date} className="p-1">
+                              <AttendanceCell
+                                employeeName={employee.name}
+                                employeeId={employee.id}
+                                date={d.date}
+                                value={byKey[key]?.value}
+                                busy={pendingKeys.has(key)}
+                                onChange={setMark}
+                              />
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </>

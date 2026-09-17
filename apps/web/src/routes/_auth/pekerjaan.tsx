@@ -545,7 +545,7 @@ function PekerjaanPage() {
                         <TableCell>
                           <StatusBadge {...jobStatusMeta(job.status)} />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-normal">
                           <div className="flex flex-wrap gap-2">
                             <JobRowActions
                               job={job}
