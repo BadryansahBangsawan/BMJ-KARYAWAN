@@ -29,7 +29,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/40 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 motion-safe:data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 motion-safe:data-closed:zoom-out-95",
+          "relative fixed inset-x-0 bottom-0 z-50 grid w-full min-w-0 max-w-full max-h-[min(92dvh,100%)] gap-4 overflow-x-clip overflow-y-auto rounded-t-[20px] bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-sm/relaxed text-popover-foreground shadow-[var(--shadow-floating)] ring-1 ring-foreground/10 duration-100 outline-none sm:inset-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:max-h-[min(90dvh,40rem)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[20px] sm:p-6 data-open:animate-in data-open:fade-in-0 motion-safe:data-open:slide-in-from-bottom-4 sm:motion-safe:data-open:slide-in-from-bottom-0 sm:motion-safe:data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 motion-safe:data-closed:slide-out-to-bottom-4 sm:motion-safe:data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -63,13 +63,12 @@ function DialogContent({
             render={
               <Button
                 variant="ghost"
-                className="absolute top-2 right-2"
+                className="absolute top-2 end-2"
                 size="icon-sm"
               />
             }
           >
-            <XIcon
-            />
+            <XIcon aria-hidden="true" />
             <span className="sr-only">Tutup</span>
           </DialogPrimitive.Close>
         )}
@@ -119,7 +118,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-sm font-medium", className)}
+      className={cn("text-base font-semibold leading-[1.1] tracking-tight text-balance", className)}
       {...props}
     />
   )
@@ -133,7 +132,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-xs/relaxed text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        "text-pretty text-sm/relaxed text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className
       )}
       {...props}

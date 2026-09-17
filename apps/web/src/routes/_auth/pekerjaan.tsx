@@ -407,7 +407,7 @@ function PekerjaanPage() {
         description={PAGE_DESCRIPTION["/pekerjaan"]}
         actions={
           canCreate ? (
-            <Button type="button" onClick={() => setCreateOpen(true)}>
+            <Button type="button" className="w-full min-w-0 sm:w-auto" onClick={() => setCreateOpen(true)}>
               Catat pekerjaan
             </Button>
           ) : null
@@ -679,11 +679,12 @@ function PekerjaanPage() {
 
           <form.Field name="workDate">
             {(field) => (
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <Label htmlFor={field.name}>Tanggal</Label>
                 <Input
                   id={field.name}
                   type="date"
+                  className="w-full min-w-0 max-w-full"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
