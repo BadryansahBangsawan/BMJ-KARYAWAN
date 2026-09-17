@@ -150,7 +150,7 @@ const defaultEmployeeValues: EmployeeFormValues = {
   email: "",
   password: "",
   dailyRateIdr: "0",
-  konsumsiMonthlyIdr: "0",
+  konsumsiMonthlyIdr: "",
   bonusIdr: "0",
   active: true,
 };
@@ -313,14 +313,17 @@ function EmployeeFields({
       <form.Field name="konsumsiMonthlyIdr">
         {(field) => (
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-${field.name}`}>Konsumsi bulanan</Label>
+            <Label htmlFor={`${idPrefix}-${field.name}`}>Konsumsi harian</Label>
             <MoneyField
               id={`${idPrefix}-${field.name}`}
               value={String(field.state.value)}
               onBlur={field.handleBlur}
               onChange={(event) => field.handleChange(event.target.value)}
-              placeholder="0"
+              placeholder="Kosong = tidak ada"
             />
+            <p className="text-pretty text-sm text-muted-foreground">
+              Uang makan per hari kerja. Opsional.
+            </p>
           </div>
         )}
       </form.Field>
@@ -422,7 +425,7 @@ function KaryawanPage() {
         name: value.name,
         role: value.role,
         dailyRateIdr: Number(value.dailyRateIdr),
-        konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr),
+        konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
         bonusIdr: Number(value.bonusIdr),
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
@@ -442,7 +445,7 @@ function KaryawanPage() {
         name: value.name,
         role: value.role,
         dailyRateIdr: Number(value.dailyRateIdr),
-        konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr),
+        konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
         bonusIdr: Number(value.bonusIdr),
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
@@ -646,7 +649,7 @@ function KaryawanPage() {
                       <TableHead>Nama</TableHead>
                       <TableHead>Peran</TableHead>
                       <TableHead className="text-end">Tarif</TableHead>
-                      <TableHead className="text-end">Konsumsi</TableHead>
+                      <TableHead className="text-end">Konsumsi/hari</TableHead>
                       <TableHead className="text-end">Bonus</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Aksi</TableHead>

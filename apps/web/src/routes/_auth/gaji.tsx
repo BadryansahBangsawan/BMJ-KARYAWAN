@@ -287,13 +287,23 @@ function GajiPage() {
                         trailing={formatRp(line.takeHomeIdr)}
                       >
                         <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                          <dt className="text-muted-foreground">Tarif</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.dailyRateIdr)}</dd>
-                          <dt className="text-muted-foreground">Gaji harian</dt>
+                          <dt className="text-muted-foreground">Gaji</dt>
                           <dd className="text-end tabular-nums">{formatRp(line.dailyPayIdr)}</dd>
-                          <dt className="text-muted-foreground">Kasbon</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.kasbonBalanceIdr)}</dd>
-                          <dt className="text-muted-foreground">Potongan</dt>
+                          <dt className="text-muted-foreground">Ongkos</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.jobShareIdr)}</dd>
+                          {line.konsumsiIdr > 0 ? (
+                            <>
+                              <dt className="text-muted-foreground">Uang makan</dt>
+                              <dd className="text-end tabular-nums">{formatRp(line.konsumsiIdr)}</dd>
+                            </>
+                          ) : null}
+                          {line.bonusIdr > 0 ? (
+                            <>
+                              <dt className="text-muted-foreground">Bonus</dt>
+                              <dd className="text-end tabular-nums">{formatRp(line.bonusIdr)}</dd>
+                            </>
+                          ) : null}
+                          <dt className="text-muted-foreground">Potongan kasbon</dt>
                           <dd className="text-end">
                             {canEditDraft ? (
                               <PotonganEditor
@@ -310,14 +320,6 @@ function GajiPage() {
                               <span className="tabular-nums">{formatRp(line.kasbonDeductionIdr)}</span>
                             )}
                           </dd>
-                          <dt className="text-muted-foreground">Konsumsi</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.konsumsiIdr)}</dd>
-                          <dt className="text-muted-foreground">Bonus</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.bonusIdr)}</dd>
-                          <dt className="text-muted-foreground">Ongkos</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.jobShareIdr)}</dd>
-                          <dt className="text-muted-foreground">Sisa kasbon</dt>
-                          <dd className="text-end tabular-nums">{formatRp(line.kasbonRemainingIdr)}</dd>
                         </dl>
                       </MobileListRow>
                     ))}
@@ -329,15 +331,12 @@ function GajiPage() {
                       <TableRow>
                         <TableHead>Nama</TableHead>
                         <TableHead className="text-end">Hari</TableHead>
-                        <TableHead className="text-end">Tarif</TableHead>
-                        <TableHead className="text-end">Gaji harian</TableHead>
-                        <TableHead className="text-end">Kasbon</TableHead>
-                        <TableHead className="text-end">Potongan</TableHead>
-                        <TableHead className="text-end">Konsumsi</TableHead>
-                        <TableHead className="text-end">Bonus</TableHead>
+                        <TableHead className="text-end">Gaji</TableHead>
                         <TableHead className="text-end">Ongkos</TableHead>
+                        <TableHead className="text-end">Uang makan</TableHead>
+                        <TableHead className="text-end">Bonus</TableHead>
+                        <TableHead className="text-end">Potongan</TableHead>
                         <TableHead className="text-end">Diterima</TableHead>
-                        <TableHead className="text-end">Sisa kasbon</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -348,13 +347,16 @@ function GajiPage() {
                             {formatHari(line.daysPresent)}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatRp(line.dailyRateIdr)}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
                             {formatRp(line.dailyPayIdr)}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatRp(line.kasbonBalanceIdr)}
+                            {formatRp(line.jobShareIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.konsumsiIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.bonusIdr)}
                           </TableCell>
                           <TableCell className="text-end">
                             {canEditDraft ? (
@@ -372,20 +374,8 @@ function GajiPage() {
                               <span className="tabular-nums">{formatRp(line.kasbonDeductionIdr)}</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {formatRp(line.konsumsiIdr)}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {formatRp(line.bonusIdr)}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {formatRp(line.jobShareIdr)}
-                          </TableCell>
                           <TableCell className="text-end font-medium tabular-nums">
                             {formatRp(line.takeHomeIdr)}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {formatRp(line.kasbonRemainingIdr)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -398,10 +388,10 @@ function GajiPage() {
 
           <div className="space-y-1">
             <p className="text-pretty text-muted-foreground">
-              Bonus diberikan jika hadir minimal 20 hari dan alpa &lt; 5 hari.
+              Bonus jika hadir minimal 20 hari dan alpa &lt; 5.
             </p>
             <p className="text-pretty text-muted-foreground">
-              Konsumsi diberikan jika ada kehadiran di bulan tersebut.
+              Uang makan = konsumsi harian × hari hadir. Kosong di data karyawan = tidak dihitung.
             </p>
           </div>
         </>

@@ -200,7 +200,9 @@ async function rebuildDraftLines(
     const jobShareIdr = jobShareByEmp[emp.id] ?? 0;
     const bonusIdr =
       daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
-    const konsumsiIdr = daysPresentTenths > 0 ? emp.konsumsiMonthlyIdr : 0;
+    const konsumsiIdr = Math.round(
+      (daysPresentTenths * (emp.konsumsiMonthlyIdr || 0)) / 100,
+    );
     const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
     const defaultDeduction = Math.min(
       kasbonBalanceIdr,
