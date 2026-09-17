@@ -14,6 +14,10 @@ export const web = Cloudflare.Website.Vite("web", {
   compatibility: {
     flags: ["nodejs_compat"],
   },
+  domain: {
+    name: "karyawan.manujujaya.com",
+    zoneName: "manujujaya.com",
+  },
   env: {
     DB: db,
     BETTER_AUTH_SECRET: Config.redacted("BETTER_AUTH_SECRET"),
