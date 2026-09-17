@@ -48,7 +48,7 @@ import { PageError, StatePanel } from "@/components/state-panel";
 import { StatusBadge } from "@/components/status-badge";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
-import { formatRp, monthBounds, todayYmd } from "@/lib/format";
+import { formatLongDate, formatRp, monthBounds, todayYmd } from "@/lib/format";
 import { jpegDataUrlFromFile } from "@/lib/workshop-gps";
 import { sessionRole, type UserRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
@@ -307,15 +307,15 @@ function PekerjaanPage() {
         bengkelPercent?: number;
         employeeId?: string;
       } = {
-        workDate: value.workDate,
+        workDate: role === "mekanik" ? todayYmd() : value.workDate,
         description: value.description,
         amountIdr: Number(value.amountIdr),
-        kind: value.kind,
+        kind: role === "mekanik" ? "ongkos" : value.kind,
       };
       if (nomorStruk) payload.struk = nomorStruk;
       else if (value.struk && !value.struk.startsWith("data:")) payload.struk = value.struk;
       if (value.customerNote) payload.customerNote = value.customerNote;
-      if (value.kind === "persenan") {
+      if (role !== "mekanik" && value.kind === "persenan") {
         payload.bengkelPercent = Number(value.bengkelPercent);
       }
       if (role === "supervisor" && value.employeeId) {
@@ -384,7 +384,7 @@ function PekerjaanPage() {
       const vision = await jpegDataUrlFromFile(file, 1024, 400_000);
       const result = await extractStruk(vision, ctrl.signal);
       if (ctrl.signal.aborted) return;
-      if (result.tanggal) form.setFieldValue("workDate", result.tanggal);
+      if (result.tanggal && role !== "mekanik") form.setFieldValue("workDate", result.tanggal);
       if (result.nomorStruk) {
         setNomorStruk(result.nomorStruk);
         setStrukturInfo(`No. struk: ${result.nomorStruk}`);
@@ -573,14 +573,21 @@ function PekerjaanPage() {
           open={createOpen}
           onOpenChange={(open) => {
             setCreateOpen(open);
-            if (!open) {
+            if (open) {
+              form.setFieldValue("workDate", todayYmd());
+              if (role === "mekanik") form.setFieldValue("kind", "ongkos");
+            } else {
               setStrukturInfo("");
               setExtracting(false);
               extractAbortRef.current?.abort();
             }
           }}
           title="Catat pekerjaan"
-          description="Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
+          description={
+            role === "mekanik"
+              ? "Uraian dan ongkos. Tanggal mengikuti hari ini."
+              : "Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
+          }
           submitLabel="Catat pekerjaan"
           submitting={createMut.isPending}
           onSubmit={() => form.handleSubmit()}
@@ -677,24 +684,30 @@ function PekerjaanPage() {
             </form.Field>
           ) : null}
 
-          <form.Field name="workDate">
-            {(field) => (
-              <div className="min-w-0 space-y-2">
-                <Label htmlFor={field.name}>Tanggal</Label>
-                <Input
-                  id={field.name}
-                  type="date"
-                  className="w-full min-w-0 max-w-full"
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(e) => field.handleChange(e.target.value)}
-                  aria-invalid={field.state.meta.errors.length > 0}
-                  aria-describedby={fieldDescribedBy("workDate-error", field.state.meta.errors)}
-                />
-                <FieldError id="workDate-error" errors={field.state.meta.errors} />
-              </div>
-            )}
-          </form.Field>
+          {role === "mekanik" ? (
+            <p className="text-sm text-muted-foreground">
+              Tanggal {formatLongDate(todayYmd())}
+            </p>
+          ) : (
+            <form.Field name="workDate">
+              {(field) => (
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor={field.name}>Tanggal</Label>
+                  <Input
+                    id={field.name}
+                    type="date"
+                    className="w-full min-w-0 max-w-full"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    aria-invalid={field.state.meta.errors.length > 0}
+                    aria-describedby={fieldDescribedBy("workDate-error", field.state.meta.errors)}
+                  />
+                  <FieldError id="workDate-error" errors={field.state.meta.errors} />
+                </div>
+              )}
+            </form.Field>
+          )}
 
           <form.Field name="description">
             {(field) => (
@@ -765,48 +778,51 @@ function PekerjaanPage() {
             </form.Field>
           ) : null}
 
-          <form.Field name="kind">
-            {(field) => (
-              <div className="space-y-2">
-                <span className="text-sm font-medium">Jenis</span>
-                <FilterChips
-                  ariaLabel="Jenis ongkos"
-                  value={field.state.value}
-                  onChange={(value) => field.handleChange(value)}
-                  options={[
-                    { value: "ongkos", label: "Ongkos" },
-                    { value: "persenan", label: "Persenan" },
-                  ]}
-                />
-              </div>
-            )}
-          </form.Field>
-
-          <form.Subscribe selector={(state) => state.values.kind}>
-            {(kind) =>
-              kind === "persenan" ? (
-                <form.Field name="bengkelPercent">
-                  {(field) => (
-                    <div className="space-y-2">
-                      <Label htmlFor={field.name}>Persen bengkel (0–100)</Label>
-                      <Input
-                        id={field.name}
-                        inputMode="numeric"
-                        className="tabular-nums"
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
-                        placeholder="30"
-                        aria-invalid={field.state.meta.errors.length > 0}
-                        aria-describedby={fieldDescribedBy("bengkelPercent-error", field.state.meta.errors)}
-                      />
-                      <FieldError id="bengkelPercent-error" errors={field.state.meta.errors} />
-                    </div>
-                  )}
-                </form.Field>
-              ) : null
-            }
-          </form.Subscribe>
+          {role === "supervisor" ? (
+            <>
+              <form.Field name="kind">
+                {(field) => (
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium">Jenis</span>
+                    <FilterChips
+                      ariaLabel="Jenis ongkos"
+                      value={field.state.value}
+                      onChange={(value) => field.handleChange(value)}
+                      options={[
+                        { value: "ongkos", label: "Ongkos" },
+                        { value: "persenan", label: "Persenan" },
+                      ]}
+                    />
+                  </div>
+                )}
+              </form.Field>
+              <form.Subscribe selector={(state) => state.values.kind}>
+                {(kind) =>
+                  kind === "persenan" ? (
+                    <form.Field name="bengkelPercent">
+                      {(field) => (
+                        <div className="space-y-2">
+                          <Label htmlFor={field.name}>Persen bengkel (0–100)</Label>
+                          <Input
+                            id={field.name}
+                            inputMode="numeric"
+                            className="tabular-nums"
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            placeholder="30"
+                            aria-invalid={field.state.meta.errors.length > 0}
+                            aria-describedby={fieldDescribedBy("bengkelPercent-error", field.state.meta.errors)}
+                          />
+                          <FieldError id="bengkelPercent-error" errors={field.state.meta.errors} />
+                        </div>
+                      )}
+                    </form.Field>
+                  ) : null
+                }
+              </form.Subscribe>
+            </>
+          ) : null}
         </FormDialog>
       ) : null}
 

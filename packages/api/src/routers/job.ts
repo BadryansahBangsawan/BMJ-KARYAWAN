@@ -33,6 +33,11 @@ function currentMonthRange(now = new Date()) {
   };
 }
 
+function todayYmd(now = new Date()) {
+  return now.toLocaleDateString("en-CA", { timeZone: TZ });
+}
+
+
 async function employeeByUserId(db: Database, userId: string) {
   const [row] = await db
     .select()
@@ -145,7 +150,10 @@ export const jobRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 
-      if (input.kind === "persenan" && input.bengkelPercent === undefined) {
+      const kind = role === "mekanik" ? "ongkos" : input.kind;
+      const workDate = role === "mekanik" ? todayYmd() : input.workDate;
+
+      if (kind === "persenan" && input.bengkelPercent === undefined) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "bengkelPercent required (0–100)",
@@ -197,15 +205,14 @@ export const jobRouter = router({
         .values({
           id: crypto.randomUUID(),
           employeeId: targetId,
-          workDate: input.workDate,
+          workDate,
           description: input.description,
           amountIdr: input.amountIdr,
           struk: input.struk?.startsWith("data:") ? null : (input.struk ?? null),
           customerNote: input.customerNote ?? null,
           status: "proses",
-          kind: input.kind,
-          bengkelPercent:
-            input.kind === "persenan" ? (input.bengkelPercent ?? null) : null,
+          kind,
+          bengkelPercent: kind === "persenan" ? (input.bengkelPercent ?? null) : null,
           createdByUserId: ctx.session.user.id,
         })
         .returning();
