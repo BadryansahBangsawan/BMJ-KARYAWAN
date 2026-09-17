@@ -6,11 +6,13 @@ import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanst
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
+import { AppSidebar } from "../components/app-sidebar";
 import Header from "../components/header";
 import { TabBar } from "../components/tab-bar";
 import { authClient } from "../lib/auth-client";
 
 import appCss from "../index.css?url";
+
 export interface RouterAppContext {
   trpc: TRPCOptionsProxy<AppRouter>;
   queryClient: QueryClient;
@@ -24,20 +26,54 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
       },
       {
         title: "BMJ Karyawan",
       },
       {
+        name: "application-name",
+        content: "BMJ Karyawan",
+      },
+      {
+        name: "apple-mobile-web-app-capable",
+        content: "yes",
+      },
+      {
+        name: "apple-mobile-web-app-title",
+        content: "Karyawan",
+      },
+      {
+        name: "apple-mobile-web-app-status-bar-style",
+        content: "default",
+      },
+      {
+        name: "mobile-web-app-capable",
+        content: "yes",
+      },
+      {
         name: "theme-color",
-        content: "#0079b5",
+        content: "#9f1d1d",
       },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "manifest",
+        href: "/manifest.webmanifest",
+      },
+      {
+        rel: "apple-touch-icon",
+        href: "/apple-touch-icon.png",
+      },
+      {
+        rel: "icon",
+        href: "/icon-192.png",
+        type: "image/png",
       },
     ],
   }),
@@ -60,14 +96,20 @@ function RootDocument() {
         >
           Lewat ke konten
         </a>
-        <div className="min-h-svh bg-background">
-          <Header />
-          <main id="main" className={session ? "pb-[calc(3.5rem+env(safe-area-inset-bottom))]" : undefined}>
-            <Outlet />
-          </main>
-          <TabBar />
+        <div className="flex min-h-svh bg-background">
+          {session ? <AppSidebar /> : null}
+          <div className="flex min-h-svh min-w-0 flex-1 flex-col">
+            <Header />
+            <main
+              id="main"
+              className={session ? "flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0" : "flex-1"}
+            >
+              <Outlet />
+            </main>
+            <TabBar />
+          </div>
         </div>
-        <Toaster richColors />
+        <Toaster richColors closeButton duration={10000} />
         <div className="hidden md:block">
           <TanStackRouterDevtools position="bottom-left" />
         </div>

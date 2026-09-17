@@ -13,7 +13,7 @@ import {
   payrollPeriod,
 } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
-import { kasirProcedure, router, supervisorProcedure } from "../index";
+import { protectedProcedure, router, supervisorProcedure } from "../index";
 
 const yearMonthInput = z.object({
   year: z.number().int(),
@@ -292,19 +292,30 @@ async function allocateFifo(
 }
 
 export const payrollRouter = router({
-  get: kasirProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
-    const period = await getOrCreateDraftPeriod(
-      ctx.db,
-      input.year,
-      input.month,
-    );
-    if (period.status === "draft") {
+  get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
+    const role = ctx.session.user.role ?? "mekanik";
+    const period =
+      role === "mekanik"
+        ? await getPeriod(ctx.db, input.year, input.month)
+        : await getOrCreateDraftPeriod(ctx.db, input.year, input.month);
+    if (!period) {
+      return { period: null, lines: [] };
+    }
+    if (period.status === "draft" && role !== "mekanik") {
       await rebuildDraftLines(ctx.db, period, true);
     }
-    const lines = await linesWithNames(ctx.db, period.id);
+    let named = await linesWithNames(ctx.db, period.id);
+    if (role === "mekanik") {
+      const [me] = await ctx.db
+        .select({ id: employee.id })
+        .from(employee)
+        .where(eq(employee.userId, ctx.session.user.id))
+        .limit(1);
+      named = me ? named.filter((row) => row.line.employeeId === me.id) : [];
+    }
     return {
       period,
-      lines: lines.map((row) => ({
+      lines: named.map((row) => ({
         ...row.line,
         employeeName: row.employeeName,
       })),
