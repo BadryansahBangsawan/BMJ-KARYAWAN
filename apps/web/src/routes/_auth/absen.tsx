@@ -1,5 +1,3 @@
-import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
   Select,
   SelectContent,
@@ -9,8 +7,8 @@ import {
 } from "@BMJ-KARYAWAN/ui/components/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Loader2, Minus, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { AbsenClockButton } from "@/components/absen-clock-button";
@@ -47,13 +45,6 @@ function cellLabel(value: number | undefined) {
   return "";
 }
 
-function nextValue(value: number | undefined): 0 | 50 | 100 | null {
-  if (value === 100) return 50;
-  if (value === 50) return 0;
-  if (value === 0) return null;
-  return 100;
-}
-
 function markKey(employeeId: string, workDate: string) {
   return `${employeeId}:${workDate}`;
 }
@@ -61,55 +52,27 @@ function markKey(employeeId: string, workDate: string) {
 function AttendanceLegend() {
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-      <li className="inline-flex items-center gap-1">
-        <Check className="size-3.5 text-success" aria-hidden="true" />
-        <span>1 hadir</span>
+      <li>
+        <span className="tabular-nums">1</span> hadir
       </li>
-      <li className="inline-flex items-center gap-1">
-        <Minus className="size-3.5" aria-hidden="true" />
-        <span>0,5 setengah</span>
+      <li>
+        <span className="tabular-nums">0,5</span> setengah
       </li>
-      <li className="inline-flex items-center gap-1">
-        <X className="size-3.5 text-destructive" aria-hidden="true" />
-        <span>0 alpa</span>
+      <li>
+        <span className="tabular-nums">0</span> alpa
       </li>
-      <li className="inline-flex items-center gap-1">
-        <span className="inline-flex size-3.5 items-center justify-center" aria-hidden="true">
-          ·
-        </span>
-        <span>kosong</span>
-      </li>
+      <li>· kosong</li>
     </ul>
   );
 }
 
 function AttendanceMark({ value }: { value: number | undefined }) {
-  if (value === 100) {
-    return (
-      <>
-        <Check className="size-3.5 text-success" aria-hidden="true" />
-        <span className="tabular-nums">{cellLabel(value)}</span>
-      </>
-    );
-  }
-  if (value === 50) {
-    return (
-      <>
-        <Minus className="size-3.5" aria-hidden="true" />
-        <span className="tabular-nums">{cellLabel(value)}</span>
-      </>
-    );
-  }
-  if (value === 0) {
-    return (
-      <>
-        <X className="size-3.5 text-destructive" aria-hidden="true" />
-        <span className="tabular-nums">{cellLabel(value)}</span>
-      </>
-    );
-  }
+  if (value === 100) return <span className="tabular-nums">1</span>;
+  if (value === 50) return <span className="tabular-nums">0,5</span>;
+  if (value === 0) return <span className="tabular-nums">0</span>;
   return <span className="tabular-nums text-muted-foreground">·</span>;
 }
+
 
 function AttendanceCell({
   employeeName,
@@ -118,8 +81,7 @@ function AttendanceCell({
   day,
   value,
   busy,
-  large = false,
-  onCycle,
+  onChange,
 }: {
   employeeName: string;
   employeeId: string;
@@ -127,37 +89,37 @@ function AttendanceCell({
   day: number;
   value: number | undefined;
   busy: boolean;
-  large?: boolean;
-  onCycle: (employeeId: string, workDate: string) => void;
+  onChange: (employeeId: string, workDate: string, next: 0 | 50 | 100 | null) => void;
 }) {
-  const label = cellLabel(value);
+  const selectValue = value === 100 ? "100" : value === 50 ? "50" : value === 0 ? "0" : "none";
   return (
-    <Button
-      type="button"
-      variant={value == null ? "ghost" : "outline"}
-      disabled={busy}
-      aria-busy={busy}
-      aria-label={`${employeeName}, ${date}, ${label || "kosong"}`}
-      onClick={() => onCycle(employeeId, date)}
-      className={
-        large
-          ? "h-auto min-h-14 w-full flex-col gap-0.5 px-1 py-2 whitespace-normal"
-          : "h-11 min-h-11 min-w-11 w-full px-0 text-sm tabular-nums md:h-11 md:min-h-11 md:min-w-11"
-      }
-    >
-      {busy ? (
-        <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-      ) : large ? (
-        <>
-          <span className="text-xs tabular-nums text-muted-foreground">{day}</span>
-          <span className="inline-flex items-center gap-1 text-sm">
-            <AttendanceMark value={value} />
-          </span>
-        </>
-      ) : (
-        <AttendanceMark value={value} />
-      )}
-    </Button>
+    <div className="min-w-0 space-y-1">
+      <span className="block text-center text-xs tabular-nums text-muted-foreground">{day}</span>
+      <Select
+        value={selectValue}
+        disabled={busy}
+        onValueChange={(next) => {
+          if (next === "100") onChange(employeeId, date, 100);
+          else if (next === "50") onChange(employeeId, date, 50);
+          else if (next === "0") onChange(employeeId, date, 0);
+          else onChange(employeeId, date, null);
+        }}
+      >
+        <SelectTrigger
+          className="h-11 min-h-11 w-full px-2 text-sm tabular-nums"
+          aria-label={`${employeeName}, ${date}, ${cellLabel(value) || "kosong"}`}
+          aria-busy={busy}
+        >
+          {busy ? <Loader2 className="size-4 motion-safe:animate-spin" /> : <SelectValue />}
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">·</SelectItem>
+          <SelectItem value="100">1</SelectItem>
+          <SelectItem value="50">0,5</SelectItem>
+          <SelectItem value="0">0</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -271,7 +233,7 @@ function AbsenPage() {
   const [month, setMonth] = useState(now.month);
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set());
   const pendingRef = useRef(new Set<string>());
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+
 
   const monthQuery = useQuery({
     ...trpc.attendance.month.queryOptions({ year, month }),
@@ -298,18 +260,6 @@ function AbsenPage() {
     day: dayNumber(date),
     date,
   }));
-
-  const selectedEmployee = employees.find((row) => row.id === selectedEmployeeId) ?? null;
-
-  useEffect(() => {
-    if (employees.length === 0) {
-      if (selectedEmployeeId !== null) setSelectedEmployeeId(null);
-      return;
-    }
-    if (!selectedEmployeeId || !employees.some((row) => row.id === selectedEmployeeId)) {
-      setSelectedEmployeeId(employees[0]!.id);
-    }
-  }, [employees, selectedEmployeeId]);
 
   const invalidateMonth = async () => {
     await queryClient.invalidateQueries({
@@ -353,14 +303,15 @@ function AbsenPage() {
     }),
   );
 
-  function cycle(employeeId: string, workDate: string) {
+  function setMark(employeeId: string, workDate: string, next: 0 | 50 | 100 | null) {
     if (pendingRef.current.has(markKey(employeeId, workDate))) return;
     const current = byKey[markKey(employeeId, workDate)]?.value;
-    const next = nextValue(current);
     if (next === null) {
+      if (current === undefined) return;
       clearMut.mutate({ employeeId, workDate });
       return;
     }
+    if (current === next) return;
     setMut.mutate({ employeeId, workDate, value: next });
   }
 
@@ -403,52 +354,40 @@ function AbsenPage() {
             />
           ) : (
             <div className="flex flex-col gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="absen-employee">Karyawan</Label>
-                <Select
-                  value={selectedEmployeeId}
-                  onValueChange={(value) => setSelectedEmployeeId(value)}
+              <AttendanceLegend />
+              <p className="text-sm text-muted-foreground">
+                Pilih 1 hadir, 0,5 setengah, atau 0 alpa. · = kosong.
+              </p>
+              {employees.map((employee) => (
+                <div
+                  key={employee.id}
+                  className="space-y-3 rounded-xl bg-card p-3 shadow-[var(--shadow-border)]"
                 >
-                  <SelectTrigger id="absen-employee" className="w-full sm:max-w-sm">
-                    <SelectValue placeholder="Pilih karyawan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedEmployee ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    {filledCount(selectedEmployee.id)} dari {days.length} hari terisi ·{" "}
-                    {monthLabel(year, month)}. Tap hari: 1 hadir, 0,5 setengah, 0 alpa, lalu kosong.
-                  </p>
-                  <AttendanceLegend />
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="font-medium">{employee.name}</p>
+                    <p className="text-sm tabular-nums text-muted-foreground">
+                      {filledCount(employee.id)}/{days.length}
+                    </p>
+                  </div>
                   <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                     {days.map((d) => {
-                      const key = markKey(selectedEmployee.id, d.date);
+                      const key = markKey(employee.id, d.date);
                       return (
                         <AttendanceCell
                           key={d.date}
-                          employeeName={selectedEmployee.name}
-                          employeeId={selectedEmployee.id}
+                          employeeName={employee.name}
+                          employeeId={employee.id}
                           date={d.date}
                           day={d.day}
                           value={byKey[key]?.value}
                           busy={pendingKeys.has(key)}
-                          large
-                          onCycle={cycle}
+                          onChange={setMark}
                         />
                       );
                     })}
                   </div>
-                </>
-              ) : null}
+                </div>
+              ))}
             </div>
           )}
         </>
