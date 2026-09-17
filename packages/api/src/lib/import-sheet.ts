@@ -32,24 +32,23 @@ const JOB_SHEETS: Record<"RONI" | "ECHON" | "YULEN", string> = {
 type SeedEmployee = {
 	name: string;
 	role: "kasir" | "mekanik";
-	dailyRateIdr: number;
 	konsumsiMonthlyIdr: number;
 	active: boolean;
 };
 
 const SEED_EMPLOYEES: SeedEmployee[] = [
-	{ name: "MM Heni", role: "kasir", dailyRateIdr: 80000, konsumsiMonthlyIdr: 200000, active: true },
-	{ name: "Econ", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 210000, active: true },
-	{ name: "Roni", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 300000, active: true },
-	{ name: "Yulen", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 0, active: true },
-	{ name: "Ryan", role: "mekanik", dailyRateIdr: 100000, konsumsiMonthlyIdr: 0, active: true },
-	{ name: "Alqi", role: "mekanik", dailyRateIdr: 85000, konsumsiMonthlyIdr: 330000, active: true },
-	{ name: "Talli", role: "mekanik", dailyRateIdr: 85000, konsumsiMonthlyIdr: 270000, active: true },
-	{ name: "Iwan", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 150000, active: true },
-	{ name: "Yusuf", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 0, active: true },
-	{ name: "Nuboba", role: "mekanik", dailyRateIdr: 500000, konsumsiMonthlyIdr: 0, active: true },
-	{ name: "D'Manye", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 0, active: false },
-	{ name: "D'Liwan", role: "mekanik", dailyRateIdr: 0, konsumsiMonthlyIdr: 0, active: false },
+	{ name: "MM Heni", role: "kasir", konsumsiMonthlyIdr: 200000, active: true },
+	{ name: "Econ", role: "mekanik", konsumsiMonthlyIdr: 210000, active: true },
+	{ name: "Roni", role: "mekanik", konsumsiMonthlyIdr: 300000, active: true },
+	{ name: "Yulen", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
+	{ name: "Ryan", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
+	{ name: "Alqi", role: "mekanik", konsumsiMonthlyIdr: 330000, active: true },
+	{ name: "Talli", role: "mekanik", konsumsiMonthlyIdr: 270000, active: true },
+	{ name: "Iwan", role: "mekanik", konsumsiMonthlyIdr: 150000, active: true },
+	{ name: "Yusuf", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
+	{ name: "Nuboba", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
+	{ name: "D'Manye", role: "mekanik", konsumsiMonthlyIdr: 0, active: false },
+	{ name: "D'Liwan", role: "mekanik", konsumsiMonthlyIdr: 0, active: false },
 ];
 
 const NAME_ALIAS: Record<string, string> = {
@@ -269,7 +268,6 @@ async function upsertEmployees(tx: Database) {
 				.update(employee)
 				.set({
 					role: seed.role,
-					dailyRateIdr: seed.dailyRateIdr,
 					konsumsiMonthlyIdr: seed.konsumsiMonthlyIdr,
 					active: seed.active,
 				})
@@ -281,7 +279,6 @@ async function upsertEmployees(tx: Database) {
 				id,
 				name: seed.name,
 				role: seed.role,
-				dailyRateIdr: seed.dailyRateIdr,
 				konsumsiMonthlyIdr: seed.konsumsiMonthlyIdr,
 				bonusIdr: 0,
 				active: seed.active,

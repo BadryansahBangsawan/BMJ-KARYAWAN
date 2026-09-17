@@ -213,10 +213,8 @@ async function rebuildDraftLines(
   const values = emps.map((emp) => {
     const daysPresentTenths = daysPresentByEmp[emp.id] ?? 0;
     const alpaDays = alpaByEmp[emp.id] ?? 0;
-    const dailyPayIdr = Math.round(
-      (daysPresentTenths * emp.dailyRateIdr) / 100,
-    );
     const jobShareIdr = jobShareByEmp[emp.id] ?? 0;
+    const dailyPayIdr = Math.round((jobShareIdr * emp.ongkosPercent) / 100);
     const bonusIdr =
       daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
     const konsumsiIdr = Math.round(
@@ -242,7 +240,7 @@ async function rebuildDraftLines(
       employeeId: emp.id,
       daysPresent: daysPresentTenths,
       alpaDays,
-      dailyRateIdr: emp.dailyRateIdr,
+      ongkosPercent: emp.ongkosPercent,
       dailyPayIdr,
       jobShareIdr,
       konsumsiIdr,

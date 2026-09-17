@@ -58,7 +58,7 @@ type EmployeeRow = {
   id: string;
   name: string;
   role: string;
-  dailyRateIdr: number;
+  ongkosPercent: number;
   konsumsiMonthlyIdr: number;
   bonusIdr: number;
   active: boolean | number;
@@ -83,7 +83,7 @@ type EmployeeFormValues = {
   role: Role;
   email: string;
   password: string;
-  dailyRateIdr: string;
+  ongkosPercent: string;
   konsumsiMonthlyIdr: string;
   bonusIdr: string;
   active: boolean;
@@ -106,7 +106,12 @@ const employeeFormFields = z.object({
   role: z.enum(["supervisor", "kasir", "mekanik"]),
   email: z.string(),
   password: z.string(),
-  dailyRateIdr: z.string(),
+  ongkosPercent: z.string().superRefine((value, ctx) => {
+    const percent = Number(value);
+    if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+      ctx.addIssue({ code: "custom", message: "Masukkan persen ongkos 0–100." });
+    }
+  }),
   konsumsiMonthlyIdr: z.string(),
   bonusIdr: z.string(),
   active: z.boolean(),
@@ -149,7 +154,7 @@ const defaultEmployeeValues: EmployeeFormValues = {
   role: "mekanik",
   email: "",
   password: "",
-  dailyRateIdr: "0",
+  ongkosPercent: "0",
   konsumsiMonthlyIdr: "",
   bonusIdr: "0",
   active: true,
@@ -296,19 +301,30 @@ function EmployeeFields({
       <p id={`${idPrefix}-login-hint`} className="text-pretty text-sm text-muted-foreground">
         {LOGIN_PAIR_MESSAGE}
       </p>
-      <form.Field name="dailyRateIdr">
-        {(field) => (
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-${field.name}`}>Tarif harian</Label>
-            <MoneyField
-              id={`${idPrefix}-${field.name}`}
-              value={String(field.state.value)}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.value)}
-              placeholder="0"
-            />
-          </div>
-        )}
+      <form.Field name="ongkosPercent">
+        {(field) => {
+          const errorId = `${idPrefix}-${field.name}-error`;
+          return (
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-${field.name}`}>Persen ongkos</Label>
+              <Input
+                id={`${idPrefix}-${field.name}`}
+                inputMode="numeric"
+                className="tabular-nums"
+                value={String(field.state.value)}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder="0"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={fieldDescribedBy(errorId, field.state.meta.errors)}
+              />
+              <p className="text-pretty text-sm text-muted-foreground">
+                Bagian gaji dari ongkos kerja yang diterima (0–100).
+              </p>
+              <FieldError id={errorId} errors={field.state.meta.errors} />
+            </div>
+          );
+        }}
       </form.Field>
       <form.Field name="konsumsiMonthlyIdr">
         {(field) => (
@@ -424,7 +440,7 @@ function KaryawanPage() {
       await createMut.mutateAsync({
         name: value.name,
         role: value.role,
-        dailyRateIdr: Number(value.dailyRateIdr),
+        ongkosPercent: Number(value.ongkosPercent),
         konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
         bonusIdr: Number(value.bonusIdr),
         active: value.active,
@@ -444,7 +460,7 @@ function KaryawanPage() {
         id: value.id,
         name: value.name,
         role: value.role,
-        dailyRateIdr: Number(value.dailyRateIdr),
+        ongkosPercent: Number(value.ongkosPercent),
         konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
         bonusIdr: Number(value.bonusIdr),
         active: value.active,
@@ -466,7 +482,7 @@ function KaryawanPage() {
     editForm.setFieldValue("role", asRole(row.role));
     editForm.setFieldValue("email", row.email ?? "");
     editForm.setFieldValue("password", "");
-    editForm.setFieldValue("dailyRateIdr", String(row.dailyRateIdr));
+    editForm.setFieldValue("ongkosPercent", String(row.ongkosPercent));
     editForm.setFieldValue("konsumsiMonthlyIdr", String(row.konsumsiMonthlyIdr));
     editForm.setFieldValue("bonusIdr", String(row.bonusIdr));
     editForm.setFieldValue("active", isEmployeeActive(row));
@@ -622,7 +638,7 @@ function KaryawanPage() {
                       <MobileListRow
                         key={row.id}
                         title={row.name}
-                        trailing={formatRp(row.dailyRateIdr)}
+                        trailing={`${row.ongkosPercent}%`}
                         meta={
                           <>
                             <Badge variant="outline">{roleLabel(row.role)}</Badge>
@@ -648,7 +664,7 @@ function KaryawanPage() {
                     <TableRow>
                       <TableHead>Nama</TableHead>
                       <TableHead>Peran</TableHead>
-                      <TableHead className="text-end">Tarif</TableHead>
+                      <TableHead className="text-end">Persen ongkos</TableHead>
                       <TableHead className="text-end">Konsumsi/hari</TableHead>
                       <TableHead className="text-end">Bonus</TableHead>
                       <TableHead>Status</TableHead>
@@ -665,7 +681,7 @@ function KaryawanPage() {
                             <Badge variant="outline">{roleLabel(row.role)}</Badge>
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatRp(row.dailyRateIdr)}
+                            {row.ongkosPercent}%
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
                             {formatRp(row.konsumsiMonthlyIdr)}

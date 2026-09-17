@@ -45,7 +45,7 @@ type PayrollLine = {
   employeeName?: string | null;
   name?: string | null;
   daysPresent: number;
-  dailyRateIdr: number;
+  ongkosPercent: number;
   dailyPayIdr: number;
   kasbonBalanceIdr: number;
   kasbonDeductionIdr: number;
