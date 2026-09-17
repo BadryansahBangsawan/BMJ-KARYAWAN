@@ -27,17 +27,21 @@ export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }>
 const MAX_PHOTO_CHARS = 50_000;
 const MAX_EDGE = 320;
 
-function jpegDataUrlFromCanvas(canvas: HTMLCanvasElement): string {
+function jpegDataUrlFromCanvas(canvas: HTMLCanvasElement, maxChars = MAX_PHOTO_CHARS): string {
   for (const quality of [0.45, 0.35, 0.25, 0.18]) {
     const url = canvas.toDataURL("image/jpeg", quality);
-    if (url.length <= MAX_PHOTO_CHARS) return url;
+    if (url.length <= maxChars) return url;
   }
   return canvas.toDataURL("image/jpeg", 0.12);
 }
 
-export async function jpegDataUrlFromFile(file: File): Promise<string> {
+export async function jpegDataUrlFromFile(
+  file: File,
+  maxEdge = MAX_EDGE,
+  maxChars = MAX_PHOTO_CHARS,
+): Promise<string> {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
   const canvas = document.createElement("canvas");
@@ -50,7 +54,7 @@ export async function jpegDataUrlFromFile(file: File): Promise<string> {
   }
   ctx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
-  return jpegDataUrlFromCanvas(canvas);
+  return jpegDataUrlFromCanvas(canvas, maxChars);
 }
 
 export async function jpegFileFromVideo(video: HTMLVideoElement): Promise<File> {

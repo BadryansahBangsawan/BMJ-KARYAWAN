@@ -50,6 +50,7 @@ import { getUser } from "@/functions/get-user";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
 import { formatRp, monthBounds, todayYmd } from "@/lib/format";
+import { jpegDataUrlFromFile } from "@/lib/workshop-gps";
 import { sessionRole, type UserRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 
@@ -127,22 +128,17 @@ function isStrukImage(value: string) {
 }
 
 async function extractStruk(
-  base64: string,
+  dataUrl: string,
   signal?: AbortSignal,
 ): Promise<{ tanggal?: string; nomorStruk?: string }> {
-  const raw = base64.replace(/^data:image\/\w+;base64,/, "");
-  try {
-    const res = await fetch("/api/extract-struk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: raw }),
-      signal,
-    });
-    if (!res.ok) return {};
-    return (await res.json()) as { tanggal?: string; nomorStruk?: string };
-  } catch {
-    return {};
-  }
+  const res = await fetch("/api/extract-struk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: dataUrl }),
+    signal,
+  });
+  if (!res.ok) return {};
+  return (await res.json()) as { tanggal?: string; nomorStruk?: string };
 }
 
 function JobRowActions({
@@ -213,6 +209,7 @@ function PekerjaanPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [strukturInfo, setStrukturInfo] = useState("");
+  const [nomorStruk, setNomorStruk] = useState("");
   const extractAbortRef = useRef<AbortController | null>(null);
 
   const listInput = {
@@ -260,7 +257,8 @@ function PekerjaanPage() {
   const detailRow = jobs.find((job) => job.id === detailId);
 
   const invalidateJobs = async () => {
-    await queryClient.invalidateQueries({ queryKey: trpc.job.list.queryKey() });
+    await queryClient.invalidateQueries({ queryKey: trpc.job.list.queryKey(listInput) });
+    await jobsQuery.refetch();
   };
 
   const createMut = useMutation(
@@ -318,7 +316,8 @@ function PekerjaanPage() {
         amountIdr: Number(value.amountIdr),
         kind: value.kind,
       };
-      if (value.struk) payload.struk = value.struk;
+      if (nomorStruk) payload.struk = nomorStruk;
+      else if (value.struk && !value.struk.startsWith("data:")) payload.struk = value.struk;
       if (value.customerNote) payload.customerNote = value.customerNote;
       if (value.kind === "persenan") {
         payload.bengkelPercent = Number(value.bengkelPercent);
@@ -327,6 +326,8 @@ function PekerjaanPage() {
         payload.employeeId = value.employeeId;
       }
       await createMut.mutateAsync(payload);
+      setNomorStruk("");
+      setStrukturInfo("");
       form.reset();
     },
     validators: {
@@ -373,6 +374,35 @@ function PekerjaanPage() {
   function rowBusy(jobId: string) {
     return statusMut.isPending && statusMut.variables?.id === jobId;
   }
+
+  async function handleStrukFile(file: File, onPreview: (url: string) => void) {
+    try {
+      const preview = await jpegDataUrlFromFile(file);
+      onPreview(preview);
+      setStrukturInfo("");
+      setNomorStruk("");
+      extractAbortRef.current?.abort();
+      const ctrl = new AbortController();
+      extractAbortRef.current = ctrl;
+      setExtracting(true);
+      const vision = await jpegDataUrlFromFile(file, 1024, 400_000);
+      const result = await extractStruk(vision, ctrl.signal);
+      if (ctrl.signal.aborted) return;
+      if (result.tanggal) form.setFieldValue("workDate", result.tanggal);
+      if (result.nomorStruk) {
+        setNomorStruk(result.nomorStruk);
+        setStrukturInfo(`No. struk: ${result.nomorStruk}`);
+      } else if (!result.tanggal) {
+        toast.error("Struk tidak terbaca. Isi tanggal dan uraian manual.");
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast.error(error instanceof Error ? error.message : "Gagal membaca struk.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
 
   return (
     <PageShell>
@@ -614,27 +644,9 @@ function PekerjaanPage() {
                             className="sr-only"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (!file) return;
-                              const reader = new FileReader();
-                              reader.onload = async (ev) => {
-                                const base64 = ev.target?.result as string;
-                                field.handleChange(base64);
-                                setStrukturInfo("");
-                                extractAbortRef.current?.abort();
-                                const ctrl = new AbortController();
-                                extractAbortRef.current = ctrl;
-                                setExtracting(true);
-                                const result = await extractStruk(base64, ctrl.signal);
-                                setExtracting(false);
-                                if (result.tanggal) {
-                                  form.setFieldValue("workDate", result.tanggal);
-                                }
-                                if (result.nomorStruk) {
-                                  setStrukturInfo(`No. struk: ${result.nomorStruk}`);
-                                }
-                              };
-                              reader.readAsDataURL(file);
                               e.target.value = "";
+                              if (!file) return;
+                              void handleStrukFile(file, (url) => field.handleChange(url));
                             }}
                           />
                         </label>
@@ -655,27 +667,9 @@ function PekerjaanPage() {
                         className="sr-only"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = async (ev) => {
-                            const base64 = ev.target?.result as string;
-                            field.handleChange(base64);
-                            setStrukturInfo("");
-                            extractAbortRef.current?.abort();
-                            const ctrl = new AbortController();
-                            extractAbortRef.current = ctrl;
-                            setExtracting(true);
-                            const result = await extractStruk(base64, ctrl.signal);
-                            setExtracting(false);
-                            if (result.tanggal) {
-                              form.setFieldValue("workDate", result.tanggal);
-                            }
-                            if (result.nomorStruk) {
-                              setStrukturInfo(`No. struk: ${result.nomorStruk}`);
-                            }
-                          };
-                          reader.readAsDataURL(file);
                           e.target.value = "";
+                          if (!file) return;
+                          void handleStrukFile(file, (url) => field.handleChange(url));
                         }}
                       />
                     </label>

@@ -1,8 +1,9 @@
 import type { Database } from "@BMJ-KARYAWAN/db";
 import { employee, job, payrollLine, payrollPeriod } from "@BMJ-KARYAWAN/db/schema/karyawan";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
+
 
 import { protectedProcedure, router, supervisorProcedure } from "../index";
 
@@ -95,7 +96,24 @@ export const jobRouter = router({
       }
 
       return ctx.db
-        .select()
+        .select({
+          id: job.id,
+          employeeId: job.employeeId,
+          workDate: job.workDate,
+          description: job.description,
+          amountIdr: job.amountIdr,
+          struk: sql<string | null>`case when ${job.struk} like 'data:%' then null else ${job.struk} end`.as(
+            "struk",
+          ),
+          customerNote: job.customerNote,
+          status: job.status,
+          kind: job.kind,
+          bengkelPercent: job.bengkelPercent,
+          sheetNo: job.sheetNo,
+          createdByUserId: job.createdByUserId,
+          createdAt: job.createdAt,
+          updatedAt: job.updatedAt,
+        })
         .from(job)
         .where(
           and(
@@ -182,7 +200,7 @@ export const jobRouter = router({
           workDate: input.workDate,
           description: input.description,
           amountIdr: input.amountIdr,
-          struk: input.struk ?? null,
+          struk: input.struk?.startsWith("data:") ? null : (input.struk ?? null),
           customerNote: input.customerNote ?? null,
           status: "proses",
           kind: input.kind,
