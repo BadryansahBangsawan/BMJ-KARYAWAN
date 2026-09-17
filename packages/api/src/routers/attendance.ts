@@ -84,12 +84,41 @@ async function employeeByUserId(db: Database, userId: string) {
   return row ?? null;
 }
 
+const TZ = "Asia/Jayapura";
+
+function todayYmdJayapura() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+}
+
+function assertWorkshopPresence(lat: number, lng: number, workDate: string) {
+  if (isSundayJayapura(workDate)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Hari Minggu tidak bisa absen",
+    });
+  }
+  const distM = haversineM(lat, lng, WORKSHOP_LAT, WORKSHOP_LNG);
+  if (distM > CHECKIN_RADIUS_M) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Lokasi terlalu jauh dari bengkel (${Math.round(distM)} m). Absen hanya bisa dilakukan di bengkel.`,
+    });
+  }
+}
+
 export const attendanceRouter = router({
-  // ---------------------------------------------------------------------------
-  // selfCheckin — any authenticated employee may call this.
-  // The client sends its GPS coordinates; we validate the distance server-side
-  // so that spoofing the UI alone is not enough.
-  // ---------------------------------------------------------------------------
+  mineToday: protectedProcedure.query(async ({ ctx }) => {
+    const me = await employeeByUserId(ctx.db, ctx.session.user.id);
+    if (!me) return null;
+    const workDate = todayYmdJayapura();
+    const [row] = await ctx.db
+      .select()
+      .from(attendance)
+      .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
+      .limit(1);
+    return row ?? null;
+  }),
+
   selfCheckin: protectedProcedure
     .input(
       z.object({
@@ -99,24 +128,15 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Reject Sundays (same rule as supervisor `set`)
-      if (isSundayJayapura(input.workDate)) {
+      const workDate = todayYmdJayapura();
+      if (input.workDate !== workDate) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Hari Minggu tidak bisa absen",
+          message: "Absen masuk hanya untuk hari ini",
         });
       }
+      assertWorkshopPresence(input.lat, input.lng, workDate);
 
-      // Server-side distance check — client-side check is UX only
-      const distM = haversineM(input.lat, input.lng, WORKSHOP_LAT, WORKSHOP_LNG);
-      if (distM > CHECKIN_RADIUS_M) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `Lokasi terlalu jauh dari bengkel (${Math.round(distM)} m). Absen hanya bisa dilakukan di bengkel.`,
-        });
-      }
-
-      // Look up the employee row linked to this user
       const me = await employeeByUserId(ctx.db, ctx.session.user.id);
       if (!me) {
         throw new TRPCError({
@@ -125,38 +145,101 @@ export const attendanceRouter = router({
         });
       }
 
-      // Upsert attendance = 100 (hadir)
-      const existing = await ctx.db
+      const [existing] = await ctx.db
         .select()
         .from(attendance)
-        .where(
-          and(
-            eq(attendance.employeeId, me.id),
-            eq(attendance.workDate, input.workDate),
-          ),
-        )
+        .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
         .limit(1);
 
-      if (existing[0]) {
-        const updated = await ctx.db
-          .update(attendance)
-          .set({ value: 100, markedByUserId: ctx.session.user.id })
-          .where(eq(attendance.id, existing[0].id))
-          .returning();
-        return updated[0]!;
+      if (existing?.checkInAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Sudah absen masuk hari ini",
+        });
       }
 
-      const inserted = await ctx.db
+      const now = new Date();
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(attendance)
+          .set({
+            value: 100,
+            markedByUserId: ctx.session.user.id,
+            checkInAt: now,
+          })
+          .where(eq(attendance.id, existing.id))
+          .returning();
+        return updated!;
+      }
+
+      const [inserted] = await ctx.db
         .insert(attendance)
         .values({
           id: crypto.randomUUID(),
           employeeId: me.id,
-          workDate: input.workDate,
+          workDate,
           value: 100,
           markedByUserId: ctx.session.user.id,
+          checkInAt: now,
         })
         .returning();
-      return inserted[0]!;
+      return inserted!;
+    }),
+
+  selfCheckout: protectedProcedure
+    .input(
+      z.object({
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const workDate = todayYmdJayapura();
+      if (input.workDate !== workDate) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Absen pulang hanya untuk hari ini",
+        });
+      }
+      assertWorkshopPresence(input.lat, input.lng, workDate);
+
+      const me = await employeeByUserId(ctx.db, ctx.session.user.id);
+      if (!me) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Data karyawan tidak ditemukan. Hubungi supervisor.",
+        });
+      }
+
+      const [existing] = await ctx.db
+        .select()
+        .from(attendance)
+        .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
+        .limit(1);
+
+      if (!existing?.checkInAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Absen masuk dulu sebelum pulang",
+        });
+      }
+      if (existing.checkOutAt) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Sudah absen pulang hari ini",
+        });
+      }
+
+      const [updated] = await ctx.db
+        .update(attendance)
+        .set({
+          markedByUserId: ctx.session.user.id,
+          checkOutAt: new Date(),
+        })
+        .where(eq(attendance.id, existing.id))
+        .returning();
+      return updated!;
     }),
 
   month: protectedProcedure

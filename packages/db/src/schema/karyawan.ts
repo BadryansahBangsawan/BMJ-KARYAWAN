@@ -83,6 +83,8 @@ export const attendance = sqliteTable(
 		workDate: text("work_date").notNull(),
 		value: integer("value").notNull(),
 		markedByUserId: text("marked_by_user_id").references(() => user.id),
+		checkInAt: integer("check_in_at", { mode: "timestamp_ms" }),
+		checkOutAt: integer("check_out_at", { mode: "timestamp_ms" }),
 		createdAt: timestampMs("created_at"),
 	},
 	(table) => [uniqueIndex("attendance_employeeId_workDate_uidx").on(table.employeeId, table.workDate)],

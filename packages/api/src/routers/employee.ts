@@ -116,8 +116,14 @@ export const employeeRouter = router({
       z.object({
         name: z.string().trim().min(1),
         role: roleSchema,
-        email: z.email().optional(),
-        password: z.string().min(8).optional(),
+        email: z.preprocess(
+          (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+          z.email().optional(),
+        ),
+        password: z.preprocess(
+          (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+          z.string().min(8).optional(),
+        ),
         dailyRateIdr: z.number().int().min(0),
         konsumsiMonthlyIdr: z.number().int().min(0),
         bonusIdr: z.number().int().min(0),
@@ -175,7 +181,10 @@ export const employeeRouter = router({
         bonusIdr: z.number().int().min(0).optional(),
         active: z.boolean().optional(),
         email: z.email().nullable().optional(),
-        password: z.string().min(8).optional(),
+        password: z.preprocess(
+          (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+          z.string().min(8).optional(),
+        ),
       }),
     )
     .mutation(async ({ ctx, input }) => {

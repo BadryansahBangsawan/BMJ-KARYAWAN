@@ -1,14 +1,18 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
 import z from "zod";
 
 import { ActionQueue } from "@/components/action-queue";
+import { BusyLabel } from "@/components/busy-label";
 import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
-import { formatRp, monthBounds, todayParts, weekDays } from "@/lib/format";
+import { formatRp, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
+import { requestWorkshopPosition } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_auth/dashboard")({
@@ -82,7 +86,13 @@ function RouteComponent() {
   const days = weekDays();
   const month = monthBounds();
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [clockBusy, setClockBusy] = useState<"in" | "out" | null>(null);
+  const workDate = todayYmd();
 
+  const mineToday = useQuery(trpc.attendance.mineToday.queryOptions());
+  const checkInMut = useMutation(trpc.attendance.selfCheckin.mutationOptions());
+  const checkOutMut = useMutation(trpc.attendance.selfCheckout.mutationOptions());
   const me = useQuery(trpc.employee.me.queryOptions());
   const kasbon = useQuery(trpc.kasbon.list.queryOptions());
   const jobs = useQuery(
@@ -183,6 +193,27 @@ function RouteComponent() {
 
   const moneyLabel = role === "mekanik" ? "Sisa kasbon" : "Pendapatan bulan ini";
   const moneyValue = role === "mekanik" ? formatRp(ownSisa) : formatRp(diagramData.pendapatan);
+  const checkedIn = Boolean(mineToday.data?.checkInAt);
+  const checkedOut = Boolean(mineToday.data?.checkOutAt);
+
+  async function clock(kind: "in" | "out") {
+    setClockBusy(kind);
+    try {
+      const pos = await requestWorkshopPosition();
+      if (kind === "in") {
+        await checkInMut.mutateAsync({ ...pos, workDate });
+        toast.success("Absen masuk tercatat");
+      } else {
+        await checkOutMut.mutateAsync({ ...pos, workDate });
+        toast.success("Absen pulang tercatat");
+      }
+      await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Absen gagal");
+    } finally {
+      setClockBusy(null);
+    }
+  }
 
   return (
     <PageShell className="gap-6">
@@ -211,16 +242,30 @@ function RouteComponent() {
         </ol>
 
         <div className="mt-6 grid gap-2">
-          <Button className="h-14 min-h-14 w-full text-base" size="lg" render={<Link to="/absen" />}>
-            Absen masuk
+          <Button
+            type="button"
+            className="h-14 min-h-14 w-full text-base"
+            size="lg"
+            disabled={checkedIn || clockBusy !== null}
+            aria-busy={clockBusy === "in"}
+            onClick={() => void clock("in")}
+          >
+            <BusyLabel busy={clockBusy === "in"}>
+              {checkedIn ? "Sudah absen masuk" : "Absen masuk"}
+            </BusyLabel>
           </Button>
           <Button
+            type="button"
             variant="outline"
             className="h-14 min-h-14 w-full bg-muted text-base"
             size="lg"
-            render={<Link to="/absen" />}
+            disabled={!checkedIn || checkedOut || clockBusy !== null}
+            aria-busy={clockBusy === "out"}
+            onClick={() => void clock("out")}
           >
-            Absen pulang
+            <BusyLabel busy={clockBusy === "out"}>
+              {checkedOut ? "Sudah absen pulang" : "Absen pulang"}
+            </BusyLabel>
           </Button>
         </div>
       </section>

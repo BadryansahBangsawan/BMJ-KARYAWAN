@@ -26,6 +26,7 @@ import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { jayapuraYearMonth, monthLabel, todayYmd, formatLongDate } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
+import { requestWorkshopPosition } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
 import Loader from "@/components/loader";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
@@ -186,138 +187,89 @@ export const Route = createFileRoute("/_auth/absen")({
 // ---------------------------------------------------------------------------
 // Self-checkin panel (mekanik / kasir)
 // ---------------------------------------------------------------------------
-type GpsState = "idle" | "locating" | "submitting" | "done" | "error";
-
 function SelfCheckinPanel() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const today = useMemo(() => todayYmd(), []);
-  const [gpsState, setGpsState] = useState<GpsState>("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-
-  // Query current month to show today's mark if it exists
+  const [clockBusy, setClockBusy] = useState<"in" | "out" | null>(null);
   const { year, month } = useMemo(() => jayapuraYearMonth(today), [today]);
   const monthQuery = useQuery(trpc.attendance.month.queryOptions({ year, month }));
+  const mineToday = useQuery(trpc.attendance.mineToday.queryOptions());
+  const checkInMut = useMutation(trpc.attendance.selfCheckin.mutationOptions());
+  const checkOutMut = useMutation(trpc.attendance.selfCheckout.mutationOptions());
 
   const monthData = monthQuery.data as
     | { marks?: AttendanceRow[]; employees?: EmployeeRow[] }
     | undefined;
 
-  // Find today's mark for the current user's employee row
-  const todayMark = useMemo(() => {
-    const marks = monthData?.marks ?? [];
-    return marks.find((m) => m.workDate === today);
-  }, [monthData, today]);
+  const checkedIn = Boolean(mineToday.data?.checkInAt);
+  const checkedOut = Boolean(mineToday.data?.checkOutAt);
 
-  const checkinMut = useMutation(
-    trpc.attendance.selfCheckin.mutationOptions({
-      onSuccess: async () => {
-        setGpsState("done");
-        toast.success("Absen berhasil dicatat!");
-        await monthQuery.refetch();
-      },
-      onError: (error) => {
-        setGpsState("error");
-        setErrorMsg(error.message);
-        toast.error(error.message);
-      },
-    }),
-  );
-
-  function handleCheckin() {
-    if (!navigator.geolocation) {
-      setGpsState("error");
-      setErrorMsg("GPS tidak tersedia di perangkat ini.");
-      toast.error("GPS tidak tersedia di perangkat ini.");
-      return;
+  async function clock(kind: "in" | "out") {
+    setClockBusy(kind);
+    try {
+      const pos = await requestWorkshopPosition();
+      if (kind === "in") {
+        await checkInMut.mutateAsync({ ...pos, workDate: today });
+        toast.success("Absen masuk tercatat");
+      } else {
+        await checkOutMut.mutateAsync({ ...pos, workDate: today });
+        toast.success("Absen pulang tercatat");
+      }
+      await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
+      await monthQuery.refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Absen gagal");
+    } finally {
+      setClockBusy(null);
     }
-
-    setGpsState("locating");
-    setErrorMsg("");
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGpsState("submitting");
-        checkinMut.mutate({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          workDate: today,
-        });
-      },
-      (err) => {
-        setGpsState("error");
-        const msg =
-          err.code === err.PERMISSION_DENIED
-            ? "Izin GPS ditolak. Aktifkan lokasi di pengaturan browser."
-            : err.code === err.POSITION_UNAVAILABLE
-              ? "Posisi GPS tidak dapat ditentukan. Coba di luar ruangan."
-              : "Permintaan GPS habis waktu. Coba lagi.";
-        setErrorMsg(msg);
-        toast.error(msg);
-      },
-      { timeout: 15_000, maximumAge: 0 },
-    );
   }
-
-  const alreadyCheckedIn = todayMark?.value === 100;
-  const busy = gpsState === "locating" || gpsState === "submitting";
 
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-border)]">
         <p className="mb-1 text-sm text-muted-foreground">Hari ini</p>
         <p className="mb-4 text-base font-semibold">{formatLongDate(today)}</p>
-
-        {alreadyCheckedIn ? (
-          <div className="flex items-center gap-2 rounded-lg bg-success/10 px-4 py-3 text-sm text-success">
-            <Check className="size-4 shrink-0" aria-hidden="true" />
-            <span>Kamu sudah absen hari ini. Terima kasih!</span>
-          </div>
-        ) : (
-          <>
-            <Button
-              type="button"
-              onClick={handleCheckin}
-              disabled={busy}
-              className="w-full gap-2"
-            >
-              {busy ? (
-                <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-              ) : (
-                <MapPin className="size-4" aria-hidden="true" />
-              )}
-              {gpsState === "locating"
-                ? "Menentukan lokasi…"
-                : gpsState === "submitting"
-                  ? "Menyimpan absen…"
-                  : "Absen sekarang"}
-            </Button>
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              Kamu harus berada di area bengkel untuk bisa absen.
-            </p>
-          </>
-        )}
-
-        {gpsState === "error" && errorMsg ? (
-          <p className="mt-3 text-sm text-destructive">{errorMsg}</p>
-        ) : null}
+        <div className="grid gap-2">
+          <Button
+            type="button"
+            className="w-full gap-2"
+            disabled={checkedIn || clockBusy !== null}
+            aria-busy={clockBusy === "in"}
+            onClick={() => void clock("in")}
+          >
+            <MapPin className="size-4" aria-hidden="true" />
+            {checkedIn ? "Sudah absen masuk" : "Absen masuk"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2"
+            disabled={!checkedIn || checkedOut || clockBusy !== null}
+            aria-busy={clockBusy === "out"}
+            onClick={() => void clock("out")}
+          >
+            {checkedOut ? "Sudah absen pulang" : "Absen pulang"}
+          </Button>
+        </div>
+        <p className="mt-2 text-center text-xs text-muted-foreground">
+          Kamu harus berada di area bengkel. GPS dicek di server.
+        </p>
       </div>
 
-      {/* History for this month */}
       {monthQuery.isPending ? (
         <Loader />
       ) : monthQuery.isError ? (
         <PageError onRetry={() => void monthQuery.refetch()} />
       ) : (monthData?.marks ?? []).length > 0 ? (
         <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-border)]">
-          <div className="px-4 py-3 text-sm font-medium">
-            Riwayat {monthLabel(year, month)}
-          </div>
+          <div className="px-4 py-3 text-sm font-medium">Riwayat {monthLabel(year, month)}</div>
           <div className="divide-y divide-border">
             {[...(monthData?.marks ?? [])]
               .sort((a, b) => b.workDate.localeCompare(a.workDate))
               .map((m) => (
                 <div key={m.workDate} className="flex items-center gap-3 px-4 py-2.5">
-                  <span className="tabular-nums text-sm text-muted-foreground w-24 shrink-0">
+                  <span className="w-24 shrink-0 text-sm tabular-nums text-muted-foreground">
                     {formatLongDate(m.workDate).replace(/,.*/, "")} {m.workDate.slice(8)}
                   </span>
                   <span className="inline-flex items-center gap-1 text-sm">
@@ -333,7 +285,7 @@ function SelfCheckinPanel() {
       ) : (
         <StatePanel
           title="Belum ada absen bulan ini"
-          description='Tap "Absen sekarang" saat kamu tiba di bengkel.'
+          description='Tap "Absen masuk" saat kamu tiba di bengkel.'
         />
       )}
     </div>
