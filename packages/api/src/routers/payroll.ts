@@ -15,10 +15,29 @@ import {
 
 import { protectedProcedure, router, supervisorProcedure } from "../index";
 
+const TZ = "Asia/Jayapura";
+
 const yearMonthInput = z.object({
   year: z.number().int(),
   month: z.number().int().min(1).max(12),
 });
+
+function isFutureYearMonth(year: number, month: number) {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+  const [yStr, mStr] = today.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  return year > y || (year === y && month > m);
+}
+
+function assertNotFuturePeriod(year: number, month: number) {
+  if (isFutureYearMonth(year, month)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Tidak bisa hitung gaji untuk bulan yang belum terjadi",
+    });
+  }
+}
 
 function monthRange(year: number, month: number) {
   const ym = `${year}-${String(month).padStart(2, "0")}`;
@@ -296,14 +315,15 @@ async function allocateFifo(
 export const payrollRouter = router({
   get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
     const role = ctx.session.user.role ?? "mekanik";
+    const future = isFutureYearMonth(input.year, input.month);
     const period =
-      role === "mekanik"
+      role === "mekanik" || future
         ? await getPeriod(ctx.db, input.year, input.month)
         : await getOrCreateDraftPeriod(ctx.db, input.year, input.month);
     if (!period) {
       return { period: null, lines: [] };
     }
-    if (period.status === "draft" && role !== "mekanik") {
+    if (!future && period.status === "draft" && role !== "mekanik") {
       await rebuildDraftLines(ctx.db, period, true);
     }
     let named = await linesWithNames(ctx.db, period.id);
@@ -331,6 +351,7 @@ export const payrollRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      assertNotFuturePeriod(input.year, input.month);
       const period = await getOrCreateDraftPeriod(
         ctx.db,
         input.year,
@@ -386,6 +407,7 @@ export const payrollRouter = router({
           message: "Periode gaji sudah dikunci",
         });
       }
+      assertNotFuturePeriod(period.year, period.month);
       if (input.kasbonDeductionIdr > line.kasbonBalanceIdr) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -418,6 +440,7 @@ export const payrollRouter = router({
   finalize: supervisorProcedure
     .input(yearMonthInput)
     .mutation(async ({ ctx, input }) => {
+      assertNotFuturePeriod(input.year, input.month);
       const period = await getPeriod(ctx.db, input.year, input.month);
       if (!period) {
         throw new TRPCError({

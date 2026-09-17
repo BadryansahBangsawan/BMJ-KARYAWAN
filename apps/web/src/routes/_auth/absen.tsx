@@ -335,15 +335,9 @@ function AbsenPage() {
             <PeriodFields
               year={year}
               month={month}
-              onYearChange={(next) => {
-                if (next > now.year) return;
-                setYear(next);
-                if (next === now.year && month > now.month) setMonth(now.month);
-              }}
-              onMonthChange={(next) => {
-                if (year > now.year || (year === now.year && next > now.month)) return;
-                setMonth(next);
-              }}
+              capToPresent
+              onYearChange={setYear}
+              onMonthChange={setMonth}
             />
           </div>
         ) : null}

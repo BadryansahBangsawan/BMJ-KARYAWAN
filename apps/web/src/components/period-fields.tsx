@@ -1,17 +1,22 @@
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 
+import { jayapuraYearMonth, todayYmd } from "@/lib/format";
+
 export function PeriodFields({
   year,
   month,
   onYearChange,
   onMonthChange,
+  capToPresent = false,
 }: {
   year: number;
   month: number;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
+  capToPresent?: boolean;
 }) {
+  const now = jayapuraYearMonth();
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="space-y-2">
@@ -20,8 +25,14 @@ export function PeriodFields({
           id="period-year"
           type="number"
           className="w-28 tabular-nums"
+          max={capToPresent ? now.year : undefined}
           value={year}
-          onChange={(event) => onYearChange(Number(event.target.value))}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (capToPresent && next > now.year) return;
+            onYearChange(next);
+            if (capToPresent && next === now.year && month > now.month) onMonthChange(now.month);
+          }}
         />
       </div>
       <div className="space-y-2">
@@ -30,10 +41,14 @@ export function PeriodFields({
           id="period-month"
           type="number"
           min={1}
-          max={12}
+          max={capToPresent && year >= now.year ? now.month : 12}
           className="w-24 tabular-nums"
           value={month}
-          onChange={(event) => onMonthChange(Number(event.target.value))}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (capToPresent && (year > now.year || (year === now.year && next > now.month))) return;
+            onMonthChange(next);
+          }}
         />
       </div>
     </div>
@@ -51,6 +66,7 @@ export function DateRangeFields({
   onFromChange: (value: string) => void;
   onToChange: (value: string) => void;
 }) {
+  const today = todayYmd();
   return (
     <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2">
       <div className="min-w-0 space-y-2">
@@ -58,9 +74,10 @@ export function DateRangeFields({
         <Input
           id="from"
           type="date"
+          max={today}
           className="w-full min-w-0"
           value={from}
-          onChange={(event) => onFromChange(event.target.value)}
+          onChange={(event) => onFromChange(event.target.value > today ? today : event.target.value)}
         />
       </div>
       <div className="min-w-0 space-y-2">
@@ -68,9 +85,10 @@ export function DateRangeFields({
         <Input
           id="to"
           type="date"
+          max={today}
           className="w-full min-w-0"
           value={to}
-          onChange={(event) => onToChange(event.target.value)}
+          onChange={(event) => onToChange(event.target.value > today ? today : event.target.value)}
         />
       </div>
     </div>

@@ -215,6 +215,7 @@ function GajiPage() {
           <PeriodFields
             year={year}
             month={month}
+            capToPresent
             onYearChange={setYear}
             onMonthChange={setMonth}
           />
