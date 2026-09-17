@@ -8,7 +8,8 @@ export type AppPath =
   | "/toko"
   | "/absen"
   | "/laporan"
-  | "/karyawan";
+  | "/karyawan"
+  | "/profil";
 
 export const PAGE_TITLE: Record<AppPath, string> = {
   "/dashboard": "Dasbor",
@@ -19,6 +20,7 @@ export const PAGE_TITLE: Record<AppPath, string> = {
   "/absen": "Absen",
   "/laporan": "Laporan",
   "/karyawan": "Karyawan",
+  "/profil": "Profil",
 };
 
 export const PAGE_DESCRIPTION: Record<AppPath, string> = {
@@ -30,6 +32,7 @@ export const PAGE_DESCRIPTION: Record<AppPath, string> = {
   "/absen": "Absen mandiri berbasis GPS untuk karyawan; supervisor isi kehadiran manual.",
   "/laporan": "Ringkasan pendapatan, pengeluaran, dan bagian bengkel.",
   "/karyawan": "Tambah, ubah, dan impor data karyawan.",
+  "/profil": "Ubah nama, foto, dan kata sandi akun.",
 };
 
 export type NavIcon =

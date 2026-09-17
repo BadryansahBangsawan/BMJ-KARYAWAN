@@ -58,6 +58,7 @@ export default function UserMenu({
             {roleLabel(role)}
           </DropdownMenuItem>
           <DropdownMenuItem>{session.user.email}</DropdownMenuItem>
+          <DropdownMenuItem render={<Link to="/profil" />}>Pengaturan profil</DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
             onClick={() => {

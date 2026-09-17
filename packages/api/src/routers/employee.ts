@@ -309,4 +309,45 @@ export const employeeRouter = router({
         .returning();
       return row;
     }),
+
+  updateProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(1),
+        image: z
+          .string()
+          .max(80_000)
+          .refine((value) => value.startsWith("data:image/jpeg"), "Foto harus JPEG")
+          .nullable()
+          .optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
+      const [mine] = await ctx.db
+        .select()
+        .from(employee)
+        .where(eq(employee.userId, userId))
+        .limit(1);
+      if (mine?.active) {
+        await assertUniqueActiveName(ctx.db, input.name, mine.id);
+      }
+
+      await ctx.db
+        .update(user)
+        .set({
+          name: input.name,
+          ...(input.image !== undefined ? { image: input.image } : {}),
+        })
+        .where(eq(user.id, userId));
+
+      if (mine) {
+        await ctx.db
+          .update(employee)
+          .set({ name: input.name })
+          .where(eq(employee.id, mine.id));
+      }
+
+      return { name: input.name };
+    }),
 });
