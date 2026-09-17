@@ -125,6 +125,11 @@ export const attendanceRouter = router({
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
         workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        photo: z
+          .string()
+          .min(32)
+          .max(400_000)
+          .refine((value) => value.startsWith("data:image/"), "Foto absen wajib"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -166,6 +171,7 @@ export const attendanceRouter = router({
             value: 100,
             markedByUserId: ctx.session.user.id,
             checkInAt: now,
+            checkInPhoto: input.photo,
           })
           .where(eq(attendance.id, existing.id))
           .returning();
@@ -181,6 +187,7 @@ export const attendanceRouter = router({
           value: 100,
           markedByUserId: ctx.session.user.id,
           checkInAt: now,
+          checkInPhoto: input.photo,
         })
         .returning();
       return inserted!;
@@ -192,6 +199,11 @@ export const attendanceRouter = router({
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
         workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        photo: z
+          .string()
+          .min(32)
+          .max(400_000)
+          .refine((value) => value.startsWith("data:image/"), "Foto absen wajib"),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -236,6 +248,7 @@ export const attendanceRouter = router({
         .set({
           markedByUserId: ctx.session.user.id,
           checkOutAt: new Date(),
+          checkOutPhoto: input.photo,
         })
         .where(eq(attendance.id, existing.id))
         .returning();

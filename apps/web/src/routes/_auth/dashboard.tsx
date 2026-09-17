@@ -5,14 +5,14 @@ import { useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
+import { AbsenClockButton } from "@/components/absen-clock-button";
 import { ActionQueue } from "@/components/action-queue";
-import { BusyLabel } from "@/components/busy-label";
 import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
 import { formatRp, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
-import { requestWorkshopPosition } from "@/lib/workshop-gps";
+import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_auth/dashboard")({
@@ -87,7 +87,7 @@ function RouteComponent() {
   const month = monthBounds();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [clockBusy, setClockBusy] = useState<"in" | "out" | null>(null);
+  const [clockBusy, setClockBusy] = useState(false);
   const workDate = todayYmd();
 
   const mineToday = useQuery(trpc.attendance.mineToday.queryOptions());
@@ -196,22 +196,22 @@ function RouteComponent() {
   const checkedIn = Boolean(mineToday.data?.checkInAt);
   const checkedOut = Boolean(mineToday.data?.checkOutAt);
 
-  async function clock(kind: "in" | "out") {
-    setClockBusy(kind);
+  async function clockFromFile(file: File) {
+    setClockBusy(true);
     try {
-      const pos = await requestWorkshopPosition();
-      if (kind === "in") {
-        await checkInMut.mutateAsync({ ...pos, workDate });
+      const proof = await captureClockProof(file);
+      if (!checkedIn) {
+        await checkInMut.mutateAsync({ ...proof, workDate });
         toast.success("Absen masuk tercatat");
       } else {
-        await checkOutMut.mutateAsync({ ...pos, workDate });
+        await checkOutMut.mutateAsync({ ...proof, workDate });
         toast.success("Absen pulang tercatat");
       }
       await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Absen gagal");
     } finally {
-      setClockBusy(null);
+      setClockBusy(false);
     }
   }
 
@@ -241,32 +241,13 @@ function RouteComponent() {
           ))}
         </ol>
 
-        <div className="mt-6 grid gap-2">
-          <Button
-            type="button"
-            className="h-14 min-h-14 w-full text-base"
-            size="lg"
-            disabled={checkedIn || clockBusy !== null}
-            aria-busy={clockBusy === "in"}
-            onClick={() => void clock("in")}
-          >
-            <BusyLabel busy={clockBusy === "in"}>
-              {checkedIn ? "Sudah absen masuk" : "Absen masuk"}
-            </BusyLabel>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-14 min-h-14 w-full bg-muted text-base"
-            size="lg"
-            disabled={!checkedIn || checkedOut || clockBusy !== null}
-            aria-busy={clockBusy === "out"}
-            onClick={() => void clock("out")}
-          >
-            <BusyLabel busy={clockBusy === "out"}>
-              {checkedOut ? "Sudah absen pulang" : "Absen pulang"}
-            </BusyLabel>
-          </Button>
+        <div className="mt-6">
+          <AbsenClockButton
+            checkedIn={checkedIn}
+            checkedOut={checkedOut}
+            busy={clockBusy}
+            onFile={(file) => void clockFromFile(file)}
+          />
         </div>
       </section>
 

@@ -19,15 +19,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useMemo, useRef, useState } from "react";
-import { Check, Loader2, MapPin, Minus, X } from "lucide-react";
+import { Check, Loader2, Minus, X } from "lucide-react";
 
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { jayapuraYearMonth, monthLabel, todayYmd, formatLongDate } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
-import { requestWorkshopPosition } from "@/lib/workshop-gps";
+import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
+import { AbsenClockButton } from "@/components/absen-clock-button";
 import Loader from "@/components/loader";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { PageHeader } from "@/components/page-header";
@@ -191,7 +192,7 @@ function SelfCheckinPanel() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const today = useMemo(() => todayYmd(), []);
-  const [clockBusy, setClockBusy] = useState<"in" | "out" | null>(null);
+  const [clockBusy, setClockBusy] = useState(false);
   const { year, month } = useMemo(() => jayapuraYearMonth(today), [today]);
   const monthQuery = useQuery(trpc.attendance.month.queryOptions({ year, month }));
   const mineToday = useQuery(trpc.attendance.mineToday.queryOptions());
@@ -205,15 +206,15 @@ function SelfCheckinPanel() {
   const checkedIn = Boolean(mineToday.data?.checkInAt);
   const checkedOut = Boolean(mineToday.data?.checkOutAt);
 
-  async function clock(kind: "in" | "out") {
-    setClockBusy(kind);
+  async function clockFromFile(file: File) {
+    setClockBusy(true);
     try {
-      const pos = await requestWorkshopPosition();
-      if (kind === "in") {
-        await checkInMut.mutateAsync({ ...pos, workDate: today });
+      const proof = await captureClockProof(file);
+      if (!checkedIn) {
+        await checkInMut.mutateAsync({ ...proof, workDate: today });
         toast.success("Absen masuk tercatat");
       } else {
-        await checkOutMut.mutateAsync({ ...pos, workDate: today });
+        await checkOutMut.mutateAsync({ ...proof, workDate: today });
         toast.success("Absen pulang tercatat");
       }
       await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
@@ -221,7 +222,7 @@ function SelfCheckinPanel() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Absen gagal");
     } finally {
-      setClockBusy(null);
+      setClockBusy(false);
     }
   }
 
@@ -230,31 +231,12 @@ function SelfCheckinPanel() {
       <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-border)]">
         <p className="mb-1 text-sm text-muted-foreground">Hari ini</p>
         <p className="mb-4 text-base font-semibold">{formatLongDate(today)}</p>
-        <div className="grid gap-2">
-          <Button
-            type="button"
-            className="w-full gap-2"
-            disabled={checkedIn || clockBusy !== null}
-            aria-busy={clockBusy === "in"}
-            onClick={() => void clock("in")}
-          >
-            <MapPin className="size-4" aria-hidden="true" />
-            {checkedIn ? "Sudah absen masuk" : "Absen masuk"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full gap-2"
-            disabled={!checkedIn || checkedOut || clockBusy !== null}
-            aria-busy={clockBusy === "out"}
-            onClick={() => void clock("out")}
-          >
-            {checkedOut ? "Sudah absen pulang" : "Absen pulang"}
-          </Button>
-        </div>
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          Kamu harus berada di area bengkel. GPS dicek di server.
-        </p>
+        <AbsenClockButton
+          checkedIn={checkedIn}
+          checkedOut={checkedOut}
+          busy={clockBusy}
+          onFile={(file) => void clockFromFile(file)}
+        />
       </div>
 
       {monthQuery.isPending ? (
