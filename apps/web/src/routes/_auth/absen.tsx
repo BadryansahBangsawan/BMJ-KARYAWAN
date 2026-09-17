@@ -189,7 +189,7 @@ function SelfCheckinPanel() {
         />
       </div>
 
-      {monthQuery.isPending ? (
+      {monthQuery.isPending && !monthQuery.data ? (
         <Loader />
       ) : monthQuery.isError ? (
         <PageError onRetry={() => void monthQuery.refetch()} />
@@ -355,7 +355,7 @@ function AbsenPage() {
 
           {monthQuery.isError ? (
             <PageError onRetry={() => void monthQuery.refetch()} />
-          ) : monthQuery.isPending ? (
+          ) : monthQuery.isPending && !monthQuery.data ? (
             <Loader />
           ) : employees.length === 0 ? (
             <StatePanel

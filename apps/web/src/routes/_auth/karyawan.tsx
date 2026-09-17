@@ -383,8 +383,8 @@ function KaryawanPage() {
   const listQuery = useQuery(trpc.employee.list.queryOptions());
   const rows = (listQuery.data ?? []) as EmployeeRow[];
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: trpc.employee.list.queryKey() });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: trpc.employee.list.queryKey() });
   };
 
   const createMut = useMutation(
@@ -590,7 +590,7 @@ function KaryawanPage() {
             <ClearFiltersButton visible={filtersActive} onClick={clearFilters} />
           </FilterBar>
 
-          {listQuery.isPending ? (
+          {listQuery.isPending && !listQuery.data ? (
             <Loader />
           ) : visible.length === 0 ? (
             <StatePanel

@@ -130,8 +130,8 @@ function GajiPage() {
   const canEditDraft = role === "supervisor" && isDraft;
   const totalTakeHome = lines.reduce((sum, line) => sum + line.takeHomeIdr, 0);
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: trpc.payroll.get.queryKey({ year, month }) });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: trpc.payroll.get.queryKey({ year, month }) });
   };
 
   const recomputeMut = useMutation(
@@ -250,7 +250,7 @@ function GajiPage() {
               title="Slip gaji"
               count={payrollQuery.isPending ? undefined : lines.length}
             />
-            {payrollQuery.isPending ? (
+            {payrollQuery.isPending && !payrollQuery.data ? (
               <Loader />
             ) : lines.length === 0 ? (
               <StatePanel

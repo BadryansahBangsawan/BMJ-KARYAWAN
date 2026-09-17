@@ -85,17 +85,17 @@ function TokoPage() {
   const panjar = summary?.panjar ?? 0;
   const totalHariIni = tunai + nonTunai + panjar;
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: trpc.store.list.queryKey() });
-    await queryClient.invalidateQueries({ queryKey: trpc.store.summary.queryKey() });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: trpc.store.list.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.store.summary.queryKey() });
   };
 
   const createMut = useMutation(
     trpc.store.create.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Transaksi tersimpan");
         setCreateOpen(false);
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -156,7 +156,7 @@ function TokoPage() {
       ) : (
         <section className="flex flex-col gap-3">
           <SectionHeader title="Riwayat" count={rows.length} />
-          {listQuery.isPending ? (
+          {listQuery.isPending && !listQuery.data ? (
             <Loader />
           ) : rows.length === 0 ? (
             <StatePanel

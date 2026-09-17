@@ -1,5 +1,5 @@
 import type { AppRouter } from "@BMJ-KARYAWAN/api/routers/index";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, QueryCache, QueryClient } from "@tanstack/react-query";
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
@@ -26,10 +26,13 @@ function createQueryClient() {
     }),
     defaultOptions: {
       queries: {
-        staleTime: 3_000,
+        staleTime: 30_000,
+        gcTime: 30 * 60_000,
+        placeholderData: keepPreviousData,
         refetchInterval: 8_000,
         refetchOnWindowFocus: true,
         refetchOnReconnect: true,
+        refetchOnMount: true,
       },
     },
   });
@@ -88,7 +91,7 @@ export const getRouter = () => {
     scrollRestoration: true,
     defaultPreload: "intent",
     defaultPreloadStaleTime: 30_000,
-    defaultPendingMs: 400,
+    defaultPendingMs: Number.POSITIVE_INFINITY,
     context: { trpc, queryClient },
     defaultNotFoundComponent: () => <div>Halaman tidak ditemukan</div>,
     Wrap: ({ children }) => (

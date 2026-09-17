@@ -260,22 +260,21 @@ function PekerjaanPage() {
   const cancelRow = jobs.find((job) => job.id === cancelId);
   const detailRow = jobs.find((job) => job.id === detailId);
 
-  const invalidateJobs = async () => {
-    await queryClient.invalidateQueries({
+  const invalidateJobs = () => {
+    void queryClient.invalidateQueries({
       predicate: (query) => {
         const path = query.queryKey[0];
         return Array.isArray(path) && path[0] === "job";
       },
     });
-    await jobsQuery.refetch();
   };
 
   const createMut = useMutation(
     trpc.job.create.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Pekerjaan disimpan");
         setCreateOpen(false);
-        await invalidateJobs();
+        invalidateJobs();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -283,7 +282,7 @@ function PekerjaanPage() {
 
   const statusMut = useMutation(
     trpc.job.setStatus.mutationOptions({
-      onSuccess: async (_row, input) => {
+      onSuccess: (_row, input) => {
         toast.success(
           input.status === "selesai"
             ? "Pekerjaan ditandai selesai"
@@ -292,7 +291,7 @@ function PekerjaanPage() {
               : "Pekerjaan dibatalkan",
         );
         setCancelId(null);
-        await invalidateJobs();
+        invalidateJobs();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -489,7 +488,7 @@ function PekerjaanPage() {
             <ClearFiltersButton visible={filtersActive} onClick={clearFilters} />
           </FilterBar>
 
-          {jobsQuery.isPending ? (
+          {jobsQuery.isPending && !jobsQuery.data ? (
             <Loader />
           ) : visible.length === 0 ? (
             <StatePanel

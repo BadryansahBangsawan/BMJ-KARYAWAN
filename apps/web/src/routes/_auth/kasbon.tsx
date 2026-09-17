@@ -85,9 +85,7 @@ function KasbonPage() {
   const [payId, setPayId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
 
-  const listQuery = useQuery(
-    trpc.kasbon.list.queryOptions(statusFilter ? { status: statusFilter } : {}),
-  );
+  const listQuery = useQuery(trpc.kasbon.list.queryOptions({}));
   const summaryQuery = useQuery({
     ...trpc.kasbon.summary.queryOptions(),
     enabled: isKasirish,
@@ -112,18 +110,16 @@ function KasbonPage() {
     return Array.isArray(path) && path[0] === "kasbon";
   };
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({ predicate: isKasbonListQuery });
-    await listQuery.refetch();
-    if (isKasirish) await summaryQuery.refetch();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ predicate: isKasbonListQuery });
   };
 
   const createMut = useMutation(
     trpc.kasbon.create.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Kasbon diajukan");
         setCreateOpen(false);
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -139,9 +135,9 @@ function KasbonPage() {
           );
         });
       },
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Kasbon disetujui");
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -157,11 +153,11 @@ function KasbonPage() {
           );
         });
       },
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Kasbon ditolak");
         setRejectId(null);
         setRejectReason("");
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -177,20 +173,20 @@ function KasbonPage() {
           );
         });
       },
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Kasbon dicairkan");
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
   );
   const payMut = useMutation(
     trpc.kasbon.addPayment.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Pembayaran tercatat");
         setPayId(null);
         setPayAmount("");
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -224,7 +220,7 @@ function KasbonPage() {
 
   const pending = rows.filter((row) => row.status === "pending");
   const approved = rows.filter((row) => row.status === "approved");
-  const visible = rows;
+  const visible = statusFilter ? rows.filter((row) => row.status === statusFilter) : rows;
   const rejectRow = rows.find((row) => row.id === rejectId);
   const payRow = rows.find((row) => row.id === payId);
   const paySisa = payRow
@@ -258,7 +254,7 @@ function KasbonPage() {
           {role === "supervisor" ? (
             <section className="flex flex-col gap-3">
               <SectionHeader title="Antrian persetujuan" count={pending.length} />
-              {listQuery.isPending ? (
+              {listQuery.isPending && !listQuery.data ? (
                 <Loader />
               ) : pending.length === 0 ? (
                 <StatePanel
@@ -306,7 +302,7 @@ function KasbonPage() {
           {isKasirish ? (
             <section className="flex flex-col gap-3">
               <SectionHeader title="Antrian pencairan" count={approved.length} />
-              {listQuery.isPending ? (
+              {listQuery.isPending && !listQuery.data ? (
                 <Loader />
               ) : approved.length === 0 ? (
                 <StatePanel
@@ -355,7 +351,7 @@ function KasbonPage() {
               <ClearFiltersButton visible={statusFilter !== ""} onClick={() => setStatusFilter("")} />
             </FilterBar>
 
-            {listQuery.isPending ? (
+            {listQuery.isPending && !listQuery.data ? (
               <Loader />
             ) : visible.length === 0 ? (
               <StatePanel

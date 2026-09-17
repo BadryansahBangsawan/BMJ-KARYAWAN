@@ -79,7 +79,7 @@ function LaporanTable({
   periodName?: string;
   onChangePeriod?: () => void;
 }) {
-  if (isPending) {
+  if (isPending && rows.length === 0) {
     return <Loader />;
   }
   if (isError) {
@@ -239,7 +239,7 @@ function LaporanPage() {
 
       {diagramQuery.isError ? (
         <PageError onRetry={() => void diagramQuery.refetch()} />
-      ) : diagramQuery.isPending ? (
+      ) : diagramQuery.isPending && !diagramQuery.data ? (
         <Loader />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

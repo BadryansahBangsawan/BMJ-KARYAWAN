@@ -269,7 +269,7 @@ function RouteComponent() {
             if (isStaff) void diagram.refetch();
           }}
         />
-      ) : me.isPending || kasbon.isPending || jobs.isPending || (isStaff && diagram.isPending) ? (
+      ) : !me.data && !kasbon.data && !jobs.data && (me.isPending || kasbon.isPending || jobs.isPending) ? (
         <Loader />
       ) : (
         <>
