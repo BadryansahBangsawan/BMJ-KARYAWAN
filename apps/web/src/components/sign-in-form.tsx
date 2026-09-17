@@ -8,18 +8,15 @@ import z from "zod";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { BusyLabel } from "@/components/busy-label";
+import { FieldError, fieldDescribedBy } from "@/components/field-error";
 import { authClient } from "@/lib/auth-client";
 
 import Loader from "./loader";
 
-export default function SignInForm() {
+export default function SignInForm({ googleClientId = "" }: { googleClientId?: string }) {
   const navigate = useNavigate();
   const { isPending } = authClient.useSession();
-  const googleClientId = import.meta.env.GOOGLE_CLIENT_ID;
-  const viteGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-  const showGoogle =
-    (typeof googleClientId === "string" && googleClientId.trim() !== "") ||
-    (typeof viteGoogleClientId === "string" && viteGoogleClientId.trim() !== "");
+  const showGoogle = googleClientId.trim() !== "";
 
   const form = useForm({
     defaultValues: {
@@ -85,13 +82,9 @@ export default function SignInForm() {
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={field.state.meta.errors.length > 0 ? "email-error" : undefined}
+                aria-describedby={fieldDescribedBy("email-error", field.state.meta.errors)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} id="email-error" className="text-sm text-destructive">
-                  {error?.message}
-                </p>
-              ))}
+              <FieldError id="email-error" errors={field.state.meta.errors} />
             </div>
           )}
         </form.Field>
@@ -109,15 +102,9 @@ export default function SignInForm() {
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={
-                  field.state.meta.errors.length > 0 ? "password-error" : undefined
-                }
+                aria-describedby={fieldDescribedBy("password-error", field.state.meta.errors)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} id="password-error" className="text-sm text-destructive">
-                  {error?.message}
-                </p>
-              ))}
+              <FieldError id="password-error" errors={field.state.meta.errors} />
             </div>
           )}
         </form.Field>

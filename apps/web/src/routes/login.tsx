@@ -9,7 +9,9 @@ import z from "zod";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { BusyLabel } from "@/components/busy-label";
+import { FieldError, fieldDescribedBy } from "@/components/field-error";
 import SignInForm from "@/components/sign-in-form";
+import { getLoginConfig } from "@/functions/get-login-config";
 import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/utils/trpc";
@@ -24,17 +26,23 @@ export const Route = createFileRoute("/login")({
     }
   },
   loader: async ({ context }) => {
-    const result = await context.queryClient.ensureQueryData(
-      context.trpc.auth.bootstrapNeeded.queryOptions(),
-    );
-    return { bootstrapNeeded: result.needed };
+    const [bootstrapResult, loginConfig] = await Promise.all([
+      context.queryClient.ensureQueryData(
+        context.trpc.auth.bootstrapNeeded.queryOptions(),
+      ),
+      getLoginConfig(),
+    ]);
+    return {
+      bootstrapNeeded: bootstrapResult.needed,
+      googleClientId: loginConfig.googleClientId,
+    };
   },
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { bootstrapNeeded } = Route.useLoaderData();
-  return bootstrapNeeded ? <BootstrapSupervisorForm /> : <SignInForm />;
+  const { bootstrapNeeded, googleClientId } = Route.useLoaderData();
+  return bootstrapNeeded ? <BootstrapSupervisorForm /> : <SignInForm googleClientId={googleClientId} />;
 }
 
 function BootstrapSupervisorForm() {
@@ -112,13 +120,9 @@ function BootstrapSupervisorForm() {
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={field.state.meta.errors.length > 0 ? "name-error" : undefined}
+                aria-describedby={fieldDescribedBy("name-error", field.state.meta.errors)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} id="name-error" className="text-sm text-destructive">
-                  {error?.message}
-                </p>
-              ))}
+              <FieldError id="name-error" errors={field.state.meta.errors} />
             </div>
           )}
         </form.Field>
@@ -137,13 +141,9 @@ function BootstrapSupervisorForm() {
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={field.state.meta.errors.length > 0 ? "email-error" : undefined}
+                aria-describedby={fieldDescribedBy("email-error", field.state.meta.errors)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} id="email-error" className="text-sm text-destructive">
-                  {error?.message}
-                </p>
-              ))}
+              <FieldError id="email-error" errors={field.state.meta.errors} />
             </div>
           )}
         </form.Field>
@@ -160,15 +160,9 @@ function BootstrapSupervisorForm() {
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={
-                  field.state.meta.errors.length > 0 ? "password-error" : undefined
-                }
+                aria-describedby={fieldDescribedBy("password-error", field.state.meta.errors)}
               />
-              {field.state.meta.errors.map((error) => (
-                <p key={error?.message} id="password-error" className="text-sm text-destructive">
-                  {error?.message}
-                </p>
-              ))}
+              <FieldError id="password-error" errors={field.state.meta.errors} />
             </div>
           )}
         </form.Field>
