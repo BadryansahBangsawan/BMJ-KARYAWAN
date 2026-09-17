@@ -253,7 +253,12 @@ function PekerjaanPage() {
   const detailRow = jobs.find((job) => job.id === detailId);
 
   const invalidateJobs = async () => {
-    await queryClient.invalidateQueries({ queryKey: trpc.job.list.queryKey(listInput) });
+    await queryClient.invalidateQueries({
+      predicate: (query) => {
+        const path = query.queryKey[0];
+        return Array.isArray(path) && path[0] === "job";
+      },
+    });
     await jobsQuery.refetch();
   };
 
@@ -685,13 +690,13 @@ function PekerjaanPage() {
           ) : null}
 
           {role === "mekanik" ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="min-w-0 text-pretty text-sm text-muted-foreground">
               Tanggal {formatLongDate(todayYmd())}
             </p>
           ) : (
             <form.Field name="workDate">
               {(field) => (
-                <div className="min-w-0 space-y-2">
+                <div className="min-w-0 max-w-full space-y-2 overflow-hidden">
                   <Label htmlFor={field.name}>Tanggal</Label>
                   <Input
                     id={field.name}

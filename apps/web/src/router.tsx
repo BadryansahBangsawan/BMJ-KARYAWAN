@@ -24,7 +24,14 @@ function createQueryClient() {
         });
       },
     }),
-    defaultOptions: { queries: { staleTime: 60 * 1000 } },
+    defaultOptions: {
+      queries: {
+        staleTime: 3_000,
+        refetchInterval: 8_000,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
+      },
+    },
   });
 }
 

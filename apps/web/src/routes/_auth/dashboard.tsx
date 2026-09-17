@@ -138,17 +138,26 @@ function RouteComponent() {
 
   const pendingKasbon = kasbonRows.filter((row) => row.status === "pending");
   const approvedKasbon = kasbonRows.filter((row) => row.status === "approved");
+  const liveJobs = jobRows.filter((row) => row.status === "proses" || row.status === "selesai");
   const selesaiJobs = jobRows.filter((row) => row.status === "selesai");
 
   const queueItems =
     role === "supervisor"
-      ? pendingKasbon.slice(0, 6).map((row, index) => ({
-          id: row.id ?? `pending-${index}`,
-          title: row.employeeName ?? row.name ?? "Kasbon menunggu",
-          subtitle: row.keperluan,
-          trailing: formatRp(row.amountIdr),
-          to: "/kasbon" as const,
-        }))
+      ? [
+          ...pendingKasbon.slice(0, 4).map((row, index) => ({
+            id: row.id ?? `pending-${index}`,
+            title: row.employeeName ?? row.name ?? "Kasbon menunggu",
+            subtitle: row.keperluan,
+            trailing: formatRp(row.amountIdr),
+            to: "/kasbon" as const,
+          })),
+          ...liveJobs.slice(0, 4).map((row, index) => ({
+            id: row.id ?? `job-${index}`,
+            title: row.description ?? "Pekerjaan",
+            subtitle: `${row.employeeName ?? row.name ?? "Mekanik"} · ${row.status === "selesai" ? "Menunggu diterima" : "Proses"}`,
+            to: "/pekerjaan" as const,
+          })),
+        ]
       : role === "kasir"
         ? [
             ...approvedKasbon.slice(0, 4).map((row, index) => ({

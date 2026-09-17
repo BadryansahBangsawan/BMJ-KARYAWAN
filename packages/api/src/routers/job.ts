@@ -104,6 +104,7 @@ export const jobRouter = router({
         .select({
           id: job.id,
           employeeId: job.employeeId,
+          employeeName: employee.name,
           workDate: job.workDate,
           description: job.description,
           amountIdr: job.amountIdr,
@@ -120,6 +121,7 @@ export const jobRouter = router({
           updatedAt: job.updatedAt,
         })
         .from(job)
+        .innerJoin(employee, eq(job.employeeId, employee.id))
         .where(
           and(
             gte(job.workDate, from),

@@ -230,6 +230,17 @@
   textarea {
     caret-color: var(--primary);
   }
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="time"] {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   * {
     scrollbar-color: var(--primary) transparent;
     scrollbar-width: thin;

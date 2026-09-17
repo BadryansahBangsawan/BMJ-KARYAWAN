@@ -26,7 +26,7 @@ import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
-import { formatRp } from "@/lib/format";
+import { formatDateTime, formatRp } from "@/lib/format";
 import { sessionRole, roleLabel } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
@@ -54,6 +54,7 @@ type KasbonRow = {
   paidIdr?: number | null;
   sisaIdr?: number | null;
   rejectedReason?: string | null;
+  createdAt?: string | number | Date | null;
 };
 
 type EmployeeRow = { id: string; name: string };
@@ -388,14 +389,17 @@ function KasbonPage() {
                           key={row.id}
                           title={row.employeeName ?? row.name ?? "—"}
                           subtitle={
-                            row.rejectedReason ? (
-                              <>
-                                {row.keperluan}
+                            <>
+                              {row.keperluan}
+                              {formatDateTime(row.createdAt) ? (
+                                <span className="mt-0.5 block tabular-nums">
+                                  {formatDateTime(row.createdAt)}
+                                </span>
+                              ) : null}
+                              {row.rejectedReason ? (
                                 <span className="block text-destructive">{row.rejectedReason}</span>
-                              </>
-                            ) : (
-                              row.keperluan
-                            )
+                              ) : null}
+                            </>
                           }
                           trailing={formatRp(row.amountIdr)}
                           meta={
@@ -451,9 +455,13 @@ function KasbonPage() {
                         const sisa = row.sisaIdr ?? Math.max(0, row.amountIdr - paid);
                         return (
                           <TableRow key={row.id}>
-                            <TableCell>{row.employeeName ?? row.name ?? "—"}</TableCell>
                             <TableCell>
                               {row.keperluan}
+                              {formatDateTime(row.createdAt) ? (
+                                <div className="text-sm tabular-nums text-muted-foreground">
+                                  {formatDateTime(row.createdAt)}
+                                </div>
+                              ) : null}
                               {row.rejectedReason ? (
                                 <div className="text-sm text-destructive">{row.rejectedReason}</div>
                               ) : null}
