@@ -56,6 +56,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         name: "theme-color",
         content: "#9f1d1d",
       },
+      {
+        property: "og:image",
+        content: "/logo.png",
+      },
     ],
     links: [
       {
@@ -72,8 +76,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         rel: "icon",
-        href: "/icon-192.png",
+        href: "/logo.png",
         type: "image/png",
+        sizes: "any",
       },
     ],
   }),
