@@ -275,7 +275,7 @@ function PekerjaanPage() {
   const createMut = useMutation(
     trpc.job.create.mutationOptions({
       onSuccess: () => {
-        toast.success("Pekerjaan disimpan");
+        toast.success(role === "mekanik" ? "Ongkos tercatat" : "Pekerjaan disimpan");
         setCreateOpen(false);
         invalidateJobs();
       },
@@ -611,7 +611,7 @@ function PekerjaanPage() {
           title="Catat pekerjaan"
           description={
             role === "mekanik"
-              ? "Uraian dan ongkos. Tanggal mengikuti hari ini."
+              ? "Uraian dan ongkos. Langsung tercatat, tanpa konfirmasi kasir."
               : "Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
           }
           submitLabel="Catat pekerjaan"

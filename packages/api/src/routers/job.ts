@@ -181,6 +181,7 @@ export const jobRouter = router({
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         targetId = own.id;
+        await assertJobUnlocked(ctx.db, targetId, workDate);
       } else {
         if (!input.employeeId) {
           throw new TRPCError({
@@ -218,7 +219,7 @@ export const jobRouter = router({
           amountIdr: input.amountIdr,
           struk: input.struk?.startsWith("data:") ? null : (input.struk ?? null),
           customerNote: input.customerNote ?? null,
-          status: "proses",
+          status: role === "mekanik" ? "diterima" : "proses",
           kind,
           bengkelPercent: kind === "persenan" ? (input.bengkelPercent ?? null) : null,
           createdByUserId: ctx.session.user.id,
