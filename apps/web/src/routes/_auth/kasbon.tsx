@@ -85,10 +85,14 @@ function KasbonPage() {
   const [payId, setPayId] = useState<string | null>(null);
   const [payAmount, setPayAmount] = useState("");
 
-  const listQuery = useQuery(trpc.kasbon.list.queryOptions({}));
+  const listQuery = useQuery({
+    ...trpc.kasbon.list.queryOptions({}),
+    refetchInterval: 8_000,
+  });
   const summaryQuery = useQuery({
     ...trpc.kasbon.summary.queryOptions(),
     enabled: isKasirish,
+    refetchInterval: 8_000,
   });
   const employeesQuery = useQuery({
     ...trpc.employee.list.queryOptions(),

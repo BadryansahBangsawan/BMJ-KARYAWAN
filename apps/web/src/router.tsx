@@ -14,6 +14,7 @@ function createQueryClient() {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (query.state.data !== undefined) return;
         toast.error(error.message, {
           action: {
             label: "Coba lagi",
@@ -29,7 +30,6 @@ function createQueryClient() {
         staleTime: 30_000,
         gcTime: 30 * 60_000,
         placeholderData: keepPreviousData,
-        refetchInterval: 8_000,
         refetchOnWindowFocus: true,
         refetchOnReconnect: true,
         refetchOnMount: true,

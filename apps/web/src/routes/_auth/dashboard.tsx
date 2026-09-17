@@ -90,17 +90,24 @@ function RouteComponent() {
   const [clockBusy, setClockBusy] = useState(false);
   const workDate = todayYmd();
 
-  const mineToday = useQuery(trpc.attendance.mineToday.queryOptions());
+  const mineToday = useQuery({
+    ...trpc.attendance.mineToday.queryOptions(),
+    refetchInterval: 8_000,
+  });
   const checkInMut = useMutation(trpc.attendance.selfCheckin.mutationOptions());
   const checkOutMut = useMutation(trpc.attendance.selfCheckout.mutationOptions());
   const me = useQuery(trpc.employee.me.queryOptions());
-  const kasbon = useQuery(trpc.kasbon.list.queryOptions());
-  const jobs = useQuery(
-    trpc.job.list.queryOptions({
+  const kasbon = useQuery({
+    ...trpc.kasbon.list.queryOptions(),
+    refetchInterval: 8_000,
+  });
+  const jobs = useQuery({
+    ...trpc.job.list.queryOptions({
       from: "2000-01-01",
       to: "2099-12-31",
     }),
-  );
+    refetchInterval: 8_000,
+  });
   const diagram = useQuery({
     ...trpc.laporan.diagram.queryOptions({
       from: month.from,

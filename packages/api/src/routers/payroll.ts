@@ -323,9 +323,6 @@ export const payrollRouter = router({
     if (!period) {
       return { period: null, lines: [] };
     }
-    if (!future && period.status === "draft" && role !== "mekanik") {
-      await rebuildDraftLines(ctx.db, period, true);
-    }
     let named = await linesWithNames(ctx.db, period.id);
     if (role === "mekanik") {
       const [me] = await ctx.db

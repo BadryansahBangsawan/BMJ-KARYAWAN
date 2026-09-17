@@ -219,7 +219,10 @@ function PekerjaanPage() {
     ...(employeeIdFilter ? { employeeId: employeeIdFilter } : {}),
   };
 
-  const jobsQuery = useQuery(trpc.job.list.queryOptions(listInput));
+  const jobsQuery = useQuery({
+    ...trpc.job.list.queryOptions(listInput),
+    refetchInterval: 8_000,
+  });
   const employeesQuery = useQuery({
     ...trpc.employee.list.queryOptions(),
     enabled: role === "kasir" || role === "supervisor",
@@ -392,15 +395,14 @@ function PekerjaanPage() {
 
   async function handleStrukFile(file: File, onPreview: (url: string) => void) {
     try {
-      const preview = await jpegDataUrlFromFile(file);
-      onPreview(preview);
+      const vision = await jpegDataUrlFromFile(file, 1024, 400_000);
+      onPreview(vision);
       setStrukturInfo("");
       setNomorStruk("");
       extractAbortRef.current?.abort();
       const ctrl = new AbortController();
       extractAbortRef.current = ctrl;
       setExtracting(true);
-      const vision = await jpegDataUrlFromFile(file, 1024, 400_000);
       const result = await extractStruk(vision, ctrl.signal);
       if (ctrl.signal.aborted) return;
       if (result.tanggal && role !== "mekanik" && result.tanggal <= todayYmd()) {
