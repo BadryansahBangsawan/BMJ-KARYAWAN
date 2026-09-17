@@ -1,5 +1,6 @@
 import type { AppRouter } from "@BMJ-KARYAWAN/api/routers/index";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
@@ -28,6 +29,18 @@ function createQueryClient() {
   });
 }
 
+const resolveTrpcHref = createIsomorphicFn()
+  .client((href: string) => href)
+  .server(async (href: string) => {
+    if (!href.startsWith("/")) return href;
+    const { env } = await import("./env.server");
+    const base = String(env.BETTER_AUTH_URL ?? "").replace(/\/$/, "");
+    if (!base) {
+      throw new Error("BETTER_AUTH_URL is required for server tRPC");
+    }
+    return new URL(href, `${base}/`).href;
+  });
+
 async function trpcFetch(url: string | URL | Request, options?: RequestInit) {
   const href =
     typeof url === "string"
@@ -35,16 +48,7 @@ async function trpcFetch(url: string | URL | Request, options?: RequestInit) {
       : url instanceof URL
         ? url.href
         : url.url;
-  let absolute = href;
-  if (href.startsWith("/") && typeof window === "undefined") {
-    // Server-only; static import would pull cloudflare:workers into the client bundle.
-    const { env } = await import("./env.server");
-    const base = String(env.BETTER_AUTH_URL ?? "").replace(/\/$/, "");
-    if (!base) {
-      throw new Error("BETTER_AUTH_URL is required for server tRPC");
-    }
-    absolute = new URL(href, `${base}/`).href;
-  }
+  const absolute = await resolveTrpcHref(href);
   return fetch(absolute, { ...options, credentials: "include" });
 }
 
