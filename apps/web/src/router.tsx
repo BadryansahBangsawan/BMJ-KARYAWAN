@@ -29,28 +29,37 @@ function createQueryClient() {
   });
 }
 
-const resolveTrpcHref = createIsomorphicFn()
-  .client((href: string) => href)
-  .server(async (href: string) => {
-    if (!href.startsWith("/")) return href;
-    const { env } = await import("./env.server");
-    const base = String(env.BETTER_AUTH_URL ?? "").replace(/\/$/, "");
-    if (!base) {
-      throw new Error("BETTER_AUTH_URL is required for server tRPC");
-    }
-    return new URL(href, `${base}/`).href;
+const trpcFetch = createIsomorphicFn()
+  .client((url: string | URL | Request, options?: RequestInit) =>
+    fetch(url, { ...options, credentials: "include" }),
+  )
+  .server(async (url: string | URL | Request, options?: RequestInit) => {
+    const href =
+      typeof url === "string"
+        ? url
+        : url instanceof URL
+          ? url.href
+          : url.url;
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const incoming = getRequest();
+    const path = href.startsWith("http")
+      ? `${new URL(href).pathname}${new URL(href).search}`
+      : href;
+    const request = new Request(new URL(path, incoming.url), {
+      method: options?.method ?? "GET",
+      headers: options?.headers ?? incoming.headers,
+      body: options?.body,
+    });
+    const { fetchRequestHandler } = await import("@trpc/server/adapters/fetch");
+    const { appRouter } = await import("@BMJ-KARYAWAN/api/routers/index");
+    const { createContext } = await import("./context");
+    return fetchRequestHandler({
+      req: request,
+      router: appRouter,
+      createContext,
+      endpoint: "/api/trpc",
+    });
   });
-
-async function trpcFetch(url: string | URL | Request, options?: RequestInit) {
-  const href =
-    typeof url === "string"
-      ? url
-      : url instanceof URL
-        ? url.href
-        : url.url;
-  const absolute = await resolveTrpcHref(href);
-  return fetch(absolute, { ...options, credentials: "include" });
-}
 
 const trpcClient = createTRPCClient<AppRouter>({
   links: [
