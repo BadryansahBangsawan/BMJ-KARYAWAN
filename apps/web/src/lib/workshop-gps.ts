@@ -43,6 +43,37 @@ export async function jpegDataUrlFromFile(file: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", 0.7);
 }
 
+export function jpegFileFromVideo(video: HTMLVideoElement): Promise<File> {
+  const { promise, resolve, reject } = Promise.withResolvers<File>();
+  const maxEdge = 720;
+  const sourceW = video.videoWidth || 720;
+  const sourceH = video.videoHeight || 720;
+  const scale = Math.min(1, maxEdge / Math.max(sourceW, sourceH));
+  const width = Math.max(1, Math.round(sourceW * scale));
+  const height = Math.max(1, Math.round(sourceH * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    reject(new Error("Kamera gagal mengambil foto."));
+    return promise;
+  }
+  ctx.drawImage(video, 0, 0, width, height);
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) {
+        reject(new Error("Kamera gagal mengambil foto."));
+        return;
+      }
+      resolve(new File([blob], "absen.jpg", { type: "image/jpeg" }));
+    },
+    "image/jpeg",
+    0.7,
+  );
+  return promise;
+}
+
 export async function captureClockProof(file: File): Promise<{
   photo: string;
   lat: number;
