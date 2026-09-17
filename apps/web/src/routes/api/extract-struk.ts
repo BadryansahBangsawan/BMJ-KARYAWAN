@@ -1,6 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { env } from "../../env.server";
+import { createAuth } from "../../services";
+
+const RETRY_STATUSES = new Set([429, 502, 503, 530]);
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeBaseUrl(url: string): string {
+  let base = url.replace(/\/$/, "");
+  if (base && !base.endsWith("/v1")) base = `${base}/v1`;
+  return base;
+}
 
 function messageText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -26,89 +39,129 @@ function firstJsonObject(text: string): string | null {
   return source.slice(start, end + 1);
 }
 
+function completionText(payload: unknown): string {
+  const root = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const inner = root.data && typeof root.data === "object" ? (root.data as Record<string, unknown>) : root;
+  const choices = inner.choices;
+  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return "";
+  const message = (choices[0] as { message?: { content?: unknown } }).message;
+  return messageText(message?.content);
+}
+
+function sleep(ms: number): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, ms);
+  return promise;
+}
+
 export const Route = createFileRoute("/api/extract-struk")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const auth = await createAuth();
+        const session = await auth.api.getSession({ headers: request.headers });
+        if (!session) {
+          return Response.json({ error: "Authentication required" }, { status: 401 });
+        }
+
         let image: string | undefined;
         try {
           const body = (await request.json()) as { image?: string };
           image = body.image;
         } catch {
-          return Response.json({ error: "invalid body" }, { status: 400 });
+          return Response.json({ error: "Foto struk tidak valid." }, { status: 400 });
         }
 
         if (!image) {
-          return Response.json({});
+          return Response.json({ error: "Foto struk kosong." }, { status: 400 });
         }
 
-        const apiKey = String(env.AI_API_KEY ?? process.env["AI_API_KEY"] ?? "").trim();
-        const baseUrl = String(env.AI_BASE_URL ?? process.env["AI_BASE_URL"] ?? "")
-          .trim()
-          .replace(/\/$/, "");
-        const model = String(env.AI_MODEL ?? process.env["AI_MODEL"] ?? "").trim() || "AlwaysOn";
+        const apiKey = asString(env.AI_API_KEY ?? process.env["AI_API_KEY"]);
+        const baseUrl = normalizeBaseUrl(asString(env.AI_BASE_URL ?? process.env["AI_BASE_URL"]));
+        const model = asString(env.AI_MODEL ?? process.env["AI_MODEL"]) || "AlwaysOn";
 
         if (!apiKey || !baseUrl) {
-          return Response.json({});
+          return Response.json({ error: "AI baca struk belum dikonfigurasi." }, { status: 503 });
         }
 
         const dataUrl = image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}`;
-
-        try {
-          const resp = await fetch(`${baseUrl}/chat/completions`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-              model,
-              temperature: 0,
-              max_tokens: 256,
-              messages: [
+        const payload = JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 512,
+          messages: [
+            {
+              role: "user",
+              content: [
                 {
-                  role: "user",
-                  content: [
-                    { type: "image_url", image_url: { url: dataUrl } },
-                    {
-                      type: "text",
-                      text: 'Dari foto struk/nota ini, ekstrak: (1) nomor struk/nota jika ada, (2) tanggal nota dalam format YYYY-MM-DD. Jawab hanya JSON: {"nomorStruk": "...", "tanggal": "YYYY-MM-DD"}. Jika tidak ditemukan, omit field tersebut.',
-                    },
-                  ],
+                  type: "text",
+                  text: 'Dari foto struk/nota ini, ekstrak: (1) nomor struk/nota jika ada, (2) tanggal nota dalam format YYYY-MM-DD. Jawab hanya JSON: {"nomorStruk": "...", "tanggal": "YYYY-MM-DD"}. Jika tidak ditemukan, omit field tersebut.',
                 },
+                { type: "image_url", image_url: { url: dataUrl } },
               ],
-            }),
-            signal: AbortSignal.timeout(45_000),
-          });
+            },
+          ],
+        });
 
-          if (!resp.ok) {
-            return Response.json({});
-          }
+        let lastStatus = 0;
+        try {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            let resp: Response;
+            try {
+              resp = await fetch(`${baseUrl}/chat/completions`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${apiKey}`,
+                },
+                body: payload,
+                signal: AbortSignal.timeout(45_000),
+              });
+            } catch (err) {
+              const timedOut =
+                err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+              if (attempt < 2) {
+                await sleep(1000 * (attempt + 1));
+                continue;
+              }
+              return Response.json(
+                { error: timedOut ? "Baca struk habis waktu. Coba lagi." : "Gagal menghubungi AI baca struk." },
+                { status: 502 },
+              );
+            }
 
-          const data = (await resp.json()) as {
-            choices?: Array<{ message?: { content?: unknown } }>;
-          };
-          const text = messageText(data.choices?.[0]?.message?.content);
-          const jsonText = firstJsonObject(text);
-          if (!jsonText) {
-            return Response.json({});
-          }
+            lastStatus = resp.status;
+            if (resp.ok) {
+              const data: unknown = await resp.json();
+              const text = completionText(data);
+              const jsonText = firstJsonObject(text);
+              if (!jsonText) {
+                return Response.json({ error: "Struk tidak terbaca. Isi uraian manual." }, { status: 422 });
+              }
+              const parsed = JSON.parse(jsonText) as { nomorStruk?: unknown; tanggal?: unknown };
+              const out: { nomorStruk?: string; tanggal?: string } = {};
+              if (typeof parsed.nomorStruk === "string" && parsed.nomorStruk.trim()) {
+                out.nomorStruk = parsed.nomorStruk.trim();
+              }
+              if (typeof parsed.tanggal === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.tanggal)) {
+                out.tanggal = parsed.tanggal;
+              }
+              if (!out.nomorStruk && !out.tanggal) {
+                return Response.json({ error: "Struk tidak terbaca. Isi uraian manual." }, { status: 422 });
+              }
+              return Response.json(out);
+            }
 
-          const parsed = JSON.parse(jsonText) as {
-            nomorStruk?: string;
-            tanggal?: string;
-          };
-          const out: { nomorStruk?: string; tanggal?: string } = {};
-          if (parsed.nomorStruk && typeof parsed.nomorStruk === "string") {
-            out.nomorStruk = parsed.nomorStruk.trim();
+            if (!RETRY_STATUSES.has(lastStatus) || attempt === 2) {
+              return Response.json({ error: "Gagal membaca struk. Coba foto lebih jelas." }, { status: 502 });
+            }
+            await sleep(1000 * (attempt + 1));
           }
-          if (parsed.tanggal && /^\d{4}-\d{2}-\d{2}$/.test(parsed.tanggal)) {
-            out.tanggal = parsed.tanggal;
-          }
-          return Response.json(out);
         } catch {
-          return Response.json({});
+          return Response.json({ error: "Gagal membaca struk." }, { status: 502 });
         }
+
+        return Response.json({ error: "Gagal membaca struk." }, { status: 502 });
       },
     },
   },

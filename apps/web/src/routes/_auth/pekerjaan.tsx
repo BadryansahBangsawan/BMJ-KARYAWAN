@@ -125,12 +125,20 @@ async function extractStruk(
 ): Promise<{ tanggal?: string; nomorStruk?: string }> {
   const res = await fetch("/api/extract-struk", {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image: dataUrl }),
     signal,
   });
-  if (!res.ok) return {};
-  return (await res.json()) as { tanggal?: string; nomorStruk?: string };
+  const data = (await res.json().catch(() => ({}))) as {
+    tanggal?: string;
+    nomorStruk?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    throw new Error(data.error || "Gagal membaca struk.");
+  }
+  return data;
 }
 
 function JobRowActions({
@@ -402,8 +410,11 @@ function PekerjaanPage() {
       if (result.nomorStruk) {
         setNomorStruk(result.nomorStruk);
         setStrukturInfo(`No. struk: ${result.nomorStruk}`);
-      } else if (!result.tanggal) {
-        toast.error("Struk tidak terbaca. Isi tanggal dan uraian manual.");
+        toast.success("Struk terbaca");
+      } else if (result.tanggal && role !== "mekanik") {
+        toast.success("Tanggal struk terbaca");
+      } else {
+        toast.error("Struk tidak terbaca. Isi uraian manual.");
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
