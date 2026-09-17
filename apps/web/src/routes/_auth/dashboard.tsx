@@ -167,7 +167,6 @@ function RouteComponent() {
       ? [
           { to: "/kasbon" as const, label: "Tinjau kasbon" },
           { to: "/gaji" as const, label: "Buka gaji" },
-          { to: "/absen" as const, label: "Isi absen" },
         ]
       : role === "kasir"
         ? [
@@ -181,8 +180,7 @@ function RouteComponent() {
             { to: "/gaji" as const, label: "Lihat gaji" },
           ];
 
-  const primary = shortcuts[0];
-  const rest = shortcuts.slice(1);
+
   const moneyLabel = role === "mekanik" ? "Sisa kasbon" : "Pendapatan bulan ini";
   const moneyValue = role === "mekanik" ? formatRp(ownSisa) : formatRp(diagramData.pendapatan);
 
@@ -212,11 +210,19 @@ function RouteComponent() {
           ))}
         </ol>
 
-        {primary ? (
-          <Button className="mt-6 h-14 min-h-14 w-full text-base" size="lg" render={<Link to={primary.to} />}>
-            {primary.label}
+        <div className="mt-6 grid gap-2">
+          <Button className="h-14 min-h-14 w-full text-base" size="lg" render={<Link to="/absen" />}>
+            Absen masuk
           </Button>
-        ) : null}
+          <Button
+            variant="outline"
+            className="h-14 min-h-14 w-full bg-muted text-base"
+            size="lg"
+            render={<Link to="/absen" />}
+          >
+            Absen pulang
+          </Button>
+        </div>
       </section>
 
       {failed ? (
@@ -244,11 +250,11 @@ function RouteComponent() {
             emptyDescription="Semua pekerjaan untuk peran ini sudah selesai."
           />
 
-          {rest.length > 0 ? (
+          {shortcuts.length > 0 ? (
             <div className="grid gap-2 sm:grid-cols-2">
-              {rest.map((item) => (
+              {shortcuts.map((item) => (
                 <Button
-                  key={item.to}
+                  key={item.label}
                   variant="outline"
                   className="h-14 min-h-14 bg-card"
                   render={<Link to={item.to} />}
