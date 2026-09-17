@@ -1,16 +1,6 @@
-import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
 import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@BMJ-KARYAWAN/ui/components/select";
 import {
   Table,
   TableBody,
@@ -23,29 +13,26 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { useState } from "react";
 import z from "zod";
 
-import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
+import { PAGE_DESCRIPTION } from "@/lib/app-nav";
+import { formatDateTime, formatRp } from "@/lib/format";
+import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
-import { BusyLabel } from "@/components/busy-label";
-import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import { FieldError, fieldDescribedBy } from "@/components/field-error";
+import { FilterChips } from "@/components/filter-bar";
+import { FormDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
-import { MobileList, MobileListRow, StatTile } from "@/components/mobile-list";
+import { MetricCard } from "@/components/metric-card";
+import { MobileList, MobileListRow } from "@/components/mobile-list";
+import { MoneyField } from "@/components/money-field";
+import { PageHeader } from "@/components/page-header";
+import { PageShell } from "@/components/page-shell";
 import { ResponsiveRecords } from "@/components/responsive-records";
-
-
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function userRole(user: { role?: string | null } | null | undefined): Role {
-  const role = user?.role;
-  if (role === "supervisor" || role === "kasir" || role === "mekanik") return role;
-  return "mekanik";
-}
-
-function formatIdr(n: number) {
-  return n.toLocaleString("id-ID");
-}
+import { SectionHeader } from "@/components/section-header";
+import { PageError, StatePanel } from "@/components/state-panel";
 
 type StoreTxn = {
   id: string;
@@ -62,16 +49,13 @@ const KIND_LABEL: Record<string, string> = {
   panjar: "Panjar",
 };
 
+type PaymentKind = "kasir" | "non_tunai" | "panjar";
+
 export const Route = createFileRoute("/_auth/toko")({
-  beforeLoad: async () => {
-    const session = await getUser();
-    if (!session) {
-      throw redirect({ to: "/login" });
-    }
-    if (userRole(session.user) === "mekanik") {
+  beforeLoad: ({ context }) => {
+    if (sessionRole(context.session?.user) === "mekanik") {
       throw redirect({ to: "/dashboard" });
     }
-    return { session };
   },
   component: TokoPage,
 });
@@ -80,7 +64,8 @@ function TokoPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
-  const role = userRole(session?.user);
+  const role = sessionRole(session?.user);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const listQuery = useQuery(trpc.store.list.queryOptions());
   const summaryQuery = useQuery(trpc.store.summary.queryOptions());
@@ -98,6 +83,7 @@ function TokoPage() {
   const tunai = summary?.tunai ?? 0;
   const nonTunai = summary?.nonTunai ?? 0;
   const panjar = summary?.panjar ?? 0;
+  const totalHariIni = tunai + nonTunai + panjar;
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: trpc.store.list.queryKey() });
@@ -108,6 +94,7 @@ function TokoPage() {
     trpc.store.create.mutationOptions({
       onSuccess: async () => {
         toast.success("Transaksi tersimpan");
+        setCreateOpen(false);
         await invalidate();
       },
       onError: (error) => toast.error(error.message),
@@ -116,7 +103,7 @@ function TokoPage() {
 
   const form = useForm({
     defaultValues: {
-      kind: "kasir" as "kasir" | "non_tunai" | "panjar",
+      kind: "kasir" as PaymentKind,
       amountIdr: "",
       note: "",
     },
@@ -140,117 +127,47 @@ function TokoPage() {
   if (role === "mekanik") return null;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatTile compact label={`Transaksi`} value={`${kali}×`} />
-        <StatTile compact label="Tunai" value={<span className="tabular-nums">{formatIdr(tunai)}</span>} />
-        <StatTile compact label="Non tunai" value={<span className="tabular-nums">{formatIdr(nonTunai)}</span>} />
-        <StatTile compact label="Panjar" value={<span className="tabular-nums">{formatIdr(panjar)}</span>} />
+    <PageShell>
+      <PageHeader
+        title="Toko"
+        description={PAGE_DESCRIPTION["/toko"]}
+        actions={
+          <Button type="button" onClick={() => setCreateOpen(true)}>
+            Catat transaksi
+          </Button>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard
+          dominant
+          className="sm:col-span-3"
+          label="Total hari ini"
+          value={formatRp(totalHariIni)}
+          hint={kali === 1 ? "1 transaksi" : `${kali} transaksi`}
+        />
+        <MetricCard label="Tunai" value={formatRp(tunai)} />
+        <MetricCard label="Non tunai" value={formatRp(nonTunai)} />
+        <MetricCard label="Panjar" value={formatRp(panjar)} />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Catat transaksi</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void form.handleSubmit();
-              focusFirstInvalid();
-            }}
-            className="grid gap-3 md:grid-cols-3"
-          >
-            <form.Field name="kind">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>Jenis</Label>
-                  <Select
-                    value={field.state.value}
-                    onValueChange={(value) => {
-                      if (value === "kasir" || value === "non_tunai" || value === "panjar") {
-                        field.handleChange(value);
-                      }
-                    }}
-                  >
-                    <SelectTrigger id={field.name} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="kasir">Tunai</SelectItem>
-                      <SelectItem value="non_tunai">Non tunai</SelectItem>
-                      <SelectItem value="panjar">Panjar</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="amountIdr">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>Jumlah</Label>
-                  <Input
-                    id={field.name}
-                    inputMode="numeric"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="50000"
-                    aria-invalid={field.state.meta.errors.length > 0}
-                    aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
-                  />
-                  <FieldError id="amount-error" errors={field.state.meta.errors} />
-                </div>
-              )}
-            </form.Field>
-            <form.Field name="note">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>Catatan</Label>
-                  <Input
-                    id={field.name}
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                  />
-                </div>
-              )}
-            </form.Field>
-            <div className="md:col-span-3">
-              <form.Subscribe
-                selector={(state) => ({ isSubmitting: state.isSubmitting })}
-              >
-                {({ isSubmitting }) => (
-                  <Button type="submit" disabled={isSubmitting} className="w-full" aria-busy={isSubmitting}>
-                    <BusyLabel busy={isSubmitting}>Catat transaksi</BusyLabel>
-                  </Button>
-                )}
-              </form.Subscribe>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Riwayat</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {listQuery.isError ? (
+        <PageError onRetry={() => void listQuery.refetch()} />
+      ) : (
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="Riwayat" count={rows.length} />
           {listQuery.isPending ? (
             <Loader />
           ) : rows.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Belum ada transaksi</EmptyTitle>
-                <EmptyDescription>Catat transaksi tunai, non tunai, atau panjar.</EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button type="button" variant="outline" onClick={() => document.getElementById("amountIdr")?.focus()}>
+            <StatePanel
+              title="Belum ada transaksi"
+              description="Catat transaksi tunai, non tunai, atau panjar."
+              action={
+                <Button type="button" variant="outline" onClick={() => setCreateOpen(true)}>
                   Catat transaksi
                 </Button>
-              </EmptyContent>
-            </Empty>
+              }
+            />
           ) : (
             <ResponsiveRecords
               cards={
@@ -259,10 +176,13 @@ function TokoPage() {
                     <MobileListRow
                       key={row.id}
                       title={KIND_LABEL[row.kind] ?? row.kind}
-                      subtitle={row.note ?? `No ${row.seq}`}
-                      trailing={<span className="tabular-nums">{formatIdr(row.amountIdr)}</span>}
+                      trailing={formatRp(row.amountIdr)}
                       meta={
-                        <span className="text-sm text-muted-foreground">No {row.seq}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {row.note ? `${row.note} · ` : null}
+                          {formatDateTime(row.createdAt) ?? "—"}
+                          <span className="tabular-nums"> · {row.seq}</span>
+                        </span>
                       }
                     />
                   ))}
@@ -272,23 +192,21 @@ function TokoPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>No</TableHead>
                       <TableHead>Jenis</TableHead>
-                      <TableHead>Jumlah</TableHead>
+                      <TableHead className="text-end">Jumlah</TableHead>
                       <TableHead>Catatan</TableHead>
+                      <TableHead>Waktu</TableHead>
+                      <TableHead className="text-end">Nomor</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell>{row.seq}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{KIND_LABEL[row.kind] ?? row.kind}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(row.amountIdr)}</span>
-                        </TableCell>
+                        <TableCell>{KIND_LABEL[row.kind] ?? row.kind}</TableCell>
+                        <TableCell className="text-end tabular-nums">{formatRp(row.amountIdr)}</TableCell>
                         <TableCell>{row.note ?? "—"}</TableCell>
+                        <TableCell>{formatDateTime(row.createdAt) ?? "—"}</TableCell>
+                        <TableCell className="text-end tabular-nums">{row.seq}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -296,8 +214,66 @@ function TokoPage() {
               }
             />
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </section>
+      )}
+
+      <FormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Catat transaksi"
+        description="Pilih jenis pembayaran dan jumlah. Nominal dalam rupiah utuh."
+        submitLabel="Catat transaksi"
+        submitting={createMut.isPending}
+        onSubmit={() => form.handleSubmit()}
+      >
+        <form.Field name="kind">
+          {(field) => (
+            <div className="space-y-2">
+              <Label>Jenis pembayaran</Label>
+              <FilterChips
+                ariaLabel="Jenis pembayaran"
+                value={field.state.value}
+                onChange={field.handleChange}
+                options={[
+                  { value: "kasir", label: "Tunai" },
+                  { value: "non_tunai", label: "Non tunai" },
+                  { value: "panjar", label: "Panjar" },
+                ]}
+              />
+            </div>
+          )}
+        </form.Field>
+        <form.Field name="amountIdr">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Jumlah</Label>
+              <MoneyField
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="50000"
+                aria-invalid={field.state.meta.errors.length > 0}
+                aria-describedby={fieldDescribedBy("amount-error", field.state.meta.errors)}
+              />
+              <FieldError id="amount-error" errors={field.state.meta.errors} />
+            </div>
+          )}
+        </form.Field>
+        <form.Field name="note">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Catatan</Label>
+              <Input
+                id={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+              />
+            </div>
+          )}
+        </form.Field>
+      </FormDialog>
+    </PageShell>
   );
 }

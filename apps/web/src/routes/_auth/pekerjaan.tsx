@@ -27,7 +27,7 @@ import {
 import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { Ban, Check, CircleCheck, CircleDashed, Loader2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import z from "zod";
@@ -46,7 +46,6 @@ import { ResponsiveRecords } from "@/components/responsive-records";
 import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
 import { StatusBadge } from "@/components/status-badge";
-import { getUser } from "@/functions/get-user";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
 import { formatRp, monthBounds, todayYmd } from "@/lib/format";
@@ -85,13 +84,6 @@ export const JOB_STATUS = {
 } as const;
 
 export const Route = createFileRoute("/_auth/pekerjaan")({
-  beforeLoad: async () => {
-    const session = await getUser();
-    if (!session) {
-      throw redirect({ to: "/login" });
-    }
-    return { session };
-  },
   component: PekerjaanPage,
 });
 

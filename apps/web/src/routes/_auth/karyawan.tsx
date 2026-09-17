@@ -44,7 +44,6 @@ import { ResponsiveRecords } from "@/components/responsive-records";
 import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
 import { StatusBadge } from "@/components/status-badge";
-import { getUser } from "@/functions/get-user";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
 import { formatRp } from "@/lib/format";
@@ -356,15 +355,10 @@ function EmployeeFields({
 }
 
 export const Route = createFileRoute("/_auth/karyawan")({
-  beforeLoad: async () => {
-    const session = await getUser();
-    if (!session) {
-      throw redirect({ to: "/login" });
-    }
-    if (sessionRole(session.user) !== "supervisor") {
+  beforeLoad: ({ context }) => {
+    if (sessionRole(context.session?.user) !== "supervisor") {
       throw redirect({ to: "/dashboard" });
     }
-    return { session };
   },
   component: KaryawanPage,
 });

@@ -1,40 +1,30 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
+import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@BMJ-KARYAWAN/ui/components/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@BMJ-KARYAWAN/ui/components/table";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@BMJ-KARYAWAN/ui/components/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { useMemo, useRef, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { Check, Loader2, Minus, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
-import { getUser } from "@/functions/get-user";
-import { authClient } from "@/lib/auth-client";
-import { PAGE_DESCRIPTION } from "@/lib/app-nav";
-import { jayapuraYearMonth, monthLabel, todayYmd, formatLongDate } from "@/lib/format";
-import { sessionRole } from "@/lib/session-role";
-import { captureClockProof } from "@/lib/workshop-gps";
-import { useTRPC } from "@/utils/trpc";
 import { AbsenClockButton } from "@/components/absen-clock-button";
 import Loader from "@/components/loader";
-import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { PageHeader } from "@/components/page-header";
 import { PageShell } from "@/components/page-shell";
 import { PeriodFields } from "@/components/period-fields";
 import { PageError, StatePanel } from "@/components/state-panel";
+import { PAGE_DESCRIPTION } from "@/lib/app-nav";
+import { authClient } from "@/lib/auth-client";
+import { formatLongDate, jayapuraYearMonth, monthLabel, todayYmd } from "@/lib/format";
+import { sessionRole } from "@/lib/session-role";
+import { captureClockProof } from "@/lib/workshop-gps";
+import { useTRPC } from "@/utils/trpc";
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -175,13 +165,6 @@ function AttendanceCell({
 // Route — open to all authenticated roles
 // ---------------------------------------------------------------------------
 export const Route = createFileRoute("/_auth/absen")({
-  beforeLoad: async () => {
-    const session = await getUser();
-    if (!session) {
-      throw redirect({ to: "/login" });
-    }
-    return { session };
-  },
   component: AbsenPage,
 });
 
@@ -318,6 +301,16 @@ function AbsenPage() {
 
   const selectedEmployee = employees.find((row) => row.id === selectedEmployeeId) ?? null;
 
+  useEffect(() => {
+    if (employees.length === 0) {
+      if (selectedEmployeeId !== null) setSelectedEmployeeId(null);
+      return;
+    }
+    if (!selectedEmployeeId || !employees.some((row) => row.id === selectedEmployeeId)) {
+      setSelectedEmployeeId(employees[0]!.id);
+    }
+  }, [employees, selectedEmployeeId]);
+
   const invalidateMonth = async () => {
     await queryClient.invalidateQueries({
       queryKey: trpc.attendance.month.queryKey({ year, month }),
@@ -395,8 +388,6 @@ function AbsenPage() {
       ) : (
         /* Supervisor: manual attendance grid */
         <>
-          <AttendanceLegend />
-
           <div className="sr-only" aria-live="polite">
             {pendingKeys.size > 0 ? "Menyimpan absen" : ""}
           </div>
@@ -411,113 +402,55 @@ function AbsenPage() {
               description="Absen hanya menampilkan karyawan aktif selain supervisor."
             />
           ) : (
-            <>
-              <div className="lg:hidden">
-                <MobileList>
-                  {employees.map((employee) => {
-                    const filled = filledCount(employee.id);
-                    return (
-                      <MobileListRow
-                        key={employee.id}
-                        title={employee.name}
-                        subtitle={`${filled} dari ${days.length} hari terisi`}
-                        trailing={`${filled}/${days.length}`}
-                      >
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedEmployeeId(employee.id)}
-                        >
-                          Isi absen
-                        </Button>
-                      </MobileListRow>
-                    );
-                  })}
-                </MobileList>
-              </div>
-
-              <div className="hidden rounded-xl bg-card shadow-[var(--shadow-border)] lg:block">
-                <Table aria-label={`Absen ${monthLabel(year, month)}`}>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
-                    <TableRow>
-                      <TableHead className="sticky start-0 z-20 min-w-32 bg-card">Nama</TableHead>
-                      {days.map((d) => (
-                        <TableHead key={d.date} className="min-w-11 text-center tabular-nums">
-                          {d.day}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+            <div className="flex flex-col gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="absen-employee">Karyawan</Label>
+                <Select
+                  value={selectedEmployeeId}
+                  onValueChange={(value) => setSelectedEmployeeId(value)}
+                >
+                  <SelectTrigger id="absen-employee" className="w-full sm:max-w-sm">
+                    <SelectValue placeholder="Pilih karyawan" />
+                  </SelectTrigger>
+                  <SelectContent>
                     {employees.map((employee) => (
-                      <TableRow key={employee.id}>
-                        <TableCell className="sticky start-0 z-10 min-w-32 bg-card font-medium">
-                          {employee.name}
-                        </TableCell>
-                        {days.map((d) => {
-                          const key = markKey(employee.id, d.date);
-                          const value = byKey[key]?.value;
-                          return (
-                            <TableCell key={d.date} className="p-1 text-center">
-                              <AttendanceCell
-                                employeeName={employee.name}
-                                employeeId={employee.id}
-                                date={d.date}
-                                day={d.day}
-                                value={value}
-                                busy={pendingKeys.has(key)}
-                                onCycle={cycle}
-                              />
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
+                      <SelectItem key={employee.id} value={employee.id}>
+                        {employee.name}
+                      </SelectItem>
                     ))}
-                  </TableBody>
-                </Table>
+                  </SelectContent>
+                </Select>
               </div>
-            </>
-          )}
 
-          <Dialog
-            open={selectedEmployee !== null}
-            onOpenChange={(open) => {
-              if (!open) setSelectedEmployeeId(null);
-            }}
-          >
-            <DialogContent className="sm:max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>{selectedEmployee?.name}</DialogTitle>
-                <DialogDescription>
-                  Pilih hari kerja {monthLabel(year, month)}. 1 hadir, lalu 0,5 setengah, 0 alpa, lalu
-                  kosong.
-                </DialogDescription>
-              </DialogHeader>
-              <AttendanceLegend />
               {selectedEmployee ? (
-                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-                  {days.map((d) => {
-                    const key = markKey(selectedEmployee.id, d.date);
-                    return (
-                      <AttendanceCell
-                        key={d.date}
-                        employeeName={selectedEmployee.name}
-                        employeeId={selectedEmployee.id}
-                        date={d.date}
-                        day={d.day}
-                        value={byKey[key]?.value}
-                        busy={pendingKeys.has(key)}
-                        large
-                        onCycle={cycle}
-                      />
-                    );
-                  })}
-                </div>
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {filledCount(selectedEmployee.id)} dari {days.length} hari terisi ·{" "}
+                    {monthLabel(year, month)}. Tap hari: 1 hadir, 0,5 setengah, 0 alpa, lalu kosong.
+                  </p>
+                  <AttendanceLegend />
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    {days.map((d) => {
+                      const key = markKey(selectedEmployee.id, d.date);
+                      return (
+                        <AttendanceCell
+                          key={d.date}
+                          employeeName={selectedEmployee.name}
+                          employeeId={selectedEmployee.id}
+                          date={d.date}
+                          day={d.day}
+                          value={byKey[key]?.value}
+                          busy={pendingKeys.has(key)}
+                          large
+                          onCycle={cycle}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
               ) : null}
-              <DialogFooter showCloseButton />
-            </DialogContent>
-          </Dialog>
+            </div>
+          )}
         </>
       )}
     </PageShell>

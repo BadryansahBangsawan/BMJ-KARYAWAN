@@ -1,9 +1,4 @@
-import { Badge } from "@BMJ-KARYAWAN/ui/components/badge";
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@BMJ-KARYAWAN/ui/components/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@BMJ-KARYAWAN/ui/components/empty";
-import { Input } from "@BMJ-KARYAWAN/ui/components/input";
-import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import {
   Table,
   TableBody,
@@ -13,42 +8,35 @@ import {
   TableRow,
 } from "@BMJ-KARYAWAN/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useMemo, useState } from "react";
 import { Lock, Pencil } from "lucide-react";
+import { useMemo, useState } from "react";
 
-import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
+import { PAGE_DESCRIPTION } from "@/lib/app-nav";
+import { formatRp, jayapuraYearMonth } from "@/lib/format";
+import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
+import { BusyLabel } from "@/components/busy-label";
+import { ConfirmDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
+import { MetricCard } from "@/components/metric-card";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
+import { MoneyField } from "@/components/money-field";
+import { PageHeader } from "@/components/page-header";
+import { PageShell } from "@/components/page-shell";
+import { PeriodFields } from "@/components/period-fields";
 import { ResponsiveRecords } from "@/components/responsive-records";
-
-
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function userRole(user: { role?: string | null } | null | undefined): Role {
-  const role = user?.role;
-  if (role === "supervisor" || role === "kasir" || role === "mekanik") return role;
-  return "mekanik";
-}
-
-function formatIdr(n: number) {
-  return n.toLocaleString("id-ID");
-}
+import { SectionHeader } from "@/components/section-header";
+import { PageError, StatePanel } from "@/components/state-panel";
+import { StatusBadge } from "@/components/status-badge";
 
 function formatHari(tenths: number) {
   return (tenths / 100).toLocaleString("id-ID", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
   });
-}
-
-function jayapuraYearMonth() {
-  const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jayapura" });
-  const [year, month] = ymd.split("-").map(Number);
-  return { year, month };
 }
 
 type PayrollLine = {
@@ -73,26 +61,62 @@ type PayrollGet = {
   lines?: PayrollLine[];
 };
 
+function lineName(line: PayrollLine) {
+  return line.employeeName ?? line.name ?? line.employeeId;
+}
+
 export const Route = createFileRoute("/_auth/gaji")({
-  beforeLoad: async () => {
-    const session = await getUser();
-    if (!session) {
-      throw redirect({ to: "/login" });
-    }
-    return { session };
-  },
   component: GajiPage,
 });
+
+function PotonganEditor({
+  id,
+  line,
+  value,
+  onChange,
+  onSave,
+  saving,
+}: {
+  id: string;
+  line: PayrollLine;
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  return (
+    <div className="flex min-w-40 items-center justify-end gap-1">
+      <MoneyField
+        id={id}
+        aria-label={`Potongan kasbon ${lineName(line)}`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-28"
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={saving}
+        aria-busy={saving}
+        onClick={onSave}
+      >
+        <BusyLabel busy={saving}>Simpan</BusyLabel>
+      </Button>
+    </div>
+  );
+}
 
 function GajiPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
-  const role = userRole(session?.user);
+  const role = sessionRole(session?.user);
   const now = useMemo(() => jayapuraYearMonth(), []);
   const [year, setYear] = useState(now.year);
   const [month, setMonth] = useState(now.month);
   const [draftPotongan, setDraftPotongan] = useState<Record<string, string>>({});
+  const [finalizeOpen, setFinalizeOpen] = useState(false);
 
   const payrollQuery = useQuery(trpc.payroll.get.queryOptions({ year, month }));
   const meQuery = useQuery(trpc.employee.me.queryOptions());
@@ -100,8 +124,11 @@ function GajiPage() {
   const period = data?.period;
   const allLines = data?.lines ?? [];
   const meId = (meQuery.data as { id?: string } | null | undefined)?.id;
-  const lines = role === "mekanik" && meId ? allLines.filter((line) => line.employeeId === meId) : allLines;
+  const lines =
+    role === "mekanik" && meId ? allLines.filter((line) => line.employeeId === meId) : allLines;
   const isDraft = period?.status !== "finalized";
+  const canEditDraft = role === "supervisor" && isDraft;
+  const totalTakeHome = lines.reduce((sum, line) => sum + line.takeHomeIdr, 0);
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: trpc.payroll.get.queryKey({ year, month }) });
@@ -129,260 +156,267 @@ function GajiPage() {
     trpc.payroll.finalize.mutationOptions({
       onSuccess: async () => {
         toast.success("Periode gaji dikunci");
+        setFinalizeOpen(false);
         await invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
   );
 
+  function savePotongan(line: PayrollLine) {
+    deductionMut.mutate({
+      lineId: line.id,
+      kasbonDeductionIdr: Number(draftPotongan[line.id] ?? line.kasbonDeductionIdr),
+    });
+  }
+
+  function recompute(keepDeductions: boolean) {
+    recomputeMut.mutate({ year, month, keepDeductions });
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Periode</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="year">Tahun</Label>
-            <Input
-              id="year"
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="month">Bulan</Label>
-            <Input
-              id="month"
-              type="number"
-              min={1}
-              max={12}
-              value={month}
-              onChange={(e) => setMonth(Number(e.target.value))}
-            />
-          </div>
-          {period ? (
-            <Badge
-              variant={period.status === "finalized" ? "secondary" : "outline"}
-              className="gap-1"
-            >
-              {period.status === "finalized" ? (
-                <Lock className="size-3" aria-hidden="true" />
-              ) : (
-                <Pencil className="size-3" aria-hidden="true" />
-              )}
-              {period.status === "finalized" ? "Dikunci" : "Draf"}
-            </Badge>
-          ) : null}
-          {period?.payDate ? (
-            <span className="text-muted-foreground text-sm tabular-nums">Bayar {period.payDate}</span>
-          ) : null}
-          {role === "supervisor" && isDraft ? (
+    <PageShell>
+      <PageHeader
+        title="Gaji"
+        description={PAGE_DESCRIPTION["/gaji"]}
+        actions={
+          canEditDraft ? (
             <>
               <Button
-                variant="outline"
-                onClick={() => recomputeMut.mutate({ year, month, keepDeductions: false })}
+                type="button"
+                variant="secondary"
+                disabled={recomputeMut.isPending}
+                aria-busy={recomputeMut.isPending}
+                onClick={() => recompute(false)}
               >
-                Hitung ulang
+                <BusyLabel busy={recomputeMut.isPending}>Hitung ulang</BusyLabel>
               </Button>
               <Button
+                type="button"
                 variant="outline"
-                onClick={() => recomputeMut.mutate({ year, month, keepDeductions: true })}
+                disabled={recomputeMut.isPending}
+                aria-busy={recomputeMut.isPending}
+                onClick={() => recompute(true)}
               >
-                Hitung ulang (pertahankan potongan)
+                <BusyLabel busy={recomputeMut.isPending}>Hitung ulang dan pertahankan potongan</BusyLabel>
               </Button>
-              <Button onClick={() => finalizeMut.mutate({ year, month })}>Kunci gaji</Button>
+              <Button
+                type="button"
+                disabled={finalizeMut.isPending}
+                onClick={() => setFinalizeOpen(true)}
+              >
+                Kunci gaji
+              </Button>
             </>
+          ) : null
+        }
+      >
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <PeriodFields
+            year={year}
+            month={month}
+            onYearChange={setYear}
+            onMonthChange={setMonth}
+          />
+          {period ? (
+            period.status === "finalized" ? (
+              <StatusBadge icon={Lock} label="Dikunci" tone="success" />
+            ) : (
+              <StatusBadge icon={Pencil} label="Draf" tone="neutral" />
+            )
           ) : null}
-        </CardContent>
-      </Card>
+          {period?.payDate ? (
+            <span className="text-sm text-muted-foreground tabular-nums">Bayar {period.payDate}</span>
+          ) : null}
+        </div>
+      </PageHeader>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Slip gaji</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {payrollQuery.isPending ? (
-            <Loader />
-          ) : lines.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Belum ada baris gaji</EmptyTitle>
-                <EmptyDescription>Pilih periode atau hitung ulang sebagai supervisor.</EmptyDescription>
-              </EmptyHeader>
-              {role === "supervisor" && isDraft ? (
-                <EmptyContent>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => recomputeMut.mutate({ year, month, keepDeductions: false })}
-                  >
-                    Hitung ulang
-                  </Button>
-                </EmptyContent>
-              ) : null}
-            </Empty>
-          ) : (
-            <ResponsiveRecords
-              cards={
-                <MobileList>
-                  {lines.map((line) => (
-                    <MobileListRow
-                      key={line.id}
-                      title={line.employeeName ?? line.name ?? line.employeeId}
-                      subtitle={<span className="tabular-nums">{formatHari(line.daysPresent)} hari</span>}
-                      trailing={
-                        <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
-                      }
-                    >
-                      <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                        <dt className="text-muted-foreground">Tarif</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.dailyRateIdr)}</dd>
-                        <dt className="text-muted-foreground">Gaji harian</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.dailyPayIdr)}</dd>
-                        <dt className="text-muted-foreground">Kasbon</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.kasbonBalanceIdr)}</dd>
-                        <dt className="text-muted-foreground">Potongan</dt>
-                        <dd className="text-end">
-                          {role === "supervisor" && isDraft ? (
-                            <div className="flex justify-end gap-1">
-                              <Input
-                                id={`potongan-${line.id}`}
-                                aria-label={`Potongan kasbon ${line.employeeName ?? line.name ?? line.employeeId}`}
-                                inputMode="numeric"
-                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
-                                onChange={(e) =>
-                                  setDraftPotongan((prev) => ({
-                                    ...prev,
-                                    [line.id]: e.target.value,
-                                  }))
-                                }
-                              />
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  deductionMut.mutate({
-                                    lineId: line.id,
-                                    kasbonDeductionIdr: Number(
-                                      draftPotongan[line.id] ?? line.kasbonDeductionIdr,
-                                    ),
-                                  })
-                                }
-                              >
-                                Simpan
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="tabular-nums">{formatIdr(line.kasbonDeductionIdr)}</span>
-                          )}
-                        </dd>
-                        <dt className="text-muted-foreground">Konsumsi</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.konsumsiIdr)}</dd>
-                        <dt className="text-muted-foreground">Bonus</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.bonusIdr)}</dd>
-                        <dt className="text-muted-foreground">Ongkos</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.jobShareIdr)}</dd>
-                        <dt className="text-muted-foreground">Sisa kasbon</dt>
-                        <dd className="text-end tabular-nums">{formatIdr(line.kasbonRemainingIdr)}</dd>
-                      </dl>
-                    </MobileListRow>
-                  ))}
-                </MobileList>
-              }
-              table={
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nama</TableHead>
-                      <TableHead>Hari</TableHead>
-                      <TableHead>Tarif</TableHead>
-                      <TableHead>Gaji harian</TableHead>
-                      <TableHead>Kasbon</TableHead>
-                      <TableHead>Potongan</TableHead>
-                      <TableHead>Konsumsi</TableHead>
-                      <TableHead>Bonus</TableHead>
-                      <TableHead>Ongkos</TableHead>
-                      <TableHead>Diterima</TableHead>
-                      <TableHead>Sisa kasbon</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lines.map((line) => (
-                      <TableRow key={line.id}>
-                        <TableCell>{line.employeeName ?? line.name ?? line.employeeId}</TableCell>
-                        <TableCell className="tabular-nums">{formatHari(line.daysPresent)}</TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.dailyRateIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.dailyPayIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.kasbonBalanceIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          {role === "supervisor" && isDraft ? (
-                            <div className="flex min-w-40 gap-1">
-                              <Input
-                                id={`potongan-table-${line.id}`}
-                                aria-label={`Potongan kasbon ${line.employeeName ?? line.name ?? line.employeeId}`}
-                                inputMode="numeric"
-                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
-                                onChange={(e) =>
-                                  setDraftPotongan((prev) => ({ ...prev, [line.id]: e.target.value }))
-                                }
-                              />
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  deductionMut.mutate({
-                                    lineId: line.id,
-                                    kasbonDeductionIdr: Number(
-                                      draftPotongan[line.id] ?? line.kasbonDeductionIdr,
-                                    ),
-                                  })
-                                }
-                              >
-                                Simpan
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="tabular-nums">{formatIdr(line.kasbonDeductionIdr)}</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.konsumsiIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.bonusIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.jobShareIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.takeHomeIdr)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="tabular-nums">{formatIdr(line.kasbonRemainingIdr)}</span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              }
+      {payrollQuery.isError ? (
+        <PageError onRetry={() => void payrollQuery.refetch()} />
+      ) : (
+        <>
+          {role === "supervisor" && !payrollQuery.isPending && lines.length > 0 ? (
+            <MetricCard
+              dominant
+              label="Total diterima"
+              value={formatRp(totalTakeHome)}
+              hint={`${lines.length} karyawan`}
             />
-          )}
-          <p className="text-pretty text-base text-muted-foreground">
-            Bonus diberikan jika hadir minimal 20 hari dan alpa &lt; 5 hari.
-          </p>
-          <p className="text-pretty text-base text-muted-foreground">
-            Konsumsi diberikan jika ada kehadiran di bulan tersebut.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+          ) : null}
+
+          <section className="flex flex-col gap-3">
+            <SectionHeader
+              title="Slip gaji"
+              count={payrollQuery.isPending ? undefined : lines.length}
+            />
+            {payrollQuery.isPending ? (
+              <Loader />
+            ) : lines.length === 0 ? (
+              <StatePanel
+                title="Belum ada baris gaji"
+                description={
+                  canEditDraft
+                    ? "Hitung ulang untuk membuat slip dari kehadiran dan kasbon periode ini."
+                    : "Pilih periode lain, atau minta supervisor menghitung gaji."
+                }
+                action={
+                  canEditDraft ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={recomputeMut.isPending}
+                      aria-busy={recomputeMut.isPending}
+                      onClick={() => recompute(false)}
+                    >
+                      <BusyLabel busy={recomputeMut.isPending}>Hitung ulang</BusyLabel>
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <ResponsiveRecords
+                cards={
+                  <MobileList>
+                    {lines.map((line) => (
+                      <MobileListRow
+                        key={line.id}
+                        title={lineName(line)}
+                        subtitle={
+                          <span className="tabular-nums">{formatHari(line.daysPresent)} hari</span>
+                        }
+                        trailing={formatRp(line.takeHomeIdr)}
+                      >
+                        <dl className="grid w-full grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                          <dt className="text-muted-foreground">Tarif</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.dailyRateIdr)}</dd>
+                          <dt className="text-muted-foreground">Gaji harian</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.dailyPayIdr)}</dd>
+                          <dt className="text-muted-foreground">Kasbon</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.kasbonBalanceIdr)}</dd>
+                          <dt className="text-muted-foreground">Potongan</dt>
+                          <dd className="text-end">
+                            {canEditDraft ? (
+                              <PotonganEditor
+                                id={`potongan-${line.id}`}
+                                line={line}
+                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                                onChange={(value) =>
+                                  setDraftPotongan((prev) => ({ ...prev, [line.id]: value }))
+                                }
+                                onSave={() => savePotongan(line)}
+                                saving={deductionMut.isPending}
+                              />
+                            ) : (
+                              <span className="tabular-nums">{formatRp(line.kasbonDeductionIdr)}</span>
+                            )}
+                          </dd>
+                          <dt className="text-muted-foreground">Konsumsi</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.konsumsiIdr)}</dd>
+                          <dt className="text-muted-foreground">Bonus</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.bonusIdr)}</dd>
+                          <dt className="text-muted-foreground">Ongkos</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.jobShareIdr)}</dd>
+                          <dt className="text-muted-foreground">Sisa kasbon</dt>
+                          <dd className="text-end tabular-nums">{formatRp(line.kasbonRemainingIdr)}</dd>
+                        </dl>
+                      </MobileListRow>
+                    ))}
+                  </MobileList>
+                }
+                table={
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nama</TableHead>
+                        <TableHead className="text-end">Hari</TableHead>
+                        <TableHead className="text-end">Tarif</TableHead>
+                        <TableHead className="text-end">Gaji harian</TableHead>
+                        <TableHead className="text-end">Kasbon</TableHead>
+                        <TableHead className="text-end">Potongan</TableHead>
+                        <TableHead className="text-end">Konsumsi</TableHead>
+                        <TableHead className="text-end">Bonus</TableHead>
+                        <TableHead className="text-end">Ongkos</TableHead>
+                        <TableHead className="text-end">Diterima</TableHead>
+                        <TableHead className="text-end">Sisa kasbon</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {lines.map((line) => (
+                        <TableRow key={line.id}>
+                          <TableCell>{lineName(line)}</TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatHari(line.daysPresent)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.dailyRateIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.dailyPayIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.kasbonBalanceIdr)}
+                          </TableCell>
+                          <TableCell className="text-end">
+                            {canEditDraft ? (
+                              <PotonganEditor
+                                id={`potongan-table-${line.id}`}
+                                line={line}
+                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                                onChange={(value) =>
+                                  setDraftPotongan((prev) => ({ ...prev, [line.id]: value }))
+                                }
+                                onSave={() => savePotongan(line)}
+                                saving={deductionMut.isPending}
+                              />
+                            ) : (
+                              <span className="tabular-nums">{formatRp(line.kasbonDeductionIdr)}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.konsumsiIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.bonusIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.jobShareIdr)}
+                          </TableCell>
+                          <TableCell className="text-end font-medium tabular-nums">
+                            {formatRp(line.takeHomeIdr)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {formatRp(line.kasbonRemainingIdr)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                }
+              />
+            )}
+          </section>
+
+          <div className="space-y-1">
+            <p className="text-pretty text-muted-foreground">
+              Bonus diberikan jika hadir minimal 20 hari dan alpa &lt; 5 hari.
+            </p>
+            <p className="text-pretty text-muted-foreground">
+              Konsumsi diberikan jika ada kehadiran di bulan tersebut.
+            </p>
+          </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={finalizeOpen}
+        onOpenChange={setFinalizeOpen}
+        title="Kunci gaji"
+        description="Mengunci periode ini mencegah perubahan slip, potongan kasbon, dan hitung ulang. Lanjutkan hanya jika gaji sudah benar."
+        confirmLabel="Kunci gaji"
+        confirmVariant="default"
+        confirming={finalizeMut.isPending}
+        onConfirm={() => finalizeMut.mutate({ year, month })}
+      />
+    </PageShell>
   );
 }

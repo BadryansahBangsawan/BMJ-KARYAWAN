@@ -18,13 +18,12 @@ import {
 } from "@BMJ-KARYAWAN/ui/components/table";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Check, Clock, HandCoins, X } from "lucide-react";
 import { useState } from "react";
 import z from "zod";
 
-import { getUser } from "@/functions/get-user";
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { formatRp } from "@/lib/format";
@@ -69,13 +68,6 @@ export const KASBON_STATUS = {
 } as const;
 
 export const Route = createFileRoute("/_auth/kasbon")({
-  beforeLoad: async () => {
-    const session = await getUser();
-    if (!session) {
-      throw redirect({ to: "/login" });
-    }
-    return { session };
-  },
   component: KasbonPage,
 });
 
