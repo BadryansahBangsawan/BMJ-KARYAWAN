@@ -205,8 +205,9 @@ function PekerjaanPage() {
   const extractAbortRef = useRef<AbortController | null>(null);
 
   const listInput = {
-    from,
-    to,
+    ...(role === "supervisor"
+      ? { from, to }
+      : { from: "2000-01-01", to: "2099-12-31" }),
     ...(employeeIdFilter ? { employeeId: employeeIdFilter } : {}),
   };
 
@@ -244,7 +245,10 @@ function PekerjaanPage() {
   });
 
   const hasPersenan = jobs.some((job) => job.kind === "persenan");
-  const filtersActive = statusFilter !== "" || employeeIdFilter !== "" || from !== bounds.from || to !== bounds.to;
+  const filtersActive =
+    statusFilter !== "" ||
+    employeeIdFilter !== "" ||
+    (role === "supervisor" && (from !== bounds.from || to !== bounds.to));
   const cancelRow = jobs.find((job) => job.id === cancelId);
   const detailRow = jobs.find((job) => job.id === detailId);
 
@@ -422,7 +426,9 @@ function PekerjaanPage() {
         <section className="flex flex-col gap-3">
           <SectionHeader title="Daftar pekerjaan" count={visible.length} />
           <FilterBar>
-            <DateRangeFields from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+            {role === "supervisor" ? (
+              <DateRangeFields from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+            ) : null}
             <FilterChips
               ariaLabel="Filter status pekerjaan"
               value={statusFilter}
