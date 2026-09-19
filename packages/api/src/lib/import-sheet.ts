@@ -268,7 +268,6 @@ async function upsertEmployees(tx: Database) {
 				.update(employee)
 				.set({
 					role: seed.role,
-					konsumsiMonthlyIdr: seed.konsumsiMonthlyIdr,
 					active: seed.active,
 				})
 				.where(eq(employee.id, foundId));
@@ -279,7 +278,7 @@ async function upsertEmployees(tx: Database) {
 				id,
 				name: seed.name,
 				role: seed.role,
-				konsumsiMonthlyIdr: seed.konsumsiMonthlyIdr,
+				konsumsiMonthlyIdr: 0,
 				bonusIdr: 0,
 				active: seed.active,
 			});

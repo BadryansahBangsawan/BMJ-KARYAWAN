@@ -77,6 +77,26 @@ async function signUpWithRole(
   return userId;
 }
 
+async function setCredentialPassword(db: Database, userId: string, password: string) {
+  const passwordHash = await hashPassword(password);
+  const [acct] = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
+    .limit(1);
+  if (acct) {
+    await db.update(account).set({ password: passwordHash }).where(eq(account.id, acct.id));
+    return;
+  }
+  await db.insert(account).values({
+    id: crypto.randomUUID(),
+    accountId: userId,
+    providerId: "credential",
+    userId,
+    password: passwordHash,
+  });
+}
+
 async function assertUserIdFree(
   db: Database,
   userId: string,
@@ -243,6 +263,9 @@ export const employeeRouter = router({
             .update(user)
             .set({ role: nextRole })
             .where(eq(user.id, emailUser.id));
+          if (input.password && existing.userId === emailUser.id) {
+            await setCredentialPassword(ctx.db, emailUser.id, input.password);
+          }
         } else {
           if (!input.password) {
             throw new TRPCError({

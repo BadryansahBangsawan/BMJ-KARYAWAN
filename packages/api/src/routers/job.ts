@@ -176,6 +176,7 @@ export const jobRouter = router({
       }
 
       let targetId: string;
+      let bengkelPercent: number;
       if (role === "mekanik") {
         const own = await employeeByUserId(ctx.db, ctx.session.user.id);
         if (!own) {
@@ -188,6 +189,7 @@ export const jobRouter = router({
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         targetId = own.id;
+        bengkelPercent = own.ongkosPercent;
       } else {
         if (!input.employeeId) {
           throw new TRPCError({
@@ -213,6 +215,8 @@ export const jobRouter = router({
           });
         }
         targetId = input.employeeId;
+        bengkelPercent =
+          kind === "persenan" ? (input.bengkelPercent ?? target.ongkosPercent) : target.ongkosPercent;
       }
 
       await assertJobUnlocked(ctx.db, targetId, workDate);
@@ -229,7 +233,7 @@ export const jobRouter = router({
           customerNote: input.customerNote ?? null,
           status: role === "mekanik" ? "diterima" : "proses",
           kind,
-          bengkelPercent: kind === "persenan" ? (input.bengkelPercent ?? null) : null,
+          bengkelPercent,
           createdByUserId: ctx.session.user.id,
         })
         .returning();

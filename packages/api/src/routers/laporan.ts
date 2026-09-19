@@ -93,7 +93,7 @@ async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[
 		if (j.status === "diterima") {
 			const { bengkelIdr, mechanicIdr } = splitBengkelOngkos(
 				j.amountIdr,
-				percentById.get(j.employeeId) ?? 0,
+				j.bengkelPercent ?? percentById.get(j.employeeId) ?? 0,
 			);
 			row.diterimaAmount += j.amountIdr;
 			row.mechanicShare += mechanicIdr;

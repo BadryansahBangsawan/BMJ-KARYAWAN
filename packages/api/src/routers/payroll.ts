@@ -212,7 +212,7 @@ async function rebuildDraftLines(
   for (const row of jobRows) {
     const { bengkelIdr, mechanicIdr } = splitBengkelOngkos(
       row.amountIdr,
-      percentByEmp[row.employeeId] ?? 0,
+      row.bengkelPercent ?? percentByEmp[row.employeeId] ?? 0,
     );
     jobShareByEmp[row.employeeId] = (jobShareByEmp[row.employeeId] ?? 0) + mechanicIdr;
     bengkelByEmp[row.employeeId] = (bengkelByEmp[row.employeeId] ?? 0) + bengkelIdr;
