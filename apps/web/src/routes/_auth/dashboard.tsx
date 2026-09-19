@@ -1,4 +1,4 @@
-import { Button, buttonVariants } from "@BMJ-KARYAWAN/ui/components/button";
+import { buttonVariants } from "@BMJ-KARYAWAN/ui/components/button";
 import { cn } from "@BMJ-KARYAWAN/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
@@ -147,17 +147,9 @@ function RouteComponent() {
       : [];
   const ownSisa = ownKasbon.reduce((sum, row) => sum + kasbonSisa(row), 0);
 
-  const ownJobs = employeeId
-    ? jobRows.filter((row) => row.employeeId === employeeId)
-    : role === "mekanik"
-      ? jobRows
-      : [];
-  const waitingConfirm = ownJobs.filter((row) => row.status === "selesai");
 
   const pendingKasbon = kasbonRows.filter((row) => row.status === "pending");
-  const approvedKasbon = kasbonRows.filter((row) => row.status === "approved");
   const liveJobs = jobRows.filter((row) => row.status === "proses" || row.status === "selesai");
-  const selesaiJobs = jobRows.filter((row) => row.status === "selesai");
 
   const queueItems =
     role === "supervisor"
@@ -176,23 +168,7 @@ function RouteComponent() {
             to: "/pekerjaan" as const,
           })),
         ]
-      : role === "kasir"
-        ? [
-            ...approvedKasbon.slice(0, 4).map((row, index) => ({
-              id: row.id ?? `approved-${index}`,
-              title: row.employeeName ?? row.name ?? "Siap dicairkan",
-              subtitle: row.keperluan,
-              trailing: formatRp(row.amountIdr),
-              to: "/kasbon" as const,
-            })),
-            ...selesaiJobs.slice(0, 2).map((row, index) => ({
-              id: row.id ?? `job-${index}`,
-              title: row.description ?? "Pekerjaan selesai",
-              subtitle: row.employeeName ?? row.name ?? "Menunggu diterima",
-              to: "/pekerjaan" as const,
-            })),
-          ]
-        : [];
+      : [];
 
   const shortcuts =
     role === "supervisor"
@@ -202,17 +178,7 @@ function RouteComponent() {
           { to: "/pekerjaan" as const, label: "Tinjau pekerjaan" },
           { to: "/gaji" as const, label: "Buka gaji" },
         ]
-      : role === "kasir"
-        ? [
-            { to: "/kasbon" as const, label: "Cairkan kasbon" },
-            { to: "/toko" as const, label: "Catat transaksi" },
-            { to: "/pekerjaan" as const, label: "Tinjau pekerjaan" },
-          ]
-        : [
-            { to: "/pekerjaan" as const, label: "Catat pekerjaan" },
-            { to: "/kasbon" as const, label: "Ajukan kasbon" },
-            { to: "/gaji" as const, label: "Lihat gaji" },
-          ];
+      : [];
 
 
   const moneyLabel = role === "mekanik" ? "Sisa kasbon" : "Pendapatan bulan ini";
@@ -419,28 +385,6 @@ function RouteComponent() {
             <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
             <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
           </p>
-
-          <ActionQueue
-            title="Centang hari ini"
-            items={queueItems}
-            emptyTitle="Tidak ada yang perlu dicentang"
-            emptyDescription="Semua pekerjaan untuk peran ini sudah selesai."
-          />
-
-          {shortcuts.length > 0 ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {shortcuts.map((item) => (
-                <Button
-                  key={item.label}
-                  variant="outline"
-                  className="h-14 min-h-14 bg-card"
-                  render={<Link to={item.to} />}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
-          ) : null}
         </>
       )}
     </PageShell>
