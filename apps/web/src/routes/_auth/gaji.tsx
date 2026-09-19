@@ -320,8 +320,8 @@ function GajiPage() {
                       <TableRow>
                         <TableHead>Nama</TableHead>
                         <TableHead className="text-end">Hari</TableHead>
-                        <TableHead className="text-end">Gaji</TableHead>
-                        <TableHead className="text-end">Ongkos</TableHead>
+                        <TableHead className="text-end">Bengkel</TableHead>
+                        <TableHead className="text-end">Mekanik</TableHead>
                         <TableHead className="text-end">Uang makan</TableHead>
                         <TableHead className="text-end">Bonus</TableHead>
                         <TableHead className="text-end">Potongan</TableHead>

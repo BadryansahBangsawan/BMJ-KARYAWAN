@@ -306,7 +306,7 @@ function EmployeeFields({
           const errorId = `${idPrefix}-${field.name}-error`;
           return (
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-${field.name}`}>Persen ongkos</Label>
+              <Label htmlFor={`${idPrefix}-${field.name}`}>Persen bengkel</Label>
               <Input
                 id={`${idPrefix}-${field.name}`}
                 inputMode="numeric"
@@ -319,7 +319,7 @@ function EmployeeFields({
                 aria-describedby={fieldDescribedBy(errorId, field.state.meta.errors)}
               />
               <p className="text-pretty text-sm text-muted-foreground">
-                Bagian gaji dari ongkos kerja yang diterima (0–100).
+                Dipotong dulu dari ongkos kerja yang diterima (0–100).
               </p>
               <FieldError id={errorId} errors={field.state.meta.errors} />
             </div>
@@ -667,7 +667,7 @@ function KaryawanPage() {
                     <TableRow>
                       <TableHead>Nama</TableHead>
                       <TableHead>Peran</TableHead>
-                      <TableHead className="text-end">Persen ongkos</TableHead>
+                      <TableHead className="text-end">Persen bengkel</TableHead>
                       <TableHead className="text-end">Konsumsi/bulan</TableHead>
                       <TableHead className="text-end">Bonus</TableHead>
                       <TableHead>Status</TableHead>

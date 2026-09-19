@@ -16,6 +16,7 @@ export type PaySlipLine = {
   daysPresent: number;
   dailyPayIdr: number;
   jobShareIdr: number;
+  ongkosPercent?: number;
   konsumsiIdr: number;
   bonusIdr: number;
   kasbonDeductionIdr: number;
@@ -71,8 +72,13 @@ export function PaySlip({
       <p className="mt-2 text-sm text-muted-foreground tabular-nums">{formatHari(line.daysPresent)} hari hadir</p>
 
       <dl className="mt-5 divide-y divide-border border-t border-border text-sm">
-        <Row label="Gaji dari ongkos" value={formatRp(line.dailyPayIdr)} />
-        <Row label="Ongkos" value={formatRp(line.jobShareIdr)} />
+        {line.dailyPayIdr > 0 ? (
+          <Row
+            label={`Potongan bengkel ${line.ongkosPercent ?? 0}%`}
+            value={formatRp(line.dailyPayIdr)}
+          />
+        ) : null}
+        <Row label="Bagian mekanik" value={formatRp(line.jobShareIdr)} />
         {line.konsumsiIdr > 0 ? <Row label="Uang makan" value={formatRp(line.konsumsiIdr)} /> : null}
         {line.bonusIdr > 0 ? <Row label="Bonus" value={formatRp(line.bonusIdr)} /> : null}
         <Row

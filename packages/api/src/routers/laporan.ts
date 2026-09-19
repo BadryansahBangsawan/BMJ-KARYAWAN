@@ -12,6 +12,7 @@ import {
 } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
 import { kasirProcedure, router } from "../index";
+import { splitBengkelOngkos } from "../lib/ongkos";
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -32,24 +33,6 @@ type OngkosRow = {
 	kasbonSisa: number;
 };
 
-function mechanicShare(row: JobRow): number {
-	if (row.status !== "diterima") return 0;
-	if (row.kind === "ongkos") return row.amountIdr;
-	if (row.kind === "persenan") {
-		const pct = row.bengkelPercent ?? 0;
-		return row.amountIdr - Math.round((row.amountIdr * pct) / 100);
-	}
-	return 0;
-}
-
-function bengkelShare(row: JobRow): number {
-	if (row.status !== "diterima") return 0;
-	if (row.kind === "persenan") {
-		const pct = row.bengkelPercent ?? 0;
-		return Math.round((row.amountIdr * pct) / 100);
-	}
-	return 0;
-}
 
 function ymdJayapura(value: Date | number | string): string {
 	const d = value instanceof Date ? value : new Date(value);
@@ -86,6 +69,7 @@ async function kasbonSisaByEmployee(db: Database) {
 async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[]> {
 	const employees = await db.select().from(employee);
 	const sisaMap = await kasbonSisaByEmployee(db);
+	const percentById = new Map(employees.map((e) => [e.id, e.ongkosPercent]));
 	const byEmp = new Map<string, OngkosRow>();
 	for (const e of employees) {
 		byEmp.set(e.id, {
@@ -107,9 +91,13 @@ async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[
 			seen.add(j.employeeId);
 		}
 		if (j.status === "diterima") {
+			const { bengkelIdr, mechanicIdr } = splitBengkelOngkos(
+				j.amountIdr,
+				percentById.get(j.employeeId) ?? 0,
+			);
 			row.diterimaAmount += j.amountIdr;
-			row.mechanicShare += mechanicShare(j);
-			row.bengkelShare += bengkelShare(j);
+			row.mechanicShare += mechanicIdr;
+			row.bengkelShare += bengkelIdr;
 			seen.add(j.employeeId);
 		}
 	}

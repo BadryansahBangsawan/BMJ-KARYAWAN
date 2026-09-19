@@ -14,6 +14,7 @@ import {
 } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
 import { protectedProcedure, router, supervisorProcedure } from "../index";
+import { splitBengkelOngkos } from "../lib/ongkos";
 
 const TZ = "Asia/Jayapura";
 
@@ -50,19 +51,12 @@ function monthRange(year: number, month: number) {
   return { startDate, endDate, payDate };
 }
 
-function mechanicShare(row: {
-  status: string;
-  kind: string;
-  amountIdr: number;
-  bengkelPercent: number | null;
+function mechanicPayIdr(line: {
+  jobShareIdr: number;
+  konsumsiIdr: number;
+  bonusIdr: number;
 }) {
-  if (row.status !== "diterima") return 0;
-  if (row.kind === "ongkos") return row.amountIdr;
-  if (row.kind === "persenan") {
-    const pct = row.bengkelPercent ?? 0;
-    return row.amountIdr - Math.round((row.amountIdr * pct) / 100);
-  }
-  return 0;
+  return line.jobShareIdr + line.konsumsiIdr + line.bonusIdr;
 }
 
 function clampKasbonDeduction(
@@ -210,21 +204,29 @@ async function rebuildDraftLines(
     }
   }
 
+  const percentByEmp: Record<string, number> = {};
+  for (const emp of emps) percentByEmp[emp.id] = emp.ongkosPercent;
+
   const jobShareByEmp: Record<string, number> = {};
+  const bengkelByEmp: Record<string, number> = {};
   for (const row of jobRows) {
-    jobShareByEmp[row.employeeId] =
-      (jobShareByEmp[row.employeeId] ?? 0) + mechanicShare(row);
+    const { bengkelIdr, mechanicIdr } = splitBengkelOngkos(
+      row.amountIdr,
+      percentByEmp[row.employeeId] ?? 0,
+    );
+    jobShareByEmp[row.employeeId] = (jobShareByEmp[row.employeeId] ?? 0) + mechanicIdr;
+    bengkelByEmp[row.employeeId] = (bengkelByEmp[row.employeeId] ?? 0) + bengkelIdr;
   }
 
   const values = emps.flatMap((emp) => {
     const daysPresentTenths = daysPresentByEmp[emp.id] ?? 0;
     const alpaDays = alpaByEmp[emp.id] ?? 0;
     const jobShareIdr = jobShareByEmp[emp.id] ?? 0;
-    const dailyPayIdr = Math.round((jobShareIdr * emp.ongkosPercent) / 100);
+    const dailyPayIdr = bengkelByEmp[emp.id] ?? 0;
     const bonusIdr =
       daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
     const konsumsiIdr = daysPresentTenths > 0 ? emp.konsumsiMonthlyIdr || 0 : 0;
-    const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr + bonusIdr;
+    const payIdr = jobShareIdr + konsumsiIdr + bonusIdr;
     const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
     if (
       !emp.active &&
@@ -415,8 +417,7 @@ export const payrollRouter = router({
         });
       }
       assertNotFuturePeriod(period.year, period.month);
-      const payIdr =
-        line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr + line.bonusIdr;
+      const payIdr = mechanicPayIdr(line);
       const maxDeduction = clampKasbonDeduction(
         input.kasbonDeductionIdr,
         line.kasbonBalanceIdr,
@@ -475,7 +476,7 @@ export const payrollRouter = router({
         const amountIdr = clampKasbonDeduction(
           line.kasbonDeductionIdr,
           line.kasbonBalanceIdr,
-          line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr + line.bonusIdr,
+          mechanicPayIdr(line),
         );
         if (amountIdr > 0) {
           await allocateFifo(ctx.db, {
