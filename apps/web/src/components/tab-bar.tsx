@@ -58,9 +58,8 @@ export function TabBar() {
   return (
     <nav
       aria-label="Menu utama"
-      className={`app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-card ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] lg:hidden ${
-        tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"
-      }`}
+      style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      className="app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-card ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       {tabs.map((item) => {
         if (item.icon === "more") {
