@@ -11,7 +11,7 @@ import { ActionQueue } from "@/components/action-queue";
 import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
-import { absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
+import { absenCaption, absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
 import { formatRp, jayapuraYearMonth, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { authClient } from "@/lib/auth-client";
 import { sessionRole } from "@/lib/session-role";
@@ -202,7 +202,9 @@ function RouteComponent() {
   const shortcuts =
     role === "supervisor"
       ? [
+          { to: "/absen" as const, label: "Buka absen" },
           { to: "/kasbon" as const, label: "Tinjau kasbon" },
+          { to: "/pekerjaan" as const, label: "Tinjau pekerjaan" },
           { to: "/gaji" as const, label: "Buka gaji" },
         ]
       : role === "kasir"
@@ -232,6 +234,27 @@ function RouteComponent() {
   for (const mark of absenMarks) {
     if (employeeId && mark.employeeId === employeeId) ownAbsenByDate[mark.workDate] = mark.value;
   }
+  const sundayToday = days.some((day) => day.isToday && day.isSunday);
+  const todayRoster = absenEmployees
+    .map((emp) => {
+      const mark = absenMarks.find((row) => row.employeeId === emp.id && row.workDate === workDate);
+      const shown = displayedAbsenValue(mark?.value, workDate, workDate, sundayToday);
+      return { id: emp.id, name: emp.name, shown };
+    })
+    .sort((a, b) => {
+      const rank = (value: number | undefined) => {
+        if (value === 0) return 0;
+        if (value === 90) return 1;
+        if (value === 50) return 2;
+        if (value === 100) return 3;
+        return 4;
+      };
+      return rank(a.shown) - rank(b.shown) || a.name.localeCompare(b.name, "id");
+    });
+  const nHadir = todayRoster.filter((row) => row.shown === 100).length;
+  const nLate = todayRoster.filter((row) => row.shown === 90).length;
+  const nHalf = todayRoster.filter((row) => row.shown === 50).length;
+  const nAlpa = todayRoster.filter((row) => row.shown === 0).length;
 
 
   async function clockFromFile(file: File) {
@@ -251,6 +274,95 @@ function RouteComponent() {
     } finally {
       setClockBusy(false);
     }
+  }
+
+  const errorBlock = failed ? (
+    <PageError
+      onRetry={() => {
+        void me.refetch();
+        void kasbon.refetch();
+        void jobs.refetch();
+        void absenMonth.refetch();
+        if (isStaff) void diagram.refetch();
+      }}
+    />
+  ) : null;
+
+  if (role === "supervisor") {
+    return (
+      <PageShell className="gap-6">
+        <section className="rounded-xl bg-card px-5 py-5 shadow-[var(--shadow-border)] sm:px-6">
+          <p className="text-sm text-muted-foreground">Pantau karyawan · {today.monthYear}</p>
+          <p className="mt-1 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
+          <p className="mt-1 font-display text-5xl leading-none tabular-nums">{String(today.day).padStart(2, "0")}</p>
+          <p className="mt-4 text-sm text-pretty">
+            {todayRoster.length === 0
+              ? "Tidak ada karyawan aktif."
+              : sundayToday
+                ? "Hari Minggu. Absen tidak diisi."
+                : `${nHadir} hadir · ${nLate} telat 9> · ${nHalf} setengah · ${nAlpa} belum absen`}
+          </p>
+        </section>
+
+        {errorBlock}
+
+        <section className="flex flex-col gap-3">
+          <div className="flex items-end justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-tight">Siapa yang sudah absen</h2>
+            <Button variant="outline" className="h-10 bg-card" render={<Link to="/absen" />}>
+              Grid absen
+            </Button>
+          </div>
+          {todayRoster.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Tidak ada karyawan aktif.</p>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {todayRoster.map((emp) => (
+                <li key={emp.id}>
+                  <Link
+                    to="/absen"
+                    className={cn(
+                      "flex min-h-14 items-center justify-between gap-3 rounded-xl px-3 py-2 shadow-[var(--shadow-border)] motion-safe:active:scale-[0.98]",
+                      absenToneClass(emp.shown),
+                    )}
+                  >
+                    <span className="truncate font-medium">{emp.name}</span>
+                    <span className="shrink-0 text-end text-sm tabular-nums">
+                      {emp.shown === undefined ? "·" : `${absenLabel(emp.shown)} · ${absenCaption(emp.shown)}`}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <p className="px-1">
+          <span className="block text-sm text-muted-foreground">Pendapatan bulan ini</span>
+          <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
+        </p>
+
+        <ActionQueue
+          title="Perlu ditindak"
+          items={queueItems}
+          emptyTitle="Tidak ada antrean"
+          emptyDescription="Kasbon dan pekerjaan menunggu sudah bersih."
+        />
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {shortcuts.map((item) => (
+            <Button
+              key={item.label}
+              variant={item.to === "/absen" ? "default" : "outline"}
+              className={item.to === "/absen" ? "h-14 min-h-14" : "h-14 min-h-14 bg-card"}
+              render={<Link to={item.to} />}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </PageShell>
+    );
   }
 
   return (
@@ -297,46 +409,9 @@ function RouteComponent() {
         </div>
       </section>
 
-      {role === "supervisor" ? (
-        <section className="rounded-xl bg-card px-4 py-4 shadow-[var(--shadow-border)]">
-          <h2 className="text-lg font-semibold tracking-tight">Absen hari ini</h2>
-          {absenEmployees.length === 0 ? (
-            <p className="mt-2 text-sm text-muted-foreground">Tidak ada karyawan aktif.</p>
-          ) : (
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {absenEmployees.map((emp) => {
-                const mark = absenMarks.find(
-                  (row) => row.employeeId === emp.id && row.workDate === workDate,
-                );
-                const shown = displayedAbsenValue(mark?.value, workDate, workDate);
-                return (
-                  <li
-                    key={emp.id}
-                    className={cn(
-                      "flex min-h-12 items-center justify-between gap-3 rounded-lg px-3 py-2",
-                      absenToneClass(shown),
-                    )}
-                  >
-                    <span className="truncate font-medium">{emp.name}</span>
-                    <span className="shrink-0 tabular-nums">{absenLabel(shown)}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      ) : null}
+      {errorBlock}
 
-      {failed ? (
-        <PageError
-          onRetry={() => {
-            void me.refetch();
-            void kasbon.refetch();
-            void jobs.refetch();
-            if (isStaff) void diagram.refetch();
-          }}
-        />
-      ) : !me.data && !kasbon.data && !jobs.data && (me.isPending || kasbon.isPending || jobs.isPending) ? (
+      {!me.data && !kasbon.data && !jobs.data && (me.isPending || kasbon.isPending || jobs.isPending) ? (
         <Loader />
       ) : (
         <>
