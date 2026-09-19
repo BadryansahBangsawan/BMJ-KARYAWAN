@@ -127,19 +127,28 @@ async function getOrCreateDraftPeriod(
   const existing = await getPeriod(db, year, month);
   if (existing) return existing;
   const { startDate, endDate, payDate } = monthRange(year, month);
-  const inserted = await db
-    .insert(payrollPeriod)
-    .values({
-      id: crypto.randomUUID(),
-      year,
-      month,
-      startDate,
-      endDate,
-      payDate,
-      status: "draft",
-    })
-    .returning();
-  return inserted[0]!;
+  try {
+    const inserted = await db
+      .insert(payrollPeriod)
+      .values({
+        id: crypto.randomUUID(),
+        year,
+        month,
+        startDate,
+        endDate,
+        payDate,
+        status: "draft",
+      })
+      .returning();
+    return inserted[0]!;
+  } catch {
+    const raced = await getPeriod(db, year, month);
+    if (raced) return raced;
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Gagal membuat bulan gaji",
+    });
+  }
 }
 
 async function rebuildDraftLines(
@@ -275,10 +284,14 @@ async function rebuildDraftLines(
 
 export const payrollRouter = router({
   get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
-    const role = ctx.session.user.role ?? "mekanik";
-    const period = await getPeriod(ctx.db, input.year, input.month);
-    if (!period) {
+    if (isFutureYearMonth(input.year, input.month)) {
       return { period: null, lines: [] };
+    }
+    const role = ctx.session.user.role ?? "mekanik";
+    let period = await getPeriod(ctx.db, input.year, input.month);
+    if (!period) {
+      period = await getOrCreateDraftPeriod(ctx.db, input.year, input.month);
+      await rebuildDraftLines(ctx.db, period, false);
     }
     let named = await linesWithNames(ctx.db, period.id);
     if (role !== "supervisor") {
