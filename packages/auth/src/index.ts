@@ -19,7 +19,7 @@ export function createAuth(env: AuthConfig, database: Database) {
       schema,
     }),
     trustedOrigins: [env.BETTER_AUTH_URL],
-    emailAndPassword: { enabled: true },
+    emailAndPassword: { enabled: true, disableSignUp: true },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     ...(env.GOOGLE_CLIENT_ID

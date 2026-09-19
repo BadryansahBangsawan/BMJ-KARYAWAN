@@ -329,7 +329,7 @@ function EmployeeFields({
       <form.Field name="konsumsiMonthlyIdr">
         {(field) => (
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-${field.name}`}>Konsumsi harian</Label>
+            <Label htmlFor={`${idPrefix}-${field.name}`}>Konsumsi bulanan</Label>
             <MoneyField
               id={`${idPrefix}-${field.name}`}
               value={String(field.state.value)}
@@ -338,7 +338,7 @@ function EmployeeFields({
               placeholder="Kosong = tidak ada"
             />
             <p className="text-pretty text-sm text-muted-foreground">
-              Uang makan per hari kerja. Opsional.
+              Uang makan sebulan jika ada hari hadir. Opsional.
             </p>
           </div>
         )}
@@ -665,7 +665,7 @@ function KaryawanPage() {
                       <TableHead>Nama</TableHead>
                       <TableHead>Peran</TableHead>
                       <TableHead className="text-end">Persen ongkos</TableHead>
-                      <TableHead className="text-end">Konsumsi/hari</TableHead>
+                      <TableHead className="text-end">Konsumsi/bulan</TableHead>
                       <TableHead className="text-end">Bonus</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Aksi</TableHead>

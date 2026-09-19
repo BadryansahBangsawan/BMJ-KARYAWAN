@@ -414,8 +414,9 @@ function collectKasbon(
 		if (sheetNo != null && existingSheetNos.has(sheetNo)) continue;
 		if (sheetNo != null) existingSheetNos.add(sheetNo);
 		const sisa = parseIdr(cell(row, 6));
-		const statusRaw = cell(row, 7).toLowerCase();
-		const lunas = statusRaw === "lunas" || sisa === 0;
+		const paidAmt = paid ?? 0;
+		const remaining = sisa != null ? sisa : amountIdr - paidAmt;
+		const lunas = remaining <= 0;
 		const workDate = parseWorkDate(cell(row, 1));
 		const at = workDate ? ymdToDate(workDate) : new Date();
 		const id = crypto.randomUUID();

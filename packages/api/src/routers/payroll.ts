@@ -90,8 +90,8 @@ async function kasbonSisaByEmployee(db: Database) {
   const sisaByEmployee: Record<string, number> = {};
   for (const row of debt) {
     const sisa = row.amountIdr - (totals[row.id] ?? 0);
-    sisaByEmployee[row.employeeId] =
-      (sisaByEmployee[row.employeeId] ?? 0) + sisa;
+    if (sisa <= 0) continue;
+    sisaByEmployee[row.employeeId] = (sisaByEmployee[row.employeeId] ?? 0) + sisa;
   }
   return sisaByEmployee;
 }
@@ -217,9 +217,7 @@ async function rebuildDraftLines(
     const dailyPayIdr = Math.round((jobShareIdr * emp.ongkosPercent) / 100);
     const bonusIdr =
       daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
-    const konsumsiIdr = Math.round(
-      (daysPresentTenths * (emp.konsumsiMonthlyIdr || 0)) / 100,
-    );
+    const konsumsiIdr = daysPresentTenths > 0 ? emp.konsumsiMonthlyIdr || 0 : 0;
     const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
     const defaultDeduction = Math.min(
       kasbonBalanceIdr,
@@ -266,7 +264,12 @@ async function allocateFifo(
     userId: string;
   },
 ) {
-  let remaining = opts.amountIdr;
+  const alreadyRows = await db
+    .select()
+    .from(kasbonPayment)
+    .where(eq(kasbonPayment.payrollLineId, opts.payrollLineId));
+  const already = alreadyRows.reduce((sum, row) => sum + row.amountIdr, 0);
+  let remaining = opts.amountIdr - already;
   if (remaining <= 0) return;
 
   const open = await db
@@ -275,7 +278,7 @@ async function allocateFifo(
     .where(
       and(
         eq(kasbon.employeeId, opts.employeeId),
-        eq(kasbon.status, "disbursed"),
+        inArray(kasbon.status, ["disbursed", "lunas"]),
       ),
     )
     .orderBy(asc(kasbon.disbursedAt), asc(kasbon.createdAt));
@@ -300,6 +303,7 @@ async function allocateFifo(
       createdByUserId: opts.userId,
       payrollLineId: opts.payrollLineId,
     });
+    totals[row.id] = (totals[row.id] ?? 0) + take;
     if (sisa - take <= 0) {
       await db
         .update(kasbon)
@@ -313,11 +317,7 @@ async function allocateFifo(
 export const payrollRouter = router({
   get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
     const role = ctx.session.user.role ?? "mekanik";
-    const future = isFutureYearMonth(input.year, input.month);
-    const period =
-      role === "mekanik" || future
-        ? await getPeriod(ctx.db, input.year, input.month)
-        : await getOrCreateDraftPeriod(ctx.db, input.year, input.month);
+    const period = await getPeriod(ctx.db, input.year, input.month);
     if (!period) {
       return { period: null, lines: [] };
     }

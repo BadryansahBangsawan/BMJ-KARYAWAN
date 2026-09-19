@@ -181,7 +181,6 @@ export const jobRouter = router({
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         targetId = own.id;
-        await assertJobUnlocked(ctx.db, targetId, workDate);
       } else {
         if (!input.employeeId) {
           throw new TRPCError({
@@ -208,6 +207,8 @@ export const jobRouter = router({
         }
         targetId = input.employeeId;
       }
+
+      await assertJobUnlocked(ctx.db, targetId, workDate);
 
       const [row] = await ctx.db
         .insert(job)
@@ -274,6 +275,7 @@ export const jobRouter = router({
             message: "Invalid status transition",
           });
         }
+        await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
       } else {
         if (role !== "supervisor") {
           throw new TRPCError({ code: "FORBIDDEN" });

@@ -380,7 +380,7 @@ function GajiPage() {
               Bonus jika hadir minimal 20 hari dan alpa &lt; 5.
             </p>
             <p className="text-pretty text-muted-foreground">
-              Uang makan = konsumsi harian × hari hadir. Kosong di data karyawan = tidak dihitung.
+              Uang makan = konsumsi bulanan jika ada hari hadir. Kosong di data karyawan = tidak dihitung.
             </p>
           </div>
         </>

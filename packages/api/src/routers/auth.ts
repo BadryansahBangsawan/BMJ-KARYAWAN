@@ -1,8 +1,7 @@
-import { createAuth, type AuthConfig } from "@BMJ-KARYAWAN/auth";
-import { user } from "@BMJ-KARYAWAN/db/schema/auth";
+import { hashPassword } from "@BMJ-KARYAWAN/auth";
+import { account, user } from "@BMJ-KARYAWAN/db/schema/auth";
 import { TRPCError } from "@trpc/server";
-import { env } from "cloudflare:workers";
-import { count, eq } from "drizzle-orm";
+import { asc, count, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { publicProcedure, router } from "../index";
@@ -30,20 +29,48 @@ export const authRouter = router({
         });
       }
 
-      const auth = createAuth(env as AuthConfig, ctx.db);
-      const result = await auth.api.signUpEmail({
-        body: {
+      const userId = crypto.randomUUID();
+      const passwordHash = await hashPassword(input.password);
+      try {
+        await ctx.db.insert(user).values({
+          id: userId,
           name: input.name,
-          email: input.email,
-          password: input.password,
-        },
-      });
+          email: input.email.trim(),
+          emailVerified: true,
+          role: "supervisor",
+        });
+        await ctx.db.insert(account).values({
+          id: crypto.randomUUID(),
+          accountId: userId,
+          providerId: "credential",
+          userId,
+          password: passwordHash,
+        });
+      } catch {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Bootstrap already completed",
+        });
+      }
 
-      await ctx.db
-        .update(user)
-        .set({ role: "supervisor", emailVerified: true })
-        .where(eq(user.id, result.user.id));
+      const all = await ctx.db
+        .select({ id: user.id })
+        .from(user)
+        .orderBy(asc(user.createdAt), asc(user.id));
+      if (all.length > 1) {
+        const winnerId = all[0]!.id;
+        if (winnerId !== userId) {
+          await ctx.db.delete(user).where(eq(user.id, userId));
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Bootstrap already completed",
+          });
+        }
+        for (const extra of all.slice(1)) {
+          await ctx.db.delete(user).where(eq(user.id, extra.id));
+        }
+      }
 
-      return { ok: true as const, userId: result.user.id };
+      return { ok: true as const, userId };
     }),
 });

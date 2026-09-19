@@ -313,15 +313,15 @@ export const attendanceRouter = router({
       const days = workDatesMonSat(input.year, input.month);
 
       let employees;
-      if (role === "mekanik") {
-        const me = await employeeByUserId(ctx.db, ctx.session.user.id);
-        employees = me ? [me] : [];
-      } else {
+      if (role === "supervisor") {
         employees = await ctx.db
           .select()
           .from(employee)
           .where(and(eq(employee.active, true), ne(employee.role, "supervisor")))
           .orderBy(asc(employee.name));
+      } else {
+        const me = await employeeByUserId(ctx.db, ctx.session.user.id);
+        employees = me ? [me] : [];
       }
 
       const employeeIds = employees.map((row) => row.id);
