@@ -289,11 +289,17 @@ export const payrollRouter = router({
     }
     const role = ctx.session.user.role ?? "mekanik";
     let period = await getPeriod(ctx.db, input.year, input.month);
+    let built = false;
     if (!period) {
       period = await getOrCreateDraftPeriod(ctx.db, input.year, input.month);
       await rebuildDraftLines(ctx.db, period, false);
+      built = true;
     }
     let named = await linesWithNames(ctx.db, period.id);
+    if (!built && named.length === 0) {
+      await rebuildDraftLines(ctx.db, period, false);
+      named = await linesWithNames(ctx.db, period.id);
+    }
     if (role !== "supervisor") {
       const [me] = await ctx.db
         .select({ id: employee.id })
