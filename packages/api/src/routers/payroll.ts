@@ -65,6 +65,14 @@ function mechanicShare(row: {
   return 0;
 }
 
+function clampKasbonDeduction(
+  amountIdr: number,
+  kasbonBalanceIdr: number,
+  payIdr: number,
+) {
+  return Math.min(Math.max(0, amountIdr), kasbonBalanceIdr, Math.max(0, payIdr));
+}
+
 async function paymentTotals(db: Database, kasbonIds: string[]) {
   const totals: Record<string, number> = {};
   if (kasbonIds.length === 0) return totals;
@@ -208,9 +216,7 @@ async function rebuildDraftLines(
       (jobShareByEmp[row.employeeId] ?? 0) + mechanicShare(row);
   }
 
-  await db.delete(payrollLine).where(eq(payrollLine.periodId, period.id));
-
-  const values = emps.map((emp) => {
+  const values = emps.flatMap((emp) => {
     const daysPresentTenths = daysPresentByEmp[emp.id] ?? 0;
     const alpaDays = alpaByEmp[emp.id] ?? 0;
     const jobShareIdr = jobShareByEmp[emp.id] ?? 0;
@@ -218,41 +224,47 @@ async function rebuildDraftLines(
     const bonusIdr =
       daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
     const konsumsiIdr = daysPresentTenths > 0 ? emp.konsumsiMonthlyIdr || 0 : 0;
+    const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr + bonusIdr;
     const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
-    const defaultDeduction = Math.min(
-      kasbonBalanceIdr,
-      dailyPayIdr + jobShareIdr + konsumsiIdr + bonusIdr,
-    );
+    if (
+      !emp.active &&
+      daysPresentTenths === 0 &&
+      jobShareIdr === 0 &&
+      kasbonBalanceIdr === 0
+    ) {
+      return [];
+    }
     const kept = previousDeduction[emp.id];
     const kasbonDeductionIdr =
       keepDeductions && kept !== undefined
-        ? Math.min(Math.max(0, kept), kasbonBalanceIdr)
-        : defaultDeduction;
-    const takeHomeIdr =
-      dailyPayIdr + jobShareIdr + konsumsiIdr + bonusIdr - kasbonDeductionIdr;
-    const kasbonRemainingIdr = kasbonBalanceIdr - kasbonDeductionIdr;
-
-    return {
-      id: crypto.randomUUID(),
-      periodId: period.id,
-      employeeId: emp.id,
-      daysPresent: daysPresentTenths,
-      alpaDays,
-      ongkosPercent: emp.ongkosPercent,
-      dailyPayIdr,
-      jobShareIdr,
-      konsumsiIdr,
-      bonusIdr,
-      kasbonBalanceIdr,
-      kasbonDeductionIdr,
-      takeHomeIdr,
-      kasbonRemainingIdr,
-    };
+        ? clampKasbonDeduction(kept, kasbonBalanceIdr, payIdr)
+        : clampKasbonDeduction(payIdr, kasbonBalanceIdr, payIdr);
+    return [
+      {
+        id: crypto.randomUUID(),
+        periodId: period.id,
+        employeeId: emp.id,
+        daysPresent: daysPresentTenths,
+        alpaDays,
+        ongkosPercent: emp.ongkosPercent,
+        dailyPayIdr,
+        jobShareIdr,
+        konsumsiIdr,
+        bonusIdr,
+        kasbonBalanceIdr,
+        kasbonDeductionIdr,
+        takeHomeIdr: payIdr - kasbonDeductionIdr,
+        kasbonRemainingIdr: kasbonBalanceIdr - kasbonDeductionIdr,
+      },
+    ];
   });
 
-  if (values.length > 0) {
-    await db.insert(payrollLine).values(values);
-  }
+  await db.transaction(async (tx) => {
+    await tx.delete(payrollLine).where(eq(payrollLine.periodId, period.id));
+    if (values.length > 0) {
+      await tx.insert(payrollLine).values(values);
+    }
+  });
 }
 
 async function allocateFifo(
@@ -403,21 +415,25 @@ export const payrollRouter = router({
         });
       }
       assertNotFuturePeriod(period.year, period.month);
-      if (input.kasbonDeductionIdr > line.kasbonBalanceIdr) {
+      const payIdr =
+        line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr + line.bonusIdr;
+      const maxDeduction = clampKasbonDeduction(
+        input.kasbonDeductionIdr,
+        line.kasbonBalanceIdr,
+        payIdr,
+      );
+      if (input.kasbonDeductionIdr > maxDeduction) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Potongan kasbon melebihi saldo",
+          message:
+            input.kasbonDeductionIdr > line.kasbonBalanceIdr
+              ? "Potongan kasbon melebihi saldo"
+              : "Potongan kasbon melebihi gaji",
         });
       }
 
-      const takeHomeIdr =
-        line.dailyPayIdr +
-        line.jobShareIdr +
-        line.konsumsiIdr +
-        line.bonusIdr -
-        input.kasbonDeductionIdr;
-      const kasbonRemainingIdr =
-        line.kasbonBalanceIdr - input.kasbonDeductionIdr;
+      const takeHomeIdr = payIdr - input.kasbonDeductionIdr;
+      const kasbonRemainingIdr = line.kasbonBalanceIdr - input.kasbonDeductionIdr;
 
       const updated = await ctx.db
         .update(payrollLine)
@@ -456,10 +472,15 @@ export const payrollRouter = router({
         .where(eq(payrollLine.periodId, period.id));
 
       for (const line of lines) {
-        if (line.kasbonDeductionIdr > 0) {
+        const amountIdr = clampKasbonDeduction(
+          line.kasbonDeductionIdr,
+          line.kasbonBalanceIdr,
+          line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr + line.bonusIdr,
+        );
+        if (amountIdr > 0) {
           await allocateFifo(ctx.db, {
             employeeId: line.employeeId,
-            amountIdr: line.kasbonDeductionIdr,
+            amountIdr,
             payrollLineId: line.id,
             userId: ctx.session.user.id,
           });
