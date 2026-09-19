@@ -387,6 +387,63 @@ function EmployeeFields({
   );
 }
 
+type LoginReceipt = { name: string; email: string; password: string };
+
+async function copyText(label: string, value: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} disalin`);
+  } catch {
+    toast.error("Tidak bisa menyalin");
+  }
+}
+
+function LoginReceiptCard({
+  login,
+  onDismiss,
+}: {
+  login: LoginReceipt;
+  onDismiss: () => void;
+}) {
+  return (
+    <section className="flex flex-col gap-3 rounded-xl bg-card px-4 py-4 shadow-[var(--shadow-border)]">
+      <SectionHeader
+        title="Login karyawan"
+        action={
+          <Button type="button" size="sm" variant="outline" onClick={onDismiss}>
+            Tutup
+          </Button>
+        }
+      />
+      <p className="text-pretty text-sm text-muted-foreground">
+        Kata sandi tidak bisa dibuka lagi setelah ditutup. Salin sekarang.
+      </p>
+      <dl className="grid gap-2 text-sm">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <dt className="text-muted-foreground">Nama</dt>
+          <dd className="font-medium">{login.name}</dd>
+        </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <dt className="text-muted-foreground">Email</dt>
+          <dd className="font-medium">{login.email}</dd>
+        </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <dt className="text-muted-foreground">Kata sandi</dt>
+          <dd className="font-medium break-all">{login.password}</dd>
+        </div>
+      </dl>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => void copyText("Email", login.email)}>
+          Salin email
+        </Button>
+        <Button type="button" size="sm" onClick={() => void copyText("Kata sandi", login.password)}>
+          Salin kata sandi
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 export const Route = createFileRoute("/_auth/karyawan")({
   beforeLoad: ({ context }) => {
     if (sessionRole(context.session?.user) !== "supervisor") {
@@ -404,6 +461,7 @@ function KaryawanPage() {
   const role = sessionRole(session?.user);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [createdLogin, setCreatedLogin] = useState<LoginReceipt | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
@@ -463,6 +521,13 @@ function KaryawanPage() {
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
       });
+      if (value.email.trim() && value.password) {
+        setCreatedLogin({
+          name: value.name.trim(),
+          email: value.email.trim(),
+          password: value.password,
+        });
+      }
       createForm.reset();
     },
     validators: {
@@ -483,6 +548,13 @@ function KaryawanPage() {
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
       });
+      if (value.email.trim() && value.password) {
+        setCreatedLogin({
+          name: value.name.trim(),
+          email: value.email.trim(),
+          password: value.password,
+        });
+      }
     },
     validators: {
       onSubmit: employeeFormFields.extend({ id: z.string() }).superRefine((value, ctx) =>
@@ -557,6 +629,9 @@ function KaryawanPage() {
         }
       />
 
+      {createdLogin ? (
+        <LoginReceiptCard login={createdLogin} onDismiss={() => setCreatedLogin(null)} />
+      ) : null}
       {importResult ? (
         <section className="flex flex-col gap-3 rounded-xl bg-card px-4 py-4 shadow-[var(--shadow-border)]">
           <SectionHeader title="Hasil impor" />
