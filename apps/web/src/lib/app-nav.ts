@@ -66,6 +66,7 @@ export function tabsForRole(role: UserRole): TabItem[] {
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
       { to: "/absen", label: "Absen", icon: "absen" },
       { to: "/toko", label: "Toko", icon: "toko" },
+      { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
   }
   return [

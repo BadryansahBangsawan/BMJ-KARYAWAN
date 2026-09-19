@@ -302,6 +302,7 @@ export const employeeRouter = router({
       const [row] = await ctx.db
         .update(employee)
         .set({
+          name: nextName,
           role: nextRole,
           payKind: input.payKind ?? existing.payKind,
           ongkosPercent:

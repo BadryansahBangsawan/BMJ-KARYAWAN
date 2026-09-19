@@ -243,7 +243,7 @@ async function rebuildDraftLines(
     const kasbonDeductionIdr =
       keepDeductions && kept !== undefined
         ? clampKasbonDeduction(kept, kasbonBalanceIdr, payIdr)
-        : clampKasbonDeduction(payIdr, kasbonBalanceIdr, payIdr);
+        : 0;
     return [
       {
         id: crypto.randomUUID(),
