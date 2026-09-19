@@ -16,10 +16,15 @@ import { splitBengkelOngkos } from "../lib/ongkos";
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
-const rangeInput = z.object({
-	from: ymd,
-	to: ymd,
-});
+const rangeInput = z
+	.object({
+		from: ymd,
+		to: ymd,
+	})
+	.refine((value) => value.from <= value.to, {
+		message: "Dari harus sebelum sampai",
+		path: ["from"],
+	});
 
 type JobRow = typeof job.$inferSelect;
 

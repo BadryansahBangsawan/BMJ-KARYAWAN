@@ -29,6 +29,7 @@ export function PeriodFields({
           value={year}
           onChange={(event) => {
             const next = Number(event.target.value);
+            if (!Number.isInteger(next) || next < 1) return;
             if (capToPresent && next > now.year) return;
             onYearChange(next);
             if (capToPresent && next === now.year && month > now.month) onMonthChange(now.month);
@@ -46,6 +47,7 @@ export function PeriodFields({
           value={month}
           onChange={(event) => {
             const next = Number(event.target.value);
+            if (!Number.isInteger(next) || next < 1 || next > 12) return;
             if (capToPresent && (year > now.year || (year === now.year && next > now.month))) return;
             onMonthChange(next);
           }}
@@ -77,7 +79,11 @@ export function DateRangeFields({
           max={today}
           className="w-full min-w-0"
           value={from}
-          onChange={(event) => onFromChange(event.target.value > today ? today : event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value > today ? today : event.target.value;
+            onFromChange(next);
+            if (next && to && next > to) onToChange(next);
+          }}
         />
       </div>
       <div className="min-w-0 space-y-2">
@@ -88,7 +94,11 @@ export function DateRangeFields({
           max={today}
           className="w-full min-w-0"
           value={to}
-          onChange={(event) => onToChange(event.target.value > today ? today : event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value > today ? today : event.target.value;
+            onToChange(next);
+            if (next && from && next < from) onFromChange(next);
+          }}
         />
       </div>
     </div>
