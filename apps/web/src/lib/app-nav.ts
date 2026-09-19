@@ -27,7 +27,7 @@ export const PAGE_DESCRIPTION: Record<AppPath, string> = {
   "/dashboard": "Lihat yang perlu dikerjakan hari ini, lalu pilih aksi berikutnya.",
   "/kasbon": "Ajukan, setujui, cairkan, dan catat pembayaran kasbon.",
   "/pekerjaan": "Catat ongkos, ubah status, dan pantau pekerjaan bengkel.",
-  "/gaji": "Hitung slip, atur potongan kasbon, lalu kunci periode.",
+  "/gaji": "Hitung slip dan atur potongan kasbon.",
   "/toko": "Catat transaksi tunai, non tunai, dan panjar.",
   "/absen": "Absen mandiri berbasis GPS untuk karyawan; supervisor isi kehadiran manual.",
   "/laporan": "Ringkasan pendapatan, pengeluaran, dan bagian bengkel.",

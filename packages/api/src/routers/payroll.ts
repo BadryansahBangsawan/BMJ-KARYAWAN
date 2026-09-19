@@ -147,12 +147,6 @@ async function rebuildDraftLines(
   period: typeof payrollPeriod.$inferSelect,
   keepDeductions: boolean,
 ) {
-  if (period.status !== "draft") {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Periode gaji sudah dikunci",
-    });
-  }
 
   const previousRows = keepDeductions
     ? await db
@@ -269,64 +263,6 @@ async function rebuildDraftLines(
   });
 }
 
-async function allocateFifo(
-  db: Database,
-  opts: {
-    employeeId: string;
-    amountIdr: number;
-    payrollLineId: string;
-    userId: string;
-  },
-) {
-  const alreadyRows = await db
-    .select()
-    .from(kasbonPayment)
-    .where(eq(kasbonPayment.payrollLineId, opts.payrollLineId));
-  const already = alreadyRows.reduce((sum, row) => sum + row.amountIdr, 0);
-  let remaining = opts.amountIdr - already;
-  if (remaining <= 0) return;
-
-  const open = await db
-    .select()
-    .from(kasbon)
-    .where(
-      and(
-        eq(kasbon.employeeId, opts.employeeId),
-        inArray(kasbon.status, ["disbursed", "lunas"]),
-      ),
-    )
-    .orderBy(asc(kasbon.disbursedAt), asc(kasbon.createdAt));
-
-  if (open.length === 0) return;
-
-  const totals = await paymentTotals(
-    db,
-    open.map((row) => row.id),
-  );
-
-  for (const row of open) {
-    if (remaining <= 0) break;
-    const sisa = row.amountIdr - (totals[row.id] ?? 0);
-    if (sisa <= 0) continue;
-    const take = Math.min(sisa, remaining);
-    await db.insert(kasbonPayment).values({
-      id: crypto.randomUUID(),
-      kasbonId: row.id,
-      amountIdr: take,
-      source: "payroll",
-      createdByUserId: opts.userId,
-      payrollLineId: opts.payrollLineId,
-    });
-    totals[row.id] = (totals[row.id] ?? 0) + take;
-    if (sisa - take <= 0) {
-      await db
-        .update(kasbon)
-        .set({ status: "lunas" })
-        .where(eq(kasbon.id, row.id));
-    }
-    remaining -= take;
-  }
-}
 
 export const payrollRouter = router({
   get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
@@ -407,13 +343,7 @@ export const payrollRouter = router({
       if (!period) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Periode gaji tidak ditemukan",
-        });
-      }
-      if (period.status !== "draft") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Periode gaji sudah dikunci",
+          message: "Gaji bulan ini tidak ditemukan",
         });
       }
       assertNotFuturePeriod(period.year, period.month);
@@ -449,62 +379,4 @@ export const payrollRouter = router({
       return updated[0]!;
     }),
 
-  finalize: supervisorProcedure
-    .input(yearMonthInput)
-    .mutation(async ({ ctx, input }) => {
-      assertNotFuturePeriod(input.year, input.month);
-      const period = await getPeriod(ctx.db, input.year, input.month);
-      if (!period) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Periode gaji tidak ditemukan",
-        });
-      }
-      if (period.status !== "draft") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "Periode gaji sudah dikunci",
-        });
-      }
-
-      const lines = await ctx.db
-        .select()
-        .from(payrollLine)
-        .where(eq(payrollLine.periodId, period.id));
-
-      for (const line of lines) {
-        const amountIdr = clampKasbonDeduction(
-          line.kasbonDeductionIdr,
-          line.kasbonBalanceIdr,
-          mechanicPayIdr(line),
-        );
-        if (amountIdr > 0) {
-          await allocateFifo(ctx.db, {
-            employeeId: line.employeeId,
-            amountIdr,
-            payrollLineId: line.id,
-            userId: ctx.session.user.id,
-          });
-        }
-      }
-
-      const updated = await ctx.db
-        .update(payrollPeriod)
-        .set({
-          status: "finalized",
-          finalizedByUserId: ctx.session.user.id,
-          finalizedAt: new Date(),
-        })
-        .where(eq(payrollPeriod.id, period.id))
-        .returning();
-
-      const named = await linesWithNames(ctx.db, period.id);
-      return {
-        period: updated[0]!,
-        lines: named.map((row) => ({
-          ...row.line,
-          employeeName: row.employeeName,
-        })),
-      };
-    }),
 });

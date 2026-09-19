@@ -1,5 +1,5 @@
 import type { Database } from "@BMJ-KARYAWAN/db";
-import { employee, job, payrollLine, payrollPeriod } from "@BMJ-KARYAWAN/db/schema/karyawan";
+import { employee, job } from "@BMJ-KARYAWAN/db/schema/karyawan";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -47,31 +47,6 @@ async function employeeByUserId(db: Database, userId: string) {
   return row ?? null;
 }
 
-async function assertJobUnlocked(
-  db: Database,
-  employeeId: string,
-  workDate: string,
-) {
-  const [row] = await db
-    .select({ id: payrollPeriod.id })
-    .from(payrollPeriod)
-    .innerJoin(payrollLine, eq(payrollLine.periodId, payrollPeriod.id))
-    .where(
-      and(
-        eq(payrollPeriod.status, "finalized"),
-        eq(payrollLine.employeeId, employeeId),
-        lte(payrollPeriod.startDate, workDate),
-        gte(payrollPeriod.endDate, workDate),
-      ),
-    )
-    .limit(1);
-  if (row) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: "Periode gaji sudah dikunci",
-    });
-  }
-}
 
 export const jobRouter = router({
   list: protectedProcedure
@@ -219,7 +194,7 @@ export const jobRouter = router({
           kind === "persenan" ? (input.bengkelPercent ?? target.ongkosPercent) : target.ongkosPercent;
       }
 
-      await assertJobUnlocked(ctx.db, targetId, workDate);
+
 
       const [row] = await ctx.db
         .insert(job)
@@ -276,13 +251,9 @@ export const jobRouter = router({
             message: "Invalid status transition",
           });
         }
-        await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
       } else if (input.status === "batal") {
         if (role !== "supervisor") {
           throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        if (row.status === "diterima") {
-          await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
         }
       } else {
         throw new TRPCError({ code: "FORBIDDEN" });
@@ -333,7 +304,7 @@ export const jobRouter = router({
         });
       }
 
-      await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
+
       if (input.workDate && input.workDate !== row.workDate) {
         if (input.workDate > todayYmd()) {
           throw new TRPCError({
@@ -341,7 +312,6 @@ export const jobRouter = router({
             message: "Tidak bisa catat pekerjaan di tanggal yang belum terjadi",
           });
         }
-        await assertJobUnlocked(ctx.db, row.employeeId, input.workDate);
       }
 
       if (row.kind === "persenan" && input.bengkelPercent === null) {

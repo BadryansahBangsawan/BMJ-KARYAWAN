@@ -164,11 +164,7 @@ export const laporanRouter = router({
 		const overlapping = periods.filter(
 			(p) => p.startDate <= input.to && p.endDate >= input.from,
 		);
-		const finalized = overlapping.filter((p) => p.status === "finalized");
-		const use =
-			finalized.length > 0
-				? finalized
-				: overlapping.filter((p) => p.status === "draft");
+		const use = overlapping;
 		let takeHome = 0;
 		if (use.length > 0) {
 			const lines = await ctx.db

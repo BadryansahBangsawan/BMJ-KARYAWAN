@@ -10,7 +10,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Lock, Pencil } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
@@ -19,7 +18,6 @@ import { formatRp, jayapuraYearMonth, monthLabel } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
-import { ConfirmDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
 import { MetricCard } from "@/components/metric-card";
 import { PaySlip } from "@/components/pay-slip";
@@ -30,7 +28,6 @@ import { PeriodFields } from "@/components/period-fields";
 import { ResponsiveRecords } from "@/components/responsive-records";
 import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
-import { StatusBadge } from "@/components/status-badge";
 
 function formatHari(tenths: number) {
   return (tenths / 100).toLocaleString("id-ID", {
@@ -116,18 +113,15 @@ function GajiPage() {
   const [year, setYear] = useState(now.year);
   const [month, setMonth] = useState(now.month);
   const [draftPotongan, setDraftPotongan] = useState<Record<string, string>>({});
-  const [finalizeOpen, setFinalizeOpen] = useState(false);
 
   const payrollQuery = useQuery(trpc.payroll.get.queryOptions({ year, month }));
   const meQuery = useQuery(trpc.employee.me.queryOptions());
   const data = payrollQuery.data as PayrollGet | undefined;
-  const period = data?.period;
   const allLines = data?.lines ?? [];
   const meId = (meQuery.data as { id?: string } | null | undefined)?.id;
   const lines =
     role === "mekanik" && meId ? allLines.filter((line) => line.employeeId === meId) : allLines;
-  const isDraft = period?.status !== "finalized";
-  const canEditDraft = role === "supervisor" && isDraft;
+  const canEditDraft = role === "supervisor";
   const totalTakeHome = lines.reduce((sum, line) => sum + line.takeHomeIdr, 0);
 
   const invalidate = () => {
@@ -147,16 +141,6 @@ function GajiPage() {
     trpc.payroll.setDeduction.mutationOptions({
       onSuccess: async () => {
         toast.success("Potongan disimpan");
-        await invalidate();
-      },
-      onError: (error) => toast.error(error.message),
-    }),
-  );
-  const finalizeMut = useMutation(
-    trpc.payroll.finalize.mutationOptions({
-      onSuccess: async () => {
-        toast.success("Periode gaji dikunci");
-        setFinalizeOpen(false);
         await invalidate();
       },
       onError: (error) => toast.error(error.message),
@@ -200,13 +184,6 @@ function GajiPage() {
               >
                 <BusyLabel busy={recomputeMut.isPending}>Hitung ulang dan pertahankan potongan</BusyLabel>
               </Button>
-              <Button
-                type="button"
-                disabled={finalizeMut.isPending}
-                onClick={() => setFinalizeOpen(true)}
-              >
-                Kunci gaji
-              </Button>
             </>
           ) : null
         }
@@ -219,16 +196,6 @@ function GajiPage() {
             onYearChange={setYear}
             onMonthChange={setMonth}
           />
-          {period ? (
-            period.status === "finalized" ? (
-              <StatusBadge icon={Lock} label="Dikunci" tone="success" />
-            ) : (
-              <StatusBadge icon={Pencil} label="Draf" tone="neutral" />
-            )
-          ) : null}
-          {period?.payDate ? (
-            <span className="text-sm text-muted-foreground tabular-nums">Bayar {period.payDate}</span>
-          ) : null}
         </div>
       </PageHeader>
 
@@ -257,8 +224,8 @@ function GajiPage() {
                 title="Belum ada baris gaji"
                 description={
                   canEditDraft
-                    ? "Hitung ulang untuk membuat slip dari kehadiran dan kasbon periode ini."
-                    : "Pilih periode lain, atau minta supervisor menghitung gaji."
+                    ? "Hitung ulang untuk membuat slip dari kehadiran dan kasbon bulan ini."
+                    : "Pilih bulan lain, atau minta supervisor menghitung gaji."
                 }
                 action={
                   canEditDraft ? (
@@ -281,7 +248,6 @@ function GajiPage() {
                     key={line.id}
                     line={line}
                     periodLabel={monthLabel(year, month)}
-                    payDate={period?.payDate}
                     showName={false}
                   />
                 ))}
@@ -295,7 +261,6 @@ function GajiPage() {
                         key={line.id}
                         line={line}
                         periodLabel={monthLabel(year, month)}
-                        payDate={period?.payDate}
                         potongan={
                           canEditDraft ? (
                             <PotonganEditor
@@ -386,16 +351,6 @@ function GajiPage() {
         </>
       )}
 
-      <ConfirmDialog
-        open={finalizeOpen}
-        onOpenChange={setFinalizeOpen}
-        title="Kunci gaji"
-        description="Mengunci periode ini mencegah perubahan slip, potongan kasbon, dan hitung ulang. Lanjutkan hanya jika gaji sudah benar."
-        confirmLabel="Kunci gaji"
-        confirmVariant="default"
-        confirming={finalizeMut.isPending}
-        onConfirm={() => finalizeMut.mutate({ year, month })}
-      />
     </PageShell>
   );
 }

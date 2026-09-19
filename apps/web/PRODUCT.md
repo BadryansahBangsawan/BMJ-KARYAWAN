@@ -44,7 +44,7 @@ Fungsi yang ada dan tidak boleh diubah oleh redesain:
 - Role `supervisor` | `kasir` | `mekanik` dan pembatasan aksesnya.
 - Kasbon: pending → approved/rejected → disbursed → pembayaran → lunas.
 - Pekerjaan: mekanik catat ongkos → diterima; lain proses → selesai → diterima; supervisor batal; bagi hasil ongkos/persenan.
-- Gaji per bulan, potongan kasbon FIFO saat finalize, periode terkunci.
+- Gaji per bulan, potongan kasbon di slip.
 - Toko: tunai, non tunai, panjar.
 - Stack incumbent: TanStack Start (`apps/web`), tRPC, Better Auth, Drizzle/D1, shadcn di `packages/ui`, Tailwind v4.
 
