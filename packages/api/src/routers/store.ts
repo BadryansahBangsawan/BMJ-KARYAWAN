@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { storeTxn } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
-import { kasirProcedure, router } from "../index";
+import { kasirOnlyProcedure, kasirProcedure, router } from "../index";
 
 const kindSchema = z.enum(["kasir", "non_tunai", "panjar"]);
 
@@ -12,7 +12,7 @@ export const storeRouter = router({
 		return await ctx.db.select().from(storeTxn).orderBy(asc(storeTxn.seq));
 	}),
 
-	create: kasirProcedure
+	create: kasirOnlyProcedure
 		.input(
 			z.object({
 				kind: kindSchema,

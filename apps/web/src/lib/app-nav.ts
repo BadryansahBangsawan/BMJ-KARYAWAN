@@ -103,7 +103,6 @@ export function navForRole(role: UserRole): NavItem[] {
     { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
     { to: "/gaji", label: "Gaji", icon: "gaji" },
     { to: "/absen", label: "Absen", icon: "absen" },
-    { to: "/toko", label: "Toko", icon: "toko" },
     { to: "/laporan", label: "Laporan", icon: "laporan" },
     { to: "/karyawan", label: "Karyawan", icon: "karyawan" },
   ];
@@ -112,6 +111,5 @@ export function navForRole(role: UserRole): NavItem[] {
 export const MORE_LINKS: { to: AppPath; label: string }[] = [
   { to: "/gaji", label: "Gaji" },
   { to: "/laporan", label: "Laporan" },
-  { to: "/toko", label: "Toko" },
   { to: "/karyawan", label: "Karyawan" },
 ];

@@ -53,7 +53,7 @@ type PaymentKind = "kasir" | "non_tunai" | "panjar";
 
 export const Route = createFileRoute("/_auth/toko")({
   beforeLoad: ({ context }) => {
-    if (sessionRole(context.session?.user) === "mekanik") {
+    if (sessionRole(context.session?.user) !== "kasir") {
       throw redirect({ to: "/dashboard" });
     }
   },
@@ -124,7 +124,7 @@ function TokoPage() {
     },
   });
 
-  if (role === "mekanik") return null;
+  if (role !== "kasir") return null;
 
   return (
     <PageShell>

@@ -42,3 +42,11 @@ export const kasirProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next();
 });
+
+export const kasirOnlyProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const role = ctx.session.user.role ?? "mekanik";
+  if (role !== "kasir") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Kasir only" });
+  }
+  return next();
+});

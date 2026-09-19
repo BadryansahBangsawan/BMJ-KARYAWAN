@@ -20,7 +20,6 @@ const TAB_ACTIVE = "rounded-md bg-primary font-semibold text-primary-foreground"
 const MORE_PATHS: Record<string, true> = {
   "/gaji": true,
   "/laporan": true,
-  "/toko": true,
   "/karyawan": true,
 };
 

@@ -37,6 +37,8 @@ function AuthLayout() {
     void queryClient.prefetchQuery(trpc.attendance.mineToday.queryOptions());
     if (role === "kasir" || role === "supervisor") {
       void queryClient.prefetchQuery(trpc.kasbon.summary.queryOptions());
+    }
+    if (role === "kasir") {
       void queryClient.prefetchQuery(trpc.store.list.queryOptions());
       void queryClient.prefetchQuery(trpc.store.summary.queryOptions());
     }
