@@ -91,7 +91,7 @@ function jobKindLabel(job: JobRow) {
   if (job.kind === "persenan") {
     return job.bengkelPercent != null ? `Persenan ${job.bengkelPercent}%` : "Persenan";
   }
-  return "Ongkos";
+  return "Gaji";
 }
 
 function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
@@ -769,11 +769,11 @@ function PekerjaanPage() {
                   <div className="space-y-2">
                     <span className="text-sm font-medium">Jenis</span>
                     <FilterChips
-                      ariaLabel="Jenis ongkos"
+                      ariaLabel="Jenis"
                       value={field.state.value}
                       onChange={(value) => field.handleChange(value)}
                       options={[
-                        { value: "ongkos", label: "Ongkos" },
+                        { value: "ongkos", label: "Gaji" },
                         { value: "persenan", label: "Persenan" },
                       ]}
                     />
