@@ -14,6 +14,7 @@ export const employee = sqliteTable("employee", {
 		.references(() => user.id, { onDelete: "set null" }),
 	name: text("name").notNull(),
 	role: text("role").notNull(),
+	payKind: text("pay_kind").notNull().default("persenan"),
 	ongkosPercent: integer("ongkos_percent").notNull().default(0),
 	konsumsiMonthlyIdr: integer("konsumsi_monthly_idr").notNull().default(0),
 	bonusIdr: integer("bonus_idr").notNull().default(0),

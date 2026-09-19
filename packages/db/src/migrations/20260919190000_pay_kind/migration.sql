@@ -1,0 +1,1 @@
+ALTER TABLE `employee` ADD `pay_kind` text DEFAULT 'persenan' NOT NULL;

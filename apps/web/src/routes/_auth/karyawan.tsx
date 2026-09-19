@@ -58,6 +58,7 @@ type EmployeeRow = {
   id: string;
   name: string;
   role: string;
+  payKind?: string;
   ongkosPercent: number;
   konsumsiMonthlyIdr: number;
   bonusIdr: number;
@@ -83,6 +84,7 @@ type EmployeeFormValues = {
   role: Role;
   email: string;
   password: string;
+  payKind: "gaji" | "persenan";
   ongkosPercent: string;
   konsumsiMonthlyIdr: string;
   bonusIdr: string;
@@ -106,10 +108,11 @@ const employeeFormFields = z.object({
   role: z.enum(["supervisor", "kasir", "mekanik"]),
   email: z.string(),
   password: z.string(),
+  payKind: z.enum(["gaji", "persenan"]),
   ongkosPercent: z.string().superRefine((value, ctx) => {
     const percent = Number(value);
     if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
-      ctx.addIssue({ code: "custom", message: "Masukkan persen ongkos 0–100." });
+      ctx.addIssue({ code: "custom", message: "Masukkan persen bengkel 0–100." });
     }
   }),
   konsumsiMonthlyIdr: z.string(),
@@ -154,6 +157,7 @@ const defaultEmployeeValues: EmployeeFormValues = {
   role: "mekanik",
   email: "",
   password: "",
+  payKind: "persenan",
   ongkosPercent: "0",
   konsumsiMonthlyIdr: "",
   bonusIdr: "0",
@@ -166,6 +170,10 @@ function isEmployeeActive(row: EmployeeRow) {
 
 function asRole(role: string): Role {
   return role === "supervisor" || role === "kasir" ? role : "mekanik";
+}
+
+function asPayKind(value: string | undefined): "gaji" | "persenan" {
+  return value === "gaji" ? "gaji" : "persenan";
 }
 
 function countOf(value: unknown) {
@@ -206,6 +214,10 @@ function EmployeeFields({
         handleChange: (value: string | boolean) => void;
       }) => ReactNode;
     }) => ReactNode | Promise<ReactNode>;
+    Subscribe: (props: {
+      selector: (state: { values: EmployeeFormValues }) => "gaji" | "persenan";
+      children: (kind: "gaji" | "persenan") => ReactNode;
+    }) => ReactNode;
   };
   idPrefix: string;
 }) {
@@ -252,6 +264,24 @@ function EmployeeFields({
                 <SelectItem value="supervisor">Supervisor</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        )}
+      </form.Field>
+      <form.Field name="payKind">
+        {(field) => (
+          <div className="space-y-2">
+            <span className="text-sm font-medium">Jenis bayar</span>
+            <FilterChips
+              ariaLabel="Jenis bayar"
+              value={String(field.state.value)}
+              onChange={(value) => {
+                if (value === "gaji" || value === "persenan") field.handleChange(value);
+              }}
+              options={[
+                { value: "gaji", label: "Gaji" },
+                { value: "persenan", label: "Persenan" },
+              ]}
+            />
           </div>
         )}
       </form.Field>
@@ -315,31 +345,52 @@ function EmployeeFields({
       <p id={`${idPrefix}-login-hint`} className="text-pretty text-sm text-muted-foreground">
         Email dan kata sandi keduanya untuk login karyawan. Kata sandi tampil supaya bisa disalin.
       </p>
-      <form.Field name="ongkosPercent">
-        {(field) => {
-          const errorId = `${idPrefix}-${field.name}-error`;
-          return (
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-${field.name}`}>Persen bengkel</Label>
-              <Input
-                id={`${idPrefix}-${field.name}`}
-                inputMode="numeric"
-                className="tabular-nums"
-                value={String(field.state.value)}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-                placeholder="0"
-                aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={fieldDescribedBy(errorId, field.state.meta.errors)}
-              />
-              <p className="text-pretty text-sm text-muted-foreground">
-                Dipotong dulu dari ongkos kerja yang diterima (0–100).
-              </p>
-              <FieldError id={errorId} errors={field.state.meta.errors} />
-            </div>
-          );
-        }}
-      </form.Field>
+      <form.Subscribe selector={(state) => state.values.payKind}>
+        {(kind) =>
+          kind === "gaji" ? (
+            <form.Field name="bonusIdr">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={`${idPrefix}-${field.name}`}>Gaji / bulan</Label>
+                  <MoneyField
+                    id={`${idPrefix}-${field.name}`}
+                    value={String(field.state.value)}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              )}
+            </form.Field>
+          ) : (
+            <form.Field name="ongkosPercent">
+              {(field) => {
+                const errorId = `${idPrefix}-${field.name}-error`;
+                return (
+                  <div className="space-y-2">
+                    <Label htmlFor={`${idPrefix}-${field.name}`}>Persen bengkel</Label>
+                    <Input
+                      id={`${idPrefix}-${field.name}`}
+                      inputMode="numeric"
+                      className="tabular-nums"
+                      value={String(field.state.value)}
+                      onBlur={field.handleBlur}
+                      onChange={(event) => field.handleChange(event.target.value)}
+                      placeholder="0"
+                      aria-invalid={field.state.meta.errors.length > 0}
+                      aria-describedby={fieldDescribedBy(errorId, field.state.meta.errors)}
+                    />
+                    <p className="text-pretty text-sm text-muted-foreground">
+                      Dipotong dulu dari ongkos kerja. Sisa ke karyawan.
+                    </p>
+                    <FieldError id={errorId} errors={field.state.meta.errors} />
+                  </div>
+                );
+              }}
+            </form.Field>
+          )
+        }
+      </form.Subscribe>
       <form.Field name="konsumsiMonthlyIdr">
         {(field) => (
           <div className="space-y-2">
@@ -352,22 +403,8 @@ function EmployeeFields({
               placeholder="Kosong = tidak ada"
             />
             <p className="text-pretty text-sm text-muted-foreground">
-              Dihitung per hari hadir (setengah hari = setengah). Opsional.
+              Masuk slip jika absen 06:00–08:59. Terlambat = tidak dapat.
             </p>
-          </div>
-        )}
-      </form.Field>
-      <form.Field name="bonusIdr">
-        {(field) => (
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-${field.name}`}>Bonus</Label>
-            <MoneyField
-              id={`${idPrefix}-${field.name}`}
-              value={String(field.state.value)}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.value)}
-              placeholder="0"
-            />
           </div>
         )}
       </form.Field>
@@ -515,9 +552,10 @@ function KaryawanPage() {
       await createMut.mutateAsync({
         name: value.name,
         role: value.role,
+        payKind: value.payKind,
         ongkosPercent: Number(value.ongkosPercent),
         konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
-        bonusIdr: Number(value.bonusIdr),
+        bonusIdr: Number(value.bonusIdr || 0),
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
       });
@@ -542,9 +580,10 @@ function KaryawanPage() {
         id: value.id,
         name: value.name,
         role: value.role,
+        payKind: value.payKind,
         ongkosPercent: Number(value.ongkosPercent),
         konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
-        bonusIdr: Number(value.bonusIdr),
+        bonusIdr: Number(value.bonusIdr || 0),
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
       });
@@ -571,6 +610,7 @@ function KaryawanPage() {
     editForm.setFieldValue("role", asRole(row.role));
     editForm.setFieldValue("email", row.email ?? "");
     editForm.setFieldValue("password", "");
+    editForm.setFieldValue("payKind", asPayKind(row.payKind));
     editForm.setFieldValue("ongkosPercent", String(row.ongkosPercent));
     editForm.setFieldValue("konsumsiMonthlyIdr", String(row.konsumsiMonthlyIdr));
     editForm.setFieldValue("bonusIdr", String(row.bonusIdr));
@@ -730,7 +770,7 @@ function KaryawanPage() {
                       <MobileListRow
                         key={row.id}
                         title={row.name}
-                        trailing={`${row.ongkosPercent}%`}
+                        trailing={asPayKind(row.payKind) === "gaji" ? "Gaji" : `${row.ongkosPercent}%`}
                         meta={
                           <>
                             <Badge variant="outline">{roleLabel(row.role)}</Badge>
@@ -759,9 +799,9 @@ function KaryawanPage() {
                     <TableRow>
                       <TableHead>Nama</TableHead>
                       <TableHead>Peran</TableHead>
-                      <TableHead className="text-end">Persen bengkel</TableHead>
+                      <TableHead>Jenis</TableHead>
                       <TableHead className="text-end">Uang makan/hari</TableHead>
-                      <TableHead className="text-end">Bonus</TableHead>
+                      <TableHead className="text-end">Gaji</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Aksi</TableHead>
                     </TableRow>
@@ -775,14 +815,16 @@ function KaryawanPage() {
                           <TableCell>
                             <Badge variant="outline">{roleLabel(row.role)}</Badge>
                           </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {row.ongkosPercent}%
+                          <TableCell>
+                            {asPayKind(row.payKind) === "gaji"
+                              ? "Gaji"
+                              : `Persenan ${row.ongkosPercent}%`}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
                             {formatRp(row.konsumsiMonthlyIdr)}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatRp(row.bonusIdr)}
+                            {asPayKind(row.payKind) === "gaji" ? formatRp(row.bonusIdr) : "—"}
                           </TableCell>
                           <TableCell>
                             <StatusBadge
@@ -819,7 +861,7 @@ function KaryawanPage() {
         submitting={createMut.isPending}
         onSubmit={() => createForm.handleSubmit()}
       >
-        <EmployeeFields form={createForm} idPrefix="create" />
+        <EmployeeFields form={createForm as unknown as Parameters<typeof EmployeeFields>[0]["form"]} idPrefix="create" />
       </FormDialog>
 
       <FormDialog
@@ -836,7 +878,7 @@ function KaryawanPage() {
         submitting={updateMut.isPending}
         onSubmit={() => editForm.handleSubmit()}
       >
-        <EmployeeFields form={editForm} idPrefix="edit" />
+        <EmployeeFields form={editForm as unknown as Parameters<typeof EmployeeFields>[0]["form"]} idPrefix="edit" />
       </FormDialog>
     </PageShell>
   );

@@ -52,11 +52,11 @@ function monthRange(year: number, month: number) {
 }
 
 function mechanicPayIdr(line: {
+  dailyPayIdr: number;
   jobShareIdr: number;
   konsumsiIdr: number;
-  bonusIdr: number;
 }) {
-  return line.jobShareIdr + line.konsumsiIdr + line.bonusIdr;
+  return line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr;
 }
 
 function clampKasbonDeduction(
@@ -190,42 +190,51 @@ async function rebuildDraftLines(
 
   const daysPresentByEmp: Record<string, number> = {};
   const alpaByEmp: Record<string, number> = {};
+  const onTimeDaysByEmp: Record<string, number> = {};
   for (const row of attRows) {
     daysPresentByEmp[row.employeeId] =
       (daysPresentByEmp[row.employeeId] ?? 0) + row.value;
     if (row.value === 0) {
       alpaByEmp[row.employeeId] = (alpaByEmp[row.employeeId] ?? 0) + 1;
     }
+    if (row.value === 100) {
+      onTimeDaysByEmp[row.employeeId] = (onTimeDaysByEmp[row.employeeId] ?? 0) + 1;
+    }
   }
 
   const percentByEmp: Record<string, number> = {};
-  for (const emp of emps) percentByEmp[emp.id] = emp.ongkosPercent;
+  const payKindByEmp: Record<string, string> = {};
+  for (const emp of emps) {
+    percentByEmp[emp.id] = emp.ongkosPercent;
+    payKindByEmp[emp.id] = emp.payKind;
+  }
 
   const jobShareByEmp: Record<string, number> = {};
-  const bengkelByEmp: Record<string, number> = {};
   for (const row of jobRows) {
-    const { bengkelIdr, mechanicIdr } = splitBengkelOngkos(
+    if (payKindByEmp[row.employeeId] === "gaji") continue;
+    const { mechanicIdr } = splitBengkelOngkos(
       row.amountIdr,
       row.bengkelPercent ?? percentByEmp[row.employeeId] ?? 0,
     );
     jobShareByEmp[row.employeeId] = (jobShareByEmp[row.employeeId] ?? 0) + mechanicIdr;
-    bengkelByEmp[row.employeeId] = (bengkelByEmp[row.employeeId] ?? 0) + bengkelIdr;
   }
 
   const values = emps.flatMap((emp) => {
     const daysPresentTenths = daysPresentByEmp[emp.id] ?? 0;
     const alpaDays = alpaByEmp[emp.id] ?? 0;
-    const jobShareIdr = jobShareByEmp[emp.id] ?? 0;
-    const dailyPayIdr = bengkelByEmp[emp.id] ?? 0;
-    const bonusIdr =
-      daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
-    const konsumsiIdr = Math.round(((emp.konsumsiMonthlyIdr || 0) * daysPresentTenths) / 100);
-    const payIdr = jobShareIdr + konsumsiIdr + bonusIdr;
+    const onTimeDays = onTimeDaysByEmp[emp.id] ?? 0;
+    const isGaji = emp.payKind === "gaji";
+    const jobShareIdr = isGaji ? 0 : (jobShareByEmp[emp.id] ?? 0);
+    const dailyPayIdr = isGaji ? emp.bonusIdr || 0 : 0;
+    const bonusIdr = 0;
+    const konsumsiIdr = (emp.konsumsiMonthlyIdr || 0) * onTimeDays;
+    const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr;
     const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
     if (
       !emp.active &&
       daysPresentTenths === 0 &&
       jobShareIdr === 0 &&
+      dailyPayIdr === 0 &&
       kasbonBalanceIdr === 0
     ) {
       return [];

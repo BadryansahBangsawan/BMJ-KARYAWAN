@@ -285,10 +285,9 @@ function GajiPage() {
                       <TableRow>
                         <TableHead>Nama</TableHead>
                         <TableHead className="text-end">Hari</TableHead>
-                        <TableHead className="text-end">Bengkel</TableHead>
-                        <TableHead className="text-end">Mekanik</TableHead>
+                        <TableHead className="text-end">Gaji</TableHead>
+                        <TableHead className="text-end">Persenan</TableHead>
                         <TableHead className="text-end">Uang makan</TableHead>
-                        <TableHead className="text-end">Bonus</TableHead>
                         <TableHead className="text-end">Potongan</TableHead>
                         <TableHead className="text-end">Diterima</TableHead>
                       </TableRow>
@@ -308,9 +307,6 @@ function GajiPage() {
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
                             {formatRp(line.konsumsiIdr)}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {formatRp(line.bonusIdr)}
                           </TableCell>
                           <TableCell className="text-end">
                             {canEditDraft ? (
@@ -342,10 +338,7 @@ function GajiPage() {
 
           <div className="space-y-1">
             <p className="text-pretty text-muted-foreground">
-              Bonus jika hadir minimal 20 hari dan alpa &lt; 5.
-            </p>
-            <p className="text-pretty text-muted-foreground">
-              Uang makan = konsumsi bulanan jika ada hari hadir. Kosong di data karyawan = tidak dihitung.
+              Gaji = gaji bulanan. Persenan = bagian ongkos. Uang makan hanya jika absen 06:00–08:59.
             </p>
           </div>
         </>

@@ -91,14 +91,15 @@ async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[
 			seen.add(j.employeeId);
 		}
 		if (j.status === "diterima") {
+			row.diterimaAmount += j.amountIdr;
+			seen.add(j.employeeId);
+			if (employees.find((e) => e.id === j.employeeId)?.payKind === "gaji") continue;
 			const { bengkelIdr, mechanicIdr } = splitBengkelOngkos(
 				j.amountIdr,
 				j.bengkelPercent ?? percentById.get(j.employeeId) ?? 0,
 			);
-			row.diterimaAmount += j.amountIdr;
 			row.mechanicShare += mechanicIdr;
 			row.bengkelShare += bengkelIdr;
-			seen.add(j.employeeId);
 		}
 	}
 	for (const [id, row] of byEmp) {

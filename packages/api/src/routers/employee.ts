@@ -9,6 +9,7 @@ import { z } from "zod";
 import { kasirProcedure, protectedProcedure, router, supervisorProcedure } from "../index";
 
 const roleSchema = z.enum(["supervisor", "kasir", "mekanik"]);
+const payKindSchema = z.enum(["gaji", "persenan"]);
 type Role = z.infer<typeof roleSchema>;
 
 async function assertUniqueActiveName(
@@ -137,6 +138,7 @@ export const employeeRouter = router({
         userId: employee.userId,
         name: employee.name,
         role: employee.role,
+        payKind: employee.payKind,
         ongkosPercent: employee.ongkosPercent,
         konsumsiMonthlyIdr: employee.konsumsiMonthlyIdr,
         bonusIdr: employee.bonusIdr,
@@ -163,6 +165,7 @@ export const employeeRouter = router({
           z.string().min(8).optional(),
         ),
         ongkosPercent: z.number().int().min(0).max(100),
+        payKind: payKindSchema,
         konsumsiMonthlyIdr: z.number().int().min(0),
         bonusIdr: z.number().int().min(0),
         active: z.boolean(),
@@ -198,9 +201,10 @@ export const employeeRouter = router({
           id: crypto.randomUUID(),
           name: input.name,
           role: input.role,
-          ongkosPercent: input.ongkosPercent,
+          payKind: input.payKind,
+          ongkosPercent: input.payKind === "gaji" ? 0 : input.ongkosPercent,
           konsumsiMonthlyIdr: input.konsumsiMonthlyIdr,
-          bonusIdr: input.bonusIdr,
+          bonusIdr: input.payKind === "gaji" ? input.bonusIdr : 0,
           active: input.active,
           userId,
         })
@@ -214,6 +218,7 @@ export const employeeRouter = router({
         id: z.string().min(1),
         name: z.string().trim().min(1).optional(),
         role: roleSchema.optional(),
+        payKind: payKindSchema.optional(),
         ongkosPercent: z.number().int().min(0).max(100).optional(),
         konsumsiMonthlyIdr: z.number().int().min(0).optional(),
         bonusIdr: z.number().int().min(0).optional(),
@@ -297,11 +302,17 @@ export const employeeRouter = router({
       const [row] = await ctx.db
         .update(employee)
         .set({
-          name: nextName,
           role: nextRole,
-          ongkosPercent: input.ongkosPercent ?? existing.ongkosPercent,
+          payKind: input.payKind ?? existing.payKind,
+          ongkosPercent:
+            (input.payKind ?? existing.payKind) === "gaji"
+              ? 0
+              : (input.ongkosPercent ?? existing.ongkosPercent),
           konsumsiMonthlyIdr: input.konsumsiMonthlyIdr ?? existing.konsumsiMonthlyIdr,
-          bonusIdr: input.bonusIdr ?? existing.bonusIdr,
+          bonusIdr:
+            (input.payKind ?? existing.payKind) === "persenan"
+              ? 0
+              : (input.bonusIdr ?? existing.bonusIdr),
           active: nextActive,
           ...(nextUserId !== undefined ? { userId: nextUserId } : {}),
         })
