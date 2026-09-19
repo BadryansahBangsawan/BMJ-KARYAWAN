@@ -131,7 +131,7 @@ export const jobRouter = router({
     .mutation(async ({ ctx, input }) => {
       const role = roleOf(ctx.session.user);
       if (role === "kasir") {
-        throw new TRPCError({ code: "FORBIDDEN" });
+        throw new TRPCError({ code: "FORBIDDEN", message: "Kasir cannot create jobs" });
       }
 
       const kind = role === "mekanik" ? "ongkos" : input.kind;
@@ -161,7 +161,7 @@ export const jobRouter = router({
           });
         }
         if (input.employeeId && input.employeeId !== own.id) {
-          throw new TRPCError({ code: "FORBIDDEN" });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cannot create jobs for another employee" });
         }
         targetId = own.id;
         bengkelPercent = own.ongkosPercent;
@@ -226,7 +226,7 @@ export const jobRouter = router({
     .mutation(async ({ ctx, input }) => {
       const role = roleOf(ctx.session.user);
       if (role === "mekanik") {
-        throw new TRPCError({ code: "FORBIDDEN" });
+        throw new TRPCError({ code: "FORBIDDEN", message: "Mekanik cannot change job status" });
       }
       const [row] = await ctx.db
         .select()
@@ -243,7 +243,7 @@ export const jobRouter = router({
 
       if (input.status === "diterima") {
         if (role !== "kasir" && role !== "supervisor") {
-          throw new TRPCError({ code: "FORBIDDEN" });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Kasir or supervisor only" });
         }
         if (row.status !== "proses" && row.status !== "selesai") {
           throw new TRPCError({
@@ -253,10 +253,10 @@ export const jobRouter = router({
         }
       } else if (input.status === "batal") {
         if (role !== "supervisor") {
-          throw new TRPCError({ code: "FORBIDDEN" });
+          throw new TRPCError({ code: "FORBIDDEN", message: "Supervisor only" });
         }
       } else {
-        throw new TRPCError({ code: "FORBIDDEN" });
+        throw new TRPCError({ code: "FORBIDDEN", message: "Invalid status transition" });
       }
 
       const [updated] = await ctx.db

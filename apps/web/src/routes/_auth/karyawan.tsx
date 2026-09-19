@@ -191,8 +191,9 @@ function leftoverImport(result: Record<string, unknown>) {
 }
 
 function optionalLoginFields(email: string, password: string) {
+  const trimmed = email.trim();
   return {
-    ...(email ? { email } : {}),
+    ...(trimmed ? { email: trimmed } : {}),
     ...(password ? { password } : {}),
   };
 }

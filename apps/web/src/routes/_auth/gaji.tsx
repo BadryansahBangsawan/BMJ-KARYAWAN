@@ -257,7 +257,7 @@ function GajiPage() {
                   ) : undefined
                 }
               />
-            ) : role === "mekanik" ? (
+            ) : role !== "supervisor" ? (
               <div className="flex flex-col gap-3">
                 {lines.map((line) => (
                   <PaySlip

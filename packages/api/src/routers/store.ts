@@ -16,7 +16,7 @@ export const storeRouter = router({
 		.input(
 			z.object({
 				kind: kindSchema,
-				amountIdr: z.number().int(),
+				amountIdr: z.number().int().positive(),
 				note: z.string().optional(),
 			}),
 		)
