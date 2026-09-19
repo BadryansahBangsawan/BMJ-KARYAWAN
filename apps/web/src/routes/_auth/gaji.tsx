@@ -10,7 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
@@ -113,6 +113,7 @@ function GajiPage() {
   const [year, setYear] = useState(now.year);
   const [month, setMonth] = useState(now.month);
   const [draftPotongan, setDraftPotongan] = useState<Record<string, string>>({});
+  const autoRecomputeKey = useRef<string | null>(null);
 
   const payrollQuery = useQuery(trpc.payroll.get.queryOptions({ year, month }));
   const meQuery = useQuery(trpc.employee.me.queryOptions());
@@ -120,7 +121,11 @@ function GajiPage() {
   const allLines = data?.lines ?? [];
   const meId = (meQuery.data as { id?: string } | null | undefined)?.id;
   const lines =
-    role === "mekanik" && meId ? allLines.filter((line) => line.employeeId === meId) : allLines;
+    role === "supervisor"
+      ? allLines
+      : meId
+        ? allLines.filter((line) => line.employeeId === meId)
+        : [];
   const canEditDraft = role === "supervisor";
   const totalTakeHome = lines.reduce((sum, line) => sum + line.takeHomeIdr, 0);
 
@@ -131,7 +136,6 @@ function GajiPage() {
   const recomputeMut = useMutation(
     trpc.payroll.recompute.mutationOptions({
       onSuccess: async () => {
-        toast.success("Gaji dihitung ulang");
         await invalidate();
       },
       onError: (error) => toast.error(error.message),
@@ -154,9 +158,21 @@ function GajiPage() {
     });
   }
 
-  function recompute(keepDeductions: boolean) {
-    recomputeMut.mutate({ year, month, keepDeductions });
+  function recompute(keepDeductions: boolean, silent = false) {
+    recomputeMut.mutate(
+      { year, month, keepDeductions },
+      silent ? undefined : { onSuccess: () => toast.success("Gaji dihitung ulang") },
+    );
   }
+
+  useEffect(() => {
+    if (role !== "supervisor") return;
+    if (payrollQuery.isPending || payrollQuery.isError) return;
+    const key = `${year}-${month}`;
+    if (autoRecomputeKey.current === key) return;
+    autoRecomputeKey.current = key;
+    recompute((data?.lines?.length ?? 0) > 0, true);
+  }, [role, year, month, payrollQuery.isPending, payrollQuery.isError]);
 
   return (
     <PageShell>

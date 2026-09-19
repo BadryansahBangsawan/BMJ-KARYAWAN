@@ -230,6 +230,9 @@ function RouteComponent() {
         toast.success("Absen pulang tercatat");
       }
       await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
+      await queryClient.invalidateQueries({
+        queryKey: trpc.attendance.month.queryKey({ year, month: monthNum }),
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Absen gagal");
     } finally {

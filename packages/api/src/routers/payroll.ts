@@ -281,7 +281,7 @@ export const payrollRouter = router({
       return { period: null, lines: [] };
     }
     let named = await linesWithNames(ctx.db, period.id);
-    if (role === "mekanik") {
+    if (role !== "supervisor") {
       const [me] = await ctx.db
         .select({ id: employee.id })
         .from(employee)
