@@ -10,11 +10,19 @@ export function StatusBadge({
 }: {
   icon: LucideIcon;
   label: string;
-  tone: "neutral" | "success" | "danger";
+  tone: "neutral" | "success" | "danger" | "warning";
 }): JSX.Element {
   return (
     <Badge
-      variant={tone === "success" ? "success" : tone === "danger" ? "destructive" : "outline"}
+      variant={
+        tone === "success"
+          ? "success"
+          : tone === "danger"
+            ? "destructive"
+            : tone === "warning"
+              ? "secondary"
+              : "outline"
+      }
       className="gap-1"
     >
       <Icon className="size-3" aria-hidden="true" />
