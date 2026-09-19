@@ -192,12 +192,7 @@ function RouteComponent() {
               to: "/pekerjaan" as const,
             })),
           ]
-        : waitingConfirm.slice(0, 6).map((row, index) => ({
-            id: row.id ?? `wait-${index}`,
-            title: row.description ?? "Menunggu konfirmasi",
-            subtitle: "Status selesai, menunggu kasir atau supervisor",
-            to: "/pekerjaan" as const,
-          }));
+        : [];
 
   const shortcuts =
     role === "supervisor"

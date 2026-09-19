@@ -246,6 +246,9 @@ export const jobRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const role = roleOf(ctx.session.user);
+      if (role === "mekanik") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
       const [row] = await ctx.db
         .select()
         .from(job)
@@ -259,20 +262,7 @@ export const jobRouter = router({
         return row;
       }
 
-      const own = await employeeByUserId(ctx.db, ctx.session.user.id);
-      const isOwn = own?.id === row.employeeId;
-
-      if (input.status === "selesai") {
-        if (role !== "mekanik" || !isOwn) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-        if (row.status !== "proses") {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Invalid status transition",
-          });
-        }
-      } else if (input.status === "diterima") {
+      if (input.status === "diterima") {
         if (role !== "kasir" && role !== "supervisor") {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
@@ -283,13 +273,15 @@ export const jobRouter = router({
           });
         }
         await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
-      } else {
+      } else if (input.status === "batal") {
         if (role !== "supervisor") {
           throw new TRPCError({ code: "FORBIDDEN" });
         }
         if (row.status === "diterima") {
           await assertJobUnlocked(ctx.db, row.employeeId, row.workDate);
         }
+      } else {
+        throw new TRPCError({ code: "FORBIDDEN" });
       }
 
       const [updated] = await ctx.db

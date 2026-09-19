@@ -99,7 +99,7 @@ function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
 }
 
 function jobNeedsAction(job: JobRow, role: UserRole) {
-  if (role === "mekanik") return job.status === "proses";
+  if (role === "mekanik") return false;
   return job.status === "proses" || job.status === "selesai";
 }
 
@@ -145,7 +145,6 @@ function JobRowActions({
   job,
   role,
   busy,
-  onSelesai,
   onTerima,
   onBatal,
   onDetail,
@@ -153,27 +152,20 @@ function JobRowActions({
   job: JobRow;
   role: UserRole;
   busy: boolean;
-  onSelesai: () => void;
   onTerima: () => void;
   onBatal: () => void;
   onDetail: () => void;
 }) {
-  const canSelesai = role === "mekanik" && job.status === "proses";
   const canTerima =
     (role === "kasir" || role === "supervisor") &&
     (job.status === "proses" || job.status === "selesai");
   const canBatal = role === "supervisor" && job.status !== "batal";
   const hasDetail = Boolean(job.customerNote || job.struk);
 
-  if (!canSelesai && !canTerima && !canBatal && !hasDetail) return null;
+  if (!canTerima && !canBatal && !hasDetail) return null;
 
   return (
     <>
-      {canSelesai ? (
-        <Button size="sm" variant="outline" disabled={busy} onClick={onSelesai}>
-          Tandai selesai
-        </Button>
-      ) : null}
       {canTerima ? (
         <Button size="sm" variant="outline" disabled={busy} onClick={onTerima}>
           Terima pekerjaan
@@ -534,7 +526,6 @@ function PekerjaanPage() {
                         job={job}
                         role={role}
                         busy={rowBusy(job.id)}
-                        onSelesai={() => statusMut.mutate({ id: job.id, status: "selesai" })}
                         onTerima={() => statusMut.mutate({ id: job.id, status: "diterima" })}
                         onBatal={() => setCancelId(job.id)}
                         onDetail={() => setDetailId(job.id)}
@@ -573,7 +564,6 @@ function PekerjaanPage() {
                               job={job}
                               role={role}
                               busy={rowBusy(job.id)}
-                              onSelesai={() => statusMut.mutate({ id: job.id, status: "selesai" })}
                               onTerima={() => statusMut.mutate({ id: job.id, status: "diterima" })}
                               onBatal={() => setCancelId(job.id)}
                               onDetail={() => setDetailId(job.id)}
