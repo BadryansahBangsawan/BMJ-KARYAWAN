@@ -125,7 +125,7 @@ export const Route = createFileRoute("/api/extract-struk")({
               content: [
                 {
                   type: "text",
-                  text: 'Dari foto struk/nota ini, ekstrak: (1) nomor struk/nota jika ada, (2) tanggal nota dalam format YYYY-MM-DD. Jawab hanya JSON: {"nomorStruk": "...", "tanggal": "YYYY-MM-DD"}. Jika tidak ditemukan, omit field tersebut.',
+                  text: 'Dari foto resi/struk/nota, baca nomor struk/nota/invoice yang tercetak (label No, No., Nomor, Inv). Salin persis seperti di kertas. Tanggal nota YYYY-MM-DD jika ada. JSON saja: {"nomorStruk":"...","tanggal":"YYYY-MM-DD"}. Omit field yang tidak terbaca.',
                 },
                 { type: "image_url", image_url: { url: dataUrl } },
               ],

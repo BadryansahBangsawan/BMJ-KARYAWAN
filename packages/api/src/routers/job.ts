@@ -140,7 +140,14 @@ export const jobRouter = router({
         workDate: ymd,
         description: z.string().trim().min(1),
         amountIdr: z.number().int().positive(),
-        struk: z.string().optional(),
+        struk: z
+          .string()
+          .trim()
+          .max(120)
+          .optional()
+          .transform((value) =>
+            !value || value.startsWith("data:") ? undefined : value,
+          ),
         customerNote: z.string().optional(),
         kind: jobKindSchema,
         bengkelPercent: z.number().int().min(0).max(100).optional(),
@@ -218,7 +225,7 @@ export const jobRouter = router({
           workDate,
           description: input.description,
           amountIdr: input.amountIdr,
-          struk: input.struk?.startsWith("data:") ? null : (input.struk ?? null),
+          struk: input.struk ?? null,
           customerNote: input.customerNote ?? null,
           status: role === "mekanik" ? "diterima" : "proses",
           kind,
@@ -304,7 +311,15 @@ export const jobRouter = router({
         workDate: ymd.optional(),
         description: z.string().trim().min(1).optional(),
         amountIdr: z.number().int().positive().optional(),
-        struk: z.string().nullable().optional(),
+        struk: z
+          .string()
+          .trim()
+          .max(120)
+          .nullable()
+          .optional()
+          .transform((value) =>
+            value == null || value.startsWith("data:") ? null : value,
+          ),
         customerNote: z.string().nullable().optional(),
         bengkelPercent: z.number().int().min(0).max(100).nullable().optional(),
       }),

@@ -28,7 +28,7 @@ import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Ban, Check, CircleCheck, CircleDashed, Loader2 } from "lucide-react";
+import { Ban, Camera, Check, CircleCheck, CircleDashed, Loader2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import z from "zod";
 import { toast } from "sonner";
@@ -208,8 +208,7 @@ function PekerjaanPage() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
-  const [strukturInfo, setStrukturInfo] = useState("");
-  const [nomorStruk, setNomorStruk] = useState("");
+  const [strukPreview, setStrukPreview] = useState("");
   const extractAbortRef = useRef<AbortController | null>(null);
 
   const listInput = {
@@ -327,8 +326,8 @@ function PekerjaanPage() {
         amountIdr: Number(value.amountIdr),
         kind: role === "mekanik" ? "ongkos" : value.kind,
       };
-      if (nomorStruk) payload.struk = nomorStruk;
-      else if (value.struk && !value.struk.startsWith("data:")) payload.struk = value.struk;
+      const nomor = value.struk.trim();
+      if (nomor) payload.struk = nomor;
       if (value.customerNote) payload.customerNote = value.customerNote;
       if (role !== "mekanik" && value.kind === "persenan") {
         payload.bengkelPercent = Number(value.bengkelPercent);
@@ -337,8 +336,7 @@ function PekerjaanPage() {
         payload.employeeId = value.employeeId;
       }
       await createMut.mutateAsync(payload);
-      setNomorStruk("");
-      setStrukturInfo("");
+      setStrukPreview("");
       form.reset();
     },
     validators: {
@@ -348,7 +346,7 @@ function PekerjaanPage() {
           workDate: z.string().min(1, "Masukkan tanggal pekerjaan."),
           description: z.string().min(1, "Masukkan uraian pekerjaan."),
           amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan ongkos lebih dari 0."),
-          struk: z.string(),
+          struk: z.string().max(120, "Nomor struk terlalu panjang."),
           customerNote: z.string(),
           kind: z.enum(["ongkos", "persenan"]),
           bengkelPercent: z.string(),
@@ -393,12 +391,10 @@ function PekerjaanPage() {
     return statusMut.isPending && statusMut.variables?.id === jobId;
   }
 
-  async function handleStrukFile(file: File, onPreview: (url: string) => void) {
+  async function handleStrukFile(file: File) {
     try {
       const vision = await jpegDataUrlFromFile(file, 768, 70_000);
-      onPreview(vision);
-      setStrukturInfo("");
-      setNomorStruk("");
+      setStrukPreview(vision);
       extractAbortRef.current?.abort();
       const ctrl = new AbortController();
       extractAbortRef.current = ctrl;
@@ -409,13 +405,12 @@ function PekerjaanPage() {
         form.setFieldValue("workDate", result.tanggal);
       }
       if (result.nomorStruk) {
-        setNomorStruk(result.nomorStruk);
-        setStrukturInfo(`No. struk: ${result.nomorStruk}`);
-        toast.success("Struk terbaca");
+        form.setFieldValue("struk", result.nomorStruk);
+        toast.success(`Nomor struk: ${result.nomorStruk}`);
       } else if (result.tanggal && role !== "mekanik") {
-        toast.success("Tanggal struk terbaca");
+        toast.success("Tanggal struk terbaca. Ketik nomor struk manual.");
       } else {
-        toast.error("Struk tidak terbaca. Isi uraian manual.");
+        toast.error("Nomor struk tidak terbaca. Ketik manual.");
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -529,6 +524,7 @@ function PekerjaanPage() {
                           {jobMechanicName(job, nameById)}
                           {" · "}
                           <span className="tabular-nums">{job.workDate}</span>
+                          {job.struk && !isStrukImage(job.struk) ? ` · No. ${job.struk}` : null}
                         </>
                       }
                       trailing={formatRp(job.amountIdr)}
@@ -603,7 +599,7 @@ function PekerjaanPage() {
               form.setFieldValue("workDate", todayYmd());
               if (role === "mekanik") form.setFieldValue("kind", "ongkos");
             } else {
-              setStrukturInfo("");
+              setStrukPreview("");
               setExtracting(false);
               extractAbortRef.current?.abort();
             }
@@ -614,8 +610,7 @@ function PekerjaanPage() {
               ? "Uraian dan ongkos. Langsung tercatat, tanpa konfirmasi kasir."
               : "Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
           }
-          submitLabel="Catat pekerjaan"
-          submitting={createMut.isPending}
+          submitting={createMut.isPending || extracting}
           onSubmit={() => form.handleSubmit()}
         >
           {role === "supervisor" ? (
@@ -649,67 +644,55 @@ function PekerjaanPage() {
             </form.Field>
           ) : null}
 
-          {/* Struk (foto) — hanya untuk mekanik, muncul paling atas */}
-          {role === "mekanik" ? (
-            <form.Field name="struk">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label>Struk</Label>
-                  {field.state.value && isStrukImage(field.state.value) ? (
-                    <div className="flex items-start gap-3">
-                      <img
-                        src={field.state.value}
-                        alt="Preview struk"
-                        className="max-h-20 w-auto max-w-[6rem] rounded-[8px] object-contain outline outline-1 outline-border"
-                      />
-                      <div className="flex flex-col gap-1">
-                        {strukturInfo ? (
-                          <p className="text-xs text-muted-foreground">{strukturInfo}</p>
-                        ) : null}
-                        <label className="cursor-pointer text-sm font-medium text-primary underline-offset-2 hover:underline">
-                          Ganti
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            className="sr-only"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              e.target.value = "";
-                              if (!file) return;
-                              void handleStrukFile(file, (url) => field.handleChange(url));
-                            }}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50">
-                      {extracting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <span>📷</span>
-                      )}
-                      Foto struk
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file) return;
-                          void handleStrukFile(file, (url) => field.handleChange(url));
-                        }}
-                      />
-                    </label>
-                  )}
+          <form.Field name="struk">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor="nomor-struk">Nomor struk</Label>
+                <Input
+                  id="nomor-struk"
+                  name={field.name}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder="Foto resi atau ketik nomor"
+                  autoComplete="off"
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={fieldDescribedBy("nomor-struk-error", field.state.meta.errors)}
+                />
+                <FieldError id="nomor-struk-error" errors={field.state.meta.errors} />
+                <div className="flex min-w-0 items-center gap-3">
+                  {strukPreview ? (
+                    <img
+                      src={strukPreview}
+                      alt=""
+                      className="max-h-16 w-auto max-w-[4.5rem] rounded-[8px] object-contain outline outline-1 outline-border"
+                    />
+                  ) : null}
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50">
+                    {extracting ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Camera className="size-4" aria-hidden="true" />
+                    )}
+                    {extracting ? "Membaca nomor…" : "Foto resi"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="sr-only"
+                      disabled={extracting}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        event.target.value = "";
+                        if (!file) return;
+                        void handleStrukFile(file);
+                      }}
+                    />
+                  </label>
                 </div>
-              )}
-            </form.Field>
-          ) : null}
-
+              </div>
+            )}
+          </form.Field>
           {role === "mekanik" ? (
             <p className="min-w-0 text-pretty text-sm text-muted-foreground">
               Tanggal {formatLongDate(todayYmd())}
@@ -787,23 +770,7 @@ function PekerjaanPage() {
             )}
           </form.Field>
 
-          {/* Struk teks — hanya untuk supervisor, di bawah Ket */}
-          {role === "supervisor" ? (
-            <form.Field name="struk">
-              {(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor={field.name}>Struk</Label>
-                  <Input
-                    id={field.name}
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="Nomor atau tautan struk"
-                  />
-                </div>
-              )}
-            </form.Field>
-          ) : null}
+
 
           {role === "supervisor" ? (
             <>
@@ -897,7 +864,7 @@ function PekerjaanPage() {
               ) : null}
               {detailRow.struk ? (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Struk</p>
+                  <p className="text-sm font-medium">Nomor struk</p>
                   {isStrukImage(detailRow.struk) ? (
                     <a href={detailRow.struk} target="_blank" rel="noreferrer">
                       <img
@@ -907,7 +874,7 @@ function PekerjaanPage() {
                       />
                     </a>
                   ) : (
-                    <p className="break-all text-sm text-muted-foreground">{detailRow.struk}</p>
+                    <p className="break-all text-sm tabular-nums text-muted-foreground">{detailRow.struk}</p>
                   )}
                 </div>
               ) : null}
