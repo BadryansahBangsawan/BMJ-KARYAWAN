@@ -11,6 +11,7 @@ import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
 import { formatRp, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
+import { authClient } from "@/lib/auth-client";
 import { sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
@@ -79,7 +80,9 @@ function kasbonSisa(row: z.infer<typeof kasbonRowSchema>): number {
 }
 
 function RouteComponent() {
-  const { session } = Route.useRouteContext();
+  const { session: routeSession } = Route.useRouteContext();
+  const { data: liveSession } = authClient.useSession();
+  const session = liveSession ?? routeSession;
   const role = sessionRole(session?.user);
   const isStaff = role === "kasir" || role === "supervisor";
   const today = todayParts();

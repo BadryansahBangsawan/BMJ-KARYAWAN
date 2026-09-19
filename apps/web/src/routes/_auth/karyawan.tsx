@@ -20,7 +20,7 @@ import {
 } from "@BMJ-KARYAWAN/ui/components/table";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Check, CircleOff } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -385,6 +385,7 @@ export const Route = createFileRoute("/_auth/karyawan")({
 function KaryawanPage() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { data: session } = authClient.useSession();
   const role = sessionRole(session?.user);
   const [createOpen, setCreateOpen] = useState(false);
@@ -400,25 +401,27 @@ function KaryawanPage() {
   const rows = (listQuery.data ?? []) as EmployeeRow[];
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: trpc.employee.list.queryKey() });
+    void queryClient.invalidateQueries();
+    void authClient.getSession({ query: { disableCookieCache: true } });
+    void router.invalidate();
   };
 
   const createMut = useMutation(
     trpc.employee.create.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Karyawan ditambah");
         setCreateOpen(false);
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
   );
   const updateMut = useMutation(
     trpc.employee.update.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Karyawan diperbarui");
         setEditingId(null);
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),

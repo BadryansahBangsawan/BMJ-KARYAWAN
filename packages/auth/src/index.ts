@@ -22,6 +22,11 @@ export function createAuth(env: AuthConfig, database: Database) {
     emailAndPassword: { enabled: true, disableSignUp: true },
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
+    session: {
+      cookieCache: {
+        enabled: false,
+      },
+    },
     ...(env.GOOGLE_CLIENT_ID
       ? {
           socialProviders: {

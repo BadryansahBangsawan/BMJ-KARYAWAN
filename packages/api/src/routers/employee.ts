@@ -111,7 +111,22 @@ export const employeeRouter = router({
   }),
 
   list: kasirProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(employee).orderBy(employee.name);
+    return ctx.db
+      .select({
+        id: employee.id,
+        userId: employee.userId,
+        name: employee.name,
+        role: employee.role,
+        ongkosPercent: employee.ongkosPercent,
+        konsumsiMonthlyIdr: employee.konsumsiMonthlyIdr,
+        bonusIdr: employee.bonusIdr,
+        active: employee.active,
+        createdAt: employee.createdAt,
+        email: user.email,
+      })
+      .from(employee)
+      .leftJoin(user, eq(employee.userId, user.id))
+      .orderBy(employee.name);
   }),
 
   create: supervisorProcedure

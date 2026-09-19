@@ -1,5 +1,5 @@
 import type { AppRouter } from "@BMJ-KARYAWAN/api/routers/index";
-import { keepPreviousData, QueryCache, QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
@@ -8,10 +8,11 @@ import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { toast } from "sonner";
 
 import { routeTree } from "./routeTree.gen";
+import { authClient } from "./lib/auth-client";
 import { TRPCProvider } from "./utils/trpc";
 
 function createQueryClient() {
-  return new QueryClient({
+  const queryClient: QueryClient = new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
         if (query.state.data !== undefined) return;
@@ -25,6 +26,12 @@ function createQueryClient() {
         });
       },
     }),
+    mutationCache: new MutationCache({
+      onSuccess: () => {
+        void queryClient.invalidateQueries();
+        void authClient.getSession({ query: { disableCookieCache: true } });
+      },
+    }),
     defaultOptions: {
       queries: {
         staleTime: 30_000,
@@ -36,6 +43,7 @@ function createQueryClient() {
       },
     },
   });
+  return queryClient;
 }
 
 const trpcFetch = createIsomorphicFn()

@@ -3,7 +3,7 @@ import { Input } from "@BMJ-KARYAWAN/ui/components/input";
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -24,9 +24,12 @@ export const Route = createFileRoute("/_auth/profil")({
 });
 
 function ProfilPage() {
-  const { session } = Route.useRouteContext();
+  const { session: routeSession } = Route.useRouteContext();
+  const { data: liveSession } = authClient.useSession();
+  const session = liveSession ?? routeSession;
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const [imageDraft, setImageDraft] = useState<string | null | undefined>(undefined);
@@ -43,12 +46,8 @@ function ProfilPage() {
       onSuccess: async () => {
         toast.success("Profil disimpan");
         await authClient.getSession({ query: { disableCookieCache: true } });
-        void queryClient.invalidateQueries({
-          predicate: (query) => {
-            const path = query.queryKey[0];
-            return Array.isArray(path) && path[0] === "employee";
-          },
-        });
+        void queryClient.invalidateQueries();
+        void router.invalidate();
         setImageDraft(undefined);
       },
       onError: (error) => toast.error(error.message),
