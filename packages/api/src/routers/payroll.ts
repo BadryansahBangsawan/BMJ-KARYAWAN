@@ -225,7 +225,7 @@ async function rebuildDraftLines(
     const onTimeDays = onTimeDaysByEmp[emp.id] ?? 0;
     const isGaji = emp.payKind === "gaji";
     const jobShareIdr = isGaji ? 0 : (jobShareByEmp[emp.id] ?? 0);
-    const dailyPayIdr = isGaji ? emp.bonusIdr || 0 : 0;
+    const dailyPayIdr = isGaji && emp.active ? emp.bonusIdr || 0 : 0;
     const bonusIdr = 0;
     const konsumsiIdr = (emp.konsumsiMonthlyIdr || 0) * onTimeDays;
     const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr;

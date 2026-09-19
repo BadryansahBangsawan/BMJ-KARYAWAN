@@ -600,6 +600,7 @@ function PekerjaanPage() {
               ? "Uraian dan ongkos. Langsung tercatat, tanpa konfirmasi kasir."
               : "Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
           }
+          submitLabel="Catat pekerjaan"
           submitting={createMut.isPending || extracting}
           onSubmit={() => form.handleSubmit()}
         >
