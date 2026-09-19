@@ -22,7 +22,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Check, CircleOff } from "lucide-react";
+import { Check, CircleOff, Eye, EyeOff } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import z from "zod";
 
@@ -209,6 +209,7 @@ function EmployeeFields({
   };
   idPrefix: string;
 }) {
+  const [showPassword, setShowPassword] = useState(true);
   return (
     <>
       <form.Field name="name">
@@ -281,25 +282,38 @@ function EmployeeFields({
           return (
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-${field.name}`}>Kata sandi (opsional)</Label>
-              <Input
-                id={`${idPrefix}-${field.name}`}
-                type="password"
-                value={String(field.state.value)}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.value)}
-                autoComplete="new-password"
-                aria-invalid={field.state.meta.errors.length > 0}
-                aria-describedby={
-                  fieldDescribedBy(errorId, field.state.meta.errors) ?? `${idPrefix}-login-hint`
-                }
-              />
+              <div className="flex gap-2">
+                <Input
+                  id={`${idPrefix}-${field.name}`}
+                  type={showPassword ? "text" : "password"}
+                  value={String(field.state.value)}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  aria-invalid={field.state.meta.errors.length > 0}
+                  aria-describedby={
+                    fieldDescribedBy(errorId, field.state.meta.errors) ?? `${idPrefix}-login-hint`
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0 px-3"
+                  aria-pressed={showPassword}
+                  aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                  onClick={() => setShowPassword((open) => !open)}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </Button>
+              </div>
               <FieldError id={errorId} errors={field.state.meta.errors} />
             </div>
           );
         }}
       </form.Field>
       <p id={`${idPrefix}-login-hint`} className="text-pretty text-sm text-muted-foreground">
-        {LOGIN_PAIR_MESSAGE}
+        Email dan kata sandi keduanya untuk login karyawan. Kata sandi tampil supaya bisa disalin.
       </p>
       <form.Field name="ongkosPercent">
         {(field) => {
@@ -329,7 +343,7 @@ function EmployeeFields({
       <form.Field name="konsumsiMonthlyIdr">
         {(field) => (
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-${field.name}`}>Konsumsi bulanan</Label>
+            <Label htmlFor={`${idPrefix}-${field.name}`}>Uang makan / hari</Label>
             <MoneyField
               id={`${idPrefix}-${field.name}`}
               value={String(field.state.value)}
@@ -338,7 +352,7 @@ function EmployeeFields({
               placeholder="Kosong = tidak ada"
             />
             <p className="text-pretty text-sm text-muted-foreground">
-              Uang makan sebulan jika ada hari hadir. Opsional.
+              Dihitung per hari hadir (setengah hari = setengah). Opsional.
             </p>
           </div>
         )}
@@ -650,6 +664,9 @@ function KaryawanPage() {
                               label={active ? "Aktif" : "Nonaktif"}
                               tone={active ? "success" : "neutral"}
                             />
+                            {row.email ? (
+                              <span className="text-muted-foreground">{row.email}</span>
+                            ) : null}
                           </>
                         }
                       >
@@ -668,7 +685,7 @@ function KaryawanPage() {
                       <TableHead>Nama</TableHead>
                       <TableHead>Peran</TableHead>
                       <TableHead className="text-end">Persen bengkel</TableHead>
-                      <TableHead className="text-end">Konsumsi/bulan</TableHead>
+                      <TableHead className="text-end">Uang makan/hari</TableHead>
                       <TableHead className="text-end">Bonus</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Aksi</TableHead>

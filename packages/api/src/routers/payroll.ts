@@ -225,7 +225,7 @@ async function rebuildDraftLines(
     const dailyPayIdr = bengkelByEmp[emp.id] ?? 0;
     const bonusIdr =
       daysPresentTenths >= 2000 && alpaDays < 5 ? emp.bonusIdr : 0;
-    const konsumsiIdr = daysPresentTenths > 0 ? emp.konsumsiMonthlyIdr || 0 : 0;
+    const konsumsiIdr = Math.round(((emp.konsumsiMonthlyIdr || 0) * daysPresentTenths) / 100);
     const payIdr = jobShareIdr + konsumsiIdr + bonusIdr;
     const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
     if (
