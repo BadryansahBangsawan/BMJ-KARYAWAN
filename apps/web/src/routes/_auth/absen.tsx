@@ -56,6 +56,10 @@ function dayNumber(date: string) {
   return Number(date.slice(8));
 }
 
+function markKey(employeeId: string, workDate: string) {
+  return `${employeeId}:${workDate}`;
+}
+
 function AttendanceLegend() {
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
