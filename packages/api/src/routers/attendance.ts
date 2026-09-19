@@ -90,6 +90,35 @@ function todayYmdJayapura() {
   return new Date().toLocaleDateString("en-CA", { timeZone: TZ });
 }
 
+function jayapuraMinutes(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  return hour * 60 + minute;
+}
+
+function selfCheckinValue(now = new Date()) {
+  const mins = jayapuraMinutes(now);
+  if (mins < 6 * 60) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Absen masuk mulai jam 06:00",
+    });
+  }
+  if (mins <= 8 * 60 + 59) return 100;
+  if (mins <= 9 * 60 + 29) return 90;
+  if (mins <= 12 * 60) return 50;
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: "Absen masuk hanya sampai jam 12:00",
+  });
+}
+
 function assertNotFutureWorkDate(workDate: string) {
   if (workDate > todayYmdJayapura()) {
     throw new TRPCError({
@@ -184,11 +213,12 @@ export const attendanceRouter = router({
       }
 
       const now = new Date();
+      const value = selfCheckinValue(now);
       if (existing) {
         const [updated] = await ctx.db
           .update(attendance)
           .set({
-            value: 100,
+            value,
             markedByUserId: ctx.session.user.id,
             checkInAt: now,
             checkInPhoto: input.photo,
@@ -211,7 +241,7 @@ export const attendanceRouter = router({
           id: crypto.randomUUID(),
           employeeId: me.id,
           workDate,
-          value: 100,
+          value,
           markedByUserId: ctx.session.user.id,
           checkInAt: now,
           checkInPhoto: input.photo,
@@ -369,7 +399,7 @@ export const attendanceRouter = router({
       z.object({
         employeeId: z.string().min(1),
         workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        value: z.union([z.literal(0), z.literal(50), z.literal(100)]),
+        value: z.union([z.literal(0), z.literal(50), z.literal(90), z.literal(100)]),
       }),
     )
     .mutation(async ({ ctx, input }) => {

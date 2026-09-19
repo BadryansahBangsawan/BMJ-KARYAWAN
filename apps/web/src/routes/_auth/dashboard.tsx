@@ -1,4 +1,5 @@
 import { Button } from "@BMJ-KARYAWAN/ui/components/button";
+import { cn } from "@BMJ-KARYAWAN/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -10,7 +11,8 @@ import { ActionQueue } from "@/components/action-queue";
 import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
-import { formatRp, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
+import { absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
+import { formatRp, jayapuraYearMonth, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { authClient } from "@/lib/auth-client";
 import { sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
@@ -88,6 +90,7 @@ function RouteComponent() {
   const today = todayParts();
   const days = weekDays();
   const month = monthBounds();
+  const { year, month: monthNum } = jayapuraYearMonth();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [clockBusy, setClockBusy] = useState(false);
@@ -118,6 +121,11 @@ function RouteComponent() {
     }),
     enabled: isStaff,
   });
+  const absenMonth = useQuery({
+    ...trpc.attendance.month.queryOptions({ year, month: monthNum }),
+    refetchInterval: 8_000,
+  });
+
 
 
   const failed = me.isError || kasbon.isError || jobs.isError || (isStaff && diagram.isError);
@@ -214,6 +222,17 @@ function RouteComponent() {
   const moneyValue = role === "mekanik" ? formatRp(ownSisa) : formatRp(diagramData.pendapatan);
   const checkedIn = Boolean(mineToday.data?.checkInAt);
   const checkedOut = Boolean(mineToday.data?.checkOutAt);
+  const absenEmployees = (
+    absenMonth.data as { employees?: Array<{ id: string; name: string }> } | undefined
+  )?.employees ?? [];
+  const absenMarks = (
+    absenMonth.data as { marks?: Array<{ employeeId: string; workDate: string; value: number }> } | undefined
+  )?.marks ?? [];
+  const ownAbsenByDate: Record<string, number> = {};
+  for (const mark of absenMarks) {
+    if (employeeId && mark.employeeId === employeeId) ownAbsenByDate[mark.workDate] = mark.value;
+  }
+
 
   async function clockFromFile(file: File) {
     setClockBusy(true);
@@ -244,20 +263,28 @@ function RouteComponent() {
         <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
 
         <ol className="mt-6 grid grid-cols-7 gap-1.5" aria-label="Minggu ini">
-          {days.map((day) => (
-            <li key={day.ymd}>
-              <div
-                className={
-                  day.isToday
-                    ? "flex aspect-square flex-col items-center justify-center rounded-md bg-primary text-primary-foreground"
-                    : "flex aspect-square flex-col items-center justify-center rounded-md bg-muted text-foreground"
-                }
-              >
-                <span className="text-[0.65rem] font-semibold uppercase">{day.label}</span>
-                <span className="font-display text-xl leading-none">{day.day}</span>
-              </div>
-            </li>
-          ))}
+          {days.map((day) => {
+            const shown = displayedAbsenValue(
+              ownAbsenByDate[day.ymd],
+              day.ymd,
+              workDate,
+              day.isSunday,
+            );
+            return (
+              <li key={day.ymd}>
+                <div
+                  className={cn(
+                    "flex aspect-square flex-col items-center justify-center rounded-md",
+                    absenToneClass(shown),
+                    day.isToday ? "ring-2 ring-foreground" : "",
+                  )}
+                >
+                  <span className="text-[0.65rem] font-semibold uppercase">{day.label}</span>
+                  <span className="font-display text-xl leading-none">{day.day}</span>
+                </div>
+              </li>
+            );
+          })}
         </ol>
 
         <div className="mt-6">
@@ -269,6 +296,36 @@ function RouteComponent() {
           />
         </div>
       </section>
+
+      {role === "supervisor" ? (
+        <section className="rounded-xl bg-card px-4 py-4 shadow-[var(--shadow-border)]">
+          <h2 className="text-lg font-semibold tracking-tight">Absen hari ini</h2>
+          {absenEmployees.length === 0 ? (
+            <p className="mt-2 text-sm text-muted-foreground">Tidak ada karyawan aktif.</p>
+          ) : (
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {absenEmployees.map((emp) => {
+                const mark = absenMarks.find(
+                  (row) => row.employeeId === emp.id && row.workDate === workDate,
+                );
+                const shown = displayedAbsenValue(mark?.value, workDate, workDate);
+                return (
+                  <li
+                    key={emp.id}
+                    className={cn(
+                      "flex min-h-12 items-center justify-between gap-3 rounded-lg px-3 py-2",
+                      absenToneClass(shown),
+                    )}
+                  >
+                    <span className="truncate font-medium">{emp.name}</span>
+                    <span className="shrink-0 tabular-nums">{absenLabel(shown)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : null}
 
       {failed ? (
         <PageError

@@ -18,7 +18,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-
+import { cn } from "@BMJ-KARYAWAN/ui/lib/utils";
 import { AbsenClockButton } from "@/components/absen-clock-button";
 import Loader from "@/components/loader";
 import { PageHeader } from "@/components/page-header";
@@ -27,6 +27,16 @@ import { PeriodFields } from "@/components/period-fields";
 import { PageError, StatePanel } from "@/components/state-panel";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
+import {
+  ABSEN_ALPA,
+  ABSEN_FULL,
+  ABSEN_HALF,
+  ABSEN_LATE,
+  absenCaption,
+  absenLabel,
+  absenToneClass,
+  displayedAbsenValue,
+} from "@/lib/absen";
 import { formatLongDate, jayapuraYearMonth, monthLabel, todayYmd } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
@@ -46,41 +56,37 @@ function dayNumber(date: string) {
   return Number(date.slice(8));
 }
 
-function cellLabel(value: number | undefined) {
-  if (value === 100) return "1";
-  if (value === 50) return "0,5";
-  if (value === 0) return "0";
-  return "";
-}
-
-function markKey(employeeId: string, workDate: string) {
-  return `${employeeId}:${workDate}`;
-}
-
 function AttendanceLegend() {
   return (
-    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-      <li>
-        <span className="tabular-nums">1</span> hadir
+    <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+      <li className="inline-flex items-center gap-1.5">
+        <span className={cn("inline-flex h-6 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums", absenToneClass(ABSEN_FULL))}>1</span>
+        hadir 06:00–08:59
       </li>
-      <li>
-        <span className="tabular-nums">0,5</span> setengah
+      <li className="inline-flex items-center gap-1.5">
+        <span className={cn("inline-flex h-6 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums", absenToneClass(ABSEN_LATE))}>9&gt;</span>
+        telat 09:00–09:29
       </li>
-      <li>
-        <span className="tabular-nums">0</span> alpa
+      <li className="inline-flex items-center gap-1.5">
+        <span className={cn("inline-flex h-6 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums", absenToneClass(ABSEN_HALF))}>0,5</span>
+        09:30–12:00
       </li>
-      <li>· kosong</li>
+      <li className="inline-flex items-center gap-1.5">
+        <span className={cn("inline-flex h-6 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums", absenToneClass(ABSEN_ALPA))}>0</span>
+        alpa / tidak absen
+      </li>
     </ul>
   );
 }
 
 function AttendanceMark({ value }: { value: number | undefined }) {
-  if (value === 100) return <span className="tabular-nums">1</span>;
-  if (value === 50) return <span className="tabular-nums">0,5</span>;
-  if (value === 0) return <span className="tabular-nums">0</span>;
-  return <span className="tabular-nums text-muted-foreground">·</span>;
+  const shown = value ?? ABSEN_ALPA;
+  return (
+    <span className={cn("inline-flex h-6 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums", absenToneClass(shown))}>
+      {absenLabel(shown)}
+    </span>
+  );
 }
-
 
 function AttendanceCell({
   employeeName,
@@ -97,30 +103,49 @@ function AttendanceCell({
   value: number | undefined;
   busy: boolean;
   locked?: boolean;
-  onChange: (employeeId: string, workDate: string, next: 0 | 50 | 100 | null) => void;
+  onChange: (employeeId: string, workDate: string, next: 0 | 50 | 90 | 100 | null) => void;
 }) {
-  const selectValue = value === 100 ? "100" : value === 50 ? "50" : value === 0 ? "0" : "none";
+  const shown = locked ? undefined : displayedAbsenValue(value, date, todayYmd());
+  const selectValue =
+    shown === ABSEN_FULL
+      ? "100"
+      : shown === ABSEN_LATE
+        ? "90"
+        : shown === ABSEN_HALF
+          ? "50"
+          : shown === ABSEN_ALPA
+            ? "0"
+            : "none";
   return (
     <Select
       value={selectValue}
       disabled={busy || locked}
       onValueChange={(next) => {
-        if (next === "100") onChange(employeeId, date, 100);
-        else if (next === "50") onChange(employeeId, date, 50);
-        else if (next === "0") onChange(employeeId, date, 0);
+        if (next === "100") onChange(employeeId, date, ABSEN_FULL);
+        else if (next === "90") onChange(employeeId, date, ABSEN_LATE);
+        else if (next === "50") onChange(employeeId, date, ABSEN_HALF);
+        else if (next === "0") onChange(employeeId, date, ABSEN_ALPA);
         else onChange(employeeId, date, null);
       }}
     >
       <SelectTrigger
-        className="h-11 min-h-11 w-14 min-w-14 justify-center px-1 text-sm tabular-nums [&_svg]:hidden"
-        aria-label={`${employeeName}, ${date}, ${locked ? "belum terjadi" : cellLabel(value) || "kosong"}`}
+        className={cn(
+          "h-11 min-h-11 w-14 min-w-14 justify-center border-transparent px-1 text-sm tabular-nums [&_svg]:hidden",
+          absenToneClass(shown),
+        )}
+        aria-label={`${employeeName}, ${date}, ${locked ? "belum terjadi" : absenCaption(shown)}`}
         aria-busy={busy}
       >
-        {busy ? <Loader2 className="size-4 motion-safe:animate-spin" /> : <SelectValue />}
+        {busy ? (
+          <Loader2 className="size-4 motion-safe:animate-spin" />
+        ) : (
+          <span className="tabular-nums">{locked ? "·" : absenLabel(shown)}</span>
+        )}
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="none">·</SelectItem>
         <SelectItem value="100">1</SelectItem>
+        <SelectItem value="90">9&gt;</SelectItem>
         <SelectItem value="50">0,5</SelectItem>
         <SelectItem value="0">0</SelectItem>
       </SelectContent>
@@ -161,8 +186,8 @@ function SelfCheckinPanel() {
     try {
       const proof = await captureClockProof(file);
       if (!checkedIn) {
-        await checkInMut.mutateAsync({ ...proof, workDate: today });
-        toast.success("Absen masuk tercatat");
+        const row = await checkInMut.mutateAsync({ ...proof, workDate: today });
+        toast.success(`Absen masuk ${absenCaption(row?.value).toLowerCase()}`);
       } else {
         await checkOutMut.mutateAsync({ ...proof, workDate: today });
         toast.success("Absen pulang tercatat");
@@ -180,7 +205,10 @@ function SelfCheckinPanel() {
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-border)]">
         <p className="mb-1 text-sm text-muted-foreground">Hari ini</p>
-        <p className="mb-4 text-base font-semibold">{formatLongDate(today)}</p>
+        <p className="mb-2 text-base font-semibold">{formatLongDate(today)}</p>
+        <p className="mb-4 text-sm text-muted-foreground">
+          06:00–08:59 = 1. 09:00–09:29 = 9&gt;. 09:30–12:00 = 0,5.
+        </p>
         <AbsenClockButton
           checkedIn={checkedIn}
           checkedOut={checkedOut}
@@ -206,9 +234,7 @@ function SelfCheckinPanel() {
                   </span>
                   <span className="inline-flex items-center gap-1 text-sm">
                     <AttendanceMark value={m.value} />
-                    <span className="text-muted-foreground">
-                      {m.value === 100 ? "Hadir" : m.value === 50 ? "Setengah" : "Alpa"}
-                    </span>
+                    <span className="text-muted-foreground">{absenCaption(m.value)}</span>
                   </span>
                 </div>
               ))}
@@ -310,7 +336,7 @@ function AbsenPage() {
 
   const today = todayYmd();
 
-  function setMark(employeeId: string, workDate: string, next: 0 | 50 | 100 | null) {
+  function setMark(employeeId: string, workDate: string, next: 0 | 50 | 90 | 100 | null) {
     if (workDate > today) {
       toast.error("Tidak bisa absen untuk tanggal yang belum terjadi");
       return;
@@ -366,7 +392,7 @@ function AbsenPage() {
             <div className="flex min-w-0 flex-col gap-4">
               <AttendanceLegend />
               <p className="text-sm text-muted-foreground">
-                Pilih 1 hadir, 0,5 setengah, atau 0 alpa. Tanggal setelah hari ini tidak bisa diisi.
+                Tidak absen otomatis merah (0). Tanggal setelah hari ini tidak bisa diisi.
               </p>
               <div className="overflow-x-auto rounded-xl bg-card shadow-[var(--shadow-border)]">
                 <Table>
