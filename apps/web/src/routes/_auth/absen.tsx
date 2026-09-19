@@ -38,7 +38,7 @@ import {
   displayedAbsenValue,
 } from "@/lib/absen";
 import { formatLongDate, jayapuraYearMonth, monthLabel, todayYmd } from "@/lib/format";
-import { sessionRole } from "@/lib/session-role";
+import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
 
@@ -254,9 +254,11 @@ function SelfCheckinPanel() {
 // Main page
 // ---------------------------------------------------------------------------
 function AbsenPage() {
+  const { session: routeSession } = Route.useRouteContext();
+  const { data: liveSession } = authClient.useSession();
+  const session = coalesceAuthSession(liveSession, routeSession);
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { data: session } = authClient.useSession();
   const role = sessionRole(session?.user);
   const isSupervisor = role === "supervisor";
   const now = useMemo(() => jayapuraYearMonth(), []);

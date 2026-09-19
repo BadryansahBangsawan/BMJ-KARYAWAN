@@ -1,4 +1,4 @@
-import { Button } from "@BMJ-KARYAWAN/ui/components/button";
+import { Button, buttonVariants } from "@BMJ-KARYAWAN/ui/components/button";
 import { cn } from "@BMJ-KARYAWAN/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
@@ -14,7 +14,7 @@ import { PageError } from "@/components/state-panel";
 import { absenCaption, absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
 import { formatRp, jayapuraYearMonth, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { authClient } from "@/lib/auth-client";
-import { sessionRole } from "@/lib/session-role";
+import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
 
@@ -84,7 +84,7 @@ function kasbonSisa(row: z.infer<typeof kasbonRowSchema>): number {
 function RouteComponent() {
   const { session: routeSession } = Route.useRouteContext();
   const { data: liveSession } = authClient.useSession();
-  const session = liveSession ?? routeSession;
+  const session = coalesceAuthSession(liveSession, routeSession);
   const role = sessionRole(session?.user);
   const isStaff = role === "kasir" || role === "supervisor";
   const today = todayParts();
@@ -309,9 +309,12 @@ function RouteComponent() {
         <section className="flex flex-col gap-3">
           <div className="flex items-end justify-between gap-3">
             <h2 className="text-lg font-semibold tracking-tight">Siapa yang sudah absen</h2>
-            <Button variant="outline" className="h-10 bg-card" render={<Link to="/absen" />}>
+            <Link
+              to="/absen"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 bg-card")}
+            >
               Grid absen
-            </Button>
+            </Link>
           </div>
           {todayRoster.length === 0 ? (
             <p className="text-sm text-muted-foreground">Tidak ada karyawan aktif.</p>
@@ -351,14 +354,16 @@ function RouteComponent() {
 
         <div className="grid gap-2 sm:grid-cols-2">
           {shortcuts.map((item) => (
-            <Button
+            <Link
               key={item.label}
-              variant={item.to === "/absen" ? "default" : "outline"}
-              className={item.to === "/absen" ? "h-14 min-h-14" : "h-14 min-h-14 bg-card"}
-              render={<Link to={item.to} />}
+              to={item.to}
+              className={cn(
+                buttonVariants({ variant: item.to === "/absen" ? "default" : "outline" }),
+                item.to === "/absen" ? "h-14 min-h-14" : "h-14 min-h-14 bg-card",
+              )}
             >
               {item.label}
-            </Button>
+            </Link>
           ))}
         </div>
       </PageShell>

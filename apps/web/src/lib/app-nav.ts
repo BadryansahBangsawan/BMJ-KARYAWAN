@@ -72,8 +72,8 @@ export function tabsForRole(role: UserRole): TabItem[] {
     { to: "/dashboard", label: "Dasbor", icon: "dasbor" },
     { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
     { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
-    { to: "/gaji", label: "Gaji", icon: "gaji" },
-    { to: "/absen", label: "Lainnya", icon: "more" },
+    { to: "/absen", label: "Absen", icon: "absen" },
+    { to: "/gaji", label: "Lainnya", icon: "more" },
   ];
 }
 
@@ -110,7 +110,7 @@ export function navForRole(role: UserRole): NavItem[] {
 }
 
 export const MORE_LINKS: { to: AppPath; label: string }[] = [
-  { to: "/absen", label: "Absen" },
+  { to: "/gaji", label: "Gaji" },
   { to: "/laporan", label: "Laporan" },
   { to: "/toko", label: "Toko" },
   { to: "/karyawan", label: "Karyawan" },
