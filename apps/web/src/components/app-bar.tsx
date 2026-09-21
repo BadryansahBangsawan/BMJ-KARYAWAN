@@ -11,7 +11,7 @@ export function AppBar() {
   const name = session.user.name?.trim() || "Karyawan";
 
   return (
-    <header className="app-chrome sticky top-0 z-40 flex h-14 items-center border-b border-border/70 bg-background/90 ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] backdrop-blur-md lg:hidden">
+    <header className="app-chrome sticky top-0 z-40 flex h-14 items-center bg-background ps-[max(1rem,env(safe-area-inset-left))] pe-[max(1rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] lg:hidden">
       <Link
         to="/profil"
         aria-label={`Profil ${name}`}
