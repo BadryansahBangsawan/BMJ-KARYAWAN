@@ -11,7 +11,7 @@ import { ActionQueue } from "@/components/action-queue";
 import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
-import { absenCaption, absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
+import { ABSEN_ALPA, absenCaption, absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
 import { formatClock, formatRp, jayapuraYearMonth, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { authClient } from "@/lib/auth-client";
 import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
@@ -367,7 +367,9 @@ function RouteComponent() {
                     className={cn(
                       "flex w-full flex-col items-center justify-between rounded-md px-0.5 py-1.5",
                       dist === 0 ? "aspect-[3/4] py-2" : "aspect-[4/5]",
-                      absenToneClass(shown),
+                      day.isToday && shown !== ABSEN_ALPA && shown !== undefined
+                        ? "bg-[oklch(0.5_0.205_27)] text-white"
+                        : absenToneClass(shown),
                       day.isToday ? "ring-2 ring-foreground" : "",
                     )}
                   >

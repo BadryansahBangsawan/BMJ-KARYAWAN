@@ -23,7 +23,7 @@ export function absenToneClass(value: number | undefined) {
   if (value === ABSEN_FULL) return "bg-success text-success-foreground";
   if (value === ABSEN_LATE) return "bg-[oklch(0.86_0.14_95)] text-[oklch(0.28_0.06_85)]";
   if (value === ABSEN_HALF) return "bg-destructive/35 text-destructive";
-  if (value === ABSEN_ALPA) return "bg-destructive text-white";
+  if (value === ABSEN_ALPA) return "bg-foreground text-background";
   return "bg-muted text-muted-foreground";
 }
 
