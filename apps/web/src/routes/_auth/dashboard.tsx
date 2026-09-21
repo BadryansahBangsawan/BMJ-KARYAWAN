@@ -333,14 +333,13 @@ function RouteComponent() {
 
   return (
     <PageShell>
-      <section className="flex min-h-[calc(100svh-5.5rem-env(safe-area-inset-bottom))] w-full min-w-0 flex-col rounded-xl bg-card px-5 py-4 shadow-[var(--shadow-border)] sm:px-8 sm:py-6 lg:min-h-[calc(100svh-4rem)]">
-        <div className="flex min-h-0 w-full min-w-0 flex-1 items-center">
-          <div
-            ref={calRef}
-            className="-mx-5 w-[calc(100%+2.5rem)] overflow-x-auto overscroll-x-contain snap-x snap-mandatory sm:-mx-8 sm:w-[calc(100%+4rem)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-          >
+      <section className="flex w-full min-w-0 flex-col rounded-xl bg-card px-5 py-4 shadow-[var(--shadow-border)] sm:px-8 sm:py-5">
+        <div
+          ref={calRef}
+          className="-mx-5 overflow-x-auto overscroll-x-contain snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:-mx-8"
+        >
           <ol
-            className="flex w-max items-end gap-1 px-[max(1.25rem,calc(50%-2rem))] py-1"
+            className="flex w-max items-end gap-1 px-[max(1.25rem,calc(50%-2rem))] py-2"
             aria-label="Kalender absen"
           >
             {days.map((day) => {
@@ -401,7 +400,7 @@ function RouteComponent() {
             })}
           </ol>
         </div>
-        </div>
+
 
         <div className="pt-5">
           {checkInClock ? (
