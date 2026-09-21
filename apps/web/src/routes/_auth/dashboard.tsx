@@ -333,7 +333,7 @@ function RouteComponent() {
   return (
     <PageShell>
       <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
-        <ol className="grid grid-cols-7 gap-2" aria-label="Minggu ini">
+        <ol className="flex items-end justify-center gap-1 sm:gap-1.5" aria-label="Minggu ini">
           {days.map((day) => {
             const shown = displayedAbsenValue(
               ownAbsenByDate[day.ymd],
@@ -341,18 +341,41 @@ function RouteComponent() {
               workDate,
               day.isSunday,
             );
+            const dist = Math.abs(day.fromToday);
             return (
-              <li key={day.ymd}>
+              <li key={day.ymd} className="flex justify-center">
                 <div
                   className={cn(
-                    "flex aspect-square flex-col items-center justify-center rounded-md",
+                    "flex flex-col items-center justify-center rounded-md",
+                    dist === 0 && "size-[4.75rem] sm:size-24",
+                    dist === 1 && "size-14 sm:size-16",
+                    dist === 2 && "size-11 sm:size-12",
+                    dist === 3 && "size-8 sm:size-9",
                     absenToneClass(shown),
                     day.isToday ? "ring-2 ring-foreground" : "",
                   )}
                 >
-                  <span className="text-xs font-semibold uppercase">{day.label}</span>
-                  <span className="font-display text-3xl leading-none sm:text-4xl">{day.day}</span>
-                  {shown !== undefined ? (
+                  <span
+                    className={cn(
+                      "font-semibold uppercase",
+                      dist === 0 ? "text-xs" : "text-[0.55rem]",
+                      dist >= 2 && "hidden",
+                    )}
+                  >
+                    {day.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-display leading-none",
+                      dist === 0 && "text-4xl sm:text-5xl",
+                      dist === 1 && "text-2xl",
+                      dist === 2 && "text-xl",
+                      dist === 3 && "text-sm",
+                    )}
+                  >
+                    {day.day}
+                  </span>
+                  {shown !== undefined && dist <= 1 ? (
                     <span className="text-[0.65rem] tabular-nums leading-none">{absenLabel(shown)}</span>
                   ) : null}
                 </div>

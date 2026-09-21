@@ -63,25 +63,25 @@ export function todayParts(ymd = todayYmd()) {
 
 export function weekDays(ymd = todayYmd()) {
   const date = new Date(`${ymd}T12:00:00+09:00`);
-  const weekday = date.getUTCDay();
-  const mondayShift = weekday === 0 ? -6 : 1 - weekday;
   const days: Array<{
     ymd: string;
     day: number;
     label: string;
     isToday: boolean;
     isSunday: boolean;
+    fromToday: number;
   }> = [];
-  for (let offset = 0; offset < 7; offset += 1) {
+  for (let offset = -3; offset <= 3; offset += 1) {
     const cell = new Date(date);
-    cell.setUTCDate(cell.getUTCDate() + mondayShift + offset);
+    cell.setUTCDate(cell.getUTCDate() + offset);
     const cellYmd = cell.toISOString().slice(0, 10);
     days.push({
       ymd: cellYmd,
       day: Number(cellYmd.slice(8)),
       label: cell.toLocaleDateString("id-ID", { weekday: "short", timeZone: TZ }),
-      isToday: cellYmd === ymd,
+      isToday: offset === 0,
       isSunday: cell.getUTCDay() === 0,
+      fromToday: offset,
     });
   }
   return days;
