@@ -116,3 +116,15 @@ export function formatDateTime(value: string | number | Date | null | undefined)
     minute: "2-digit",
   });
 }
+
+export function formatClock(value: string | number | Date | null | undefined) {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString("id-ID", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
