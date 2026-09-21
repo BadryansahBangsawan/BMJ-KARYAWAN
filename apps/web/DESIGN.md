@@ -1,13 +1,13 @@
 ---
 name: BMJ Karyawan
-description: Kalender dinding bengkel — hari ini besar, aksi seperti mencentang tanggal.
+description: Aplikasi operasional bengkel di HP — aksen biru, kalender absen tetap.
 colors:
-  marker: "oklch(0.5 0.205 27)"
-  wall: "oklch(0.955 0.01 92)"
-  paper: "oklch(0.985 0.012 92)"
-  ink: "oklch(0.24 0.018 40)"
-  ink-soft: "oklch(0.42 0.02 40)"
-  marker-ink: "oklch(0.99 0.01 92)"
+  marker: "oklch(0.49 0.15 255)"
+  wall: "oklch(0.965 0.012 250)"
+  paper: "oklch(0.995 0.005 250)"
+  ink: "oklch(0.23 0.04 260)"
+  ink-soft: "oklch(0.46 0.03 250)"
+  marker-ink: "oklch(0.99 0.01 250)"
 typography:
   display:
     fontFamily: "Big Shoulders Display, Source Sans 3, sans-serif"

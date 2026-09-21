@@ -42,12 +42,12 @@
 }
 
 :root {
-  --wall: oklch(0.955 0.01 92);
-  --paper: oklch(0.985 0.012 92);
-  --ink: oklch(0.24 0.018 40);
-  --ink-soft: oklch(0.42 0.02 40);
-  --marker: oklch(0.5 0.205 27);
-  --marker-ink: oklch(0.99 0.01 92);
+  --wall: oklch(0.965 0.012 250);
+  --paper: oklch(0.995 0.005 250);
+  --ink: oklch(0.23 0.04 260);
+  --ink-soft: oklch(0.46 0.03 250);
+  --marker: oklch(0.49 0.15 255);
+  --marker-ink: oklch(0.99 0.01 250);
 
   --background: var(--wall);
   --foreground: var(--ink);
@@ -57,50 +57,50 @@
   --popover-foreground: var(--ink);
   --primary: var(--marker);
   --primary-foreground: var(--marker-ink);
-  --secondary: oklch(0.93 0.012 92);
+  --secondary: oklch(0.94 0.012 250);
   --secondary-foreground: var(--ink);
-  --muted: oklch(0.93 0.012 92);
+  --muted: oklch(0.94 0.012 250);
   --muted-foreground: var(--ink-soft);
-  --accent: oklch(0.93 0.012 92);
+  --accent: oklch(0.94 0.012 250);
   --accent-foreground: var(--ink);
-  --destructive: oklch(0.5 0.205 27);
+  --destructive: oklch(0.52 0.19 27);
   --success: oklch(0.46 0.1 145);
   --success-foreground: var(--marker-ink);
-  --border: oklch(0.82 0.016 80);
-  --input: oklch(0.82 0.016 80);
+  --border: oklch(0.88 0.016 250);
+  --input: oklch(0.88 0.016 250);
   --ring: var(--marker);
   --chart-1: var(--marker);
-  --chart-2: oklch(0.4 0.04 236);
+  --chart-2: oklch(0.45 0.08 236);
   --chart-3: var(--success);
   --chart-4: var(--marker);
   --chart-5: var(--ink);
-  --radius: 0.75rem;
+  --radius: 0.875rem;
   --sidebar: var(--paper);
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--marker);
   --sidebar-primary-foreground: var(--marker-ink);
-  --sidebar-accent: oklch(0.94 0.012 92);
+  --sidebar-accent: oklch(0.94 0.012 250);
   --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: oklch(0.82 0.016 80);
+  --sidebar-border: oklch(0.88 0.016 250);
   --sidebar-ring: var(--marker);
   --shadow-border:
-    0px 1px 2px oklch(0.24 0.018 40 / 0.08),
-    0px 6px 16px -8px oklch(0.24 0.018 40 / 0.18);
+    0px 1px 2px oklch(0.23 0.04 260 / 0.06),
+    0px 6px 16px -8px oklch(0.23 0.04 260 / 0.12);
   --shadow-border-hover:
-    0px 2px 4px oklch(0.24 0.018 40 / 0.1),
-    0px 8px 20px -8px oklch(0.24 0.018 40 / 0.22);
+    0px 2px 4px oklch(0.23 0.04 260 / 0.08),
+    0px 8px 20px -8px oklch(0.23 0.04 260 / 0.16);
   --shadow-floating:
-    0px 4px 8px oklch(0.24 0.018 40 / 0.1),
-    0px 18px 36px -12px oklch(0.24 0.018 40 / 0.28);
+    0px 4px 8px oklch(0.23 0.04 260 / 0.08),
+    0px 18px 36px -12px oklch(0.23 0.04 260 / 0.2);
 }
 
 .dark {
-  --wall: oklch(0.22 0.012 80);
-  --paper: oklch(0.28 0.016 80);
-  --ink: oklch(0.95 0.012 92);
-  --ink-soft: oklch(0.78 0.02 80);
-  --marker: oklch(0.62 0.2 27);
-  --marker-ink: oklch(0.99 0.01 92);
+  --wall: oklch(0.18 0.02 260);
+  --paper: oklch(0.24 0.025 260);
+  --ink: oklch(0.96 0.01 250);
+  --ink-soft: oklch(0.78 0.02 250);
+  --marker: oklch(0.68 0.12 255);
+  --marker-ink: oklch(0.18 0.04 260);
 
   --background: var(--wall);
   --foreground: var(--ink);
@@ -109,31 +109,31 @@
   --popover: var(--paper);
   --popover-foreground: var(--ink);
   --primary: var(--marker);
-  --primary-foreground: oklch(0.22 0.04 27);
-  --secondary: oklch(0.32 0.016 80);
+  --primary-foreground: var(--marker-ink);
+  --secondary: oklch(0.3 0.02 260);
   --secondary-foreground: var(--ink);
-  --muted: oklch(0.32 0.016 80);
+  --muted: oklch(0.3 0.02 260);
   --muted-foreground: var(--ink-soft);
-  --accent: oklch(0.32 0.016 80);
+  --accent: oklch(0.3 0.02 260);
   --accent-foreground: var(--ink);
   --destructive: oklch(0.7 0.18 27);
   --success: oklch(0.72 0.1 145);
   --success-foreground: oklch(0.2 0.04 145);
-  --border: oklch(0.38 0.016 80);
-  --input: oklch(0.38 0.016 80);
+  --border: oklch(0.34 0.02 260);
+  --input: oklch(0.34 0.02 260);
   --ring: var(--marker);
   --chart-1: var(--marker);
-  --chart-2: oklch(0.7 0.04 236);
+  --chart-2: oklch(0.7 0.06 236);
   --chart-3: var(--success);
   --chart-4: var(--marker);
   --chart-5: var(--ink);
   --sidebar: var(--paper);
   --sidebar-foreground: var(--ink);
   --sidebar-primary: var(--marker);
-  --sidebar-primary-foreground: oklch(0.22 0.04 27);
-  --sidebar-accent: oklch(0.34 0.016 80);
+  --sidebar-primary-foreground: var(--marker-ink);
+  --sidebar-accent: oklch(0.3 0.02 260);
   --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: oklch(0.38 0.016 80);
+  --sidebar-border: oklch(0.34 0.02 260);
   --sidebar-ring: var(--marker);
   --shadow-border:
     0px 1px 2px oklch(0 0 0 / 0.35),

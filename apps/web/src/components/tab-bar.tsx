@@ -13,9 +13,9 @@ import { authClient } from "@/lib/auth-client";
 import { sessionRole } from "@/lib/session-role";
 
 const TAB_CONTROL =
-  "relative flex min-h-12 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1 pt-1 text-center text-xs font-medium leading-tight break-words text-muted-foreground";
+  "relative flex min-h-12 min-w-0 w-full flex-col items-center justify-center gap-0.5 px-1 pt-1 text-center text-[0.6875rem] font-medium leading-tight break-words text-muted-foreground motion-safe:transition-colors motion-safe:duration-150";
 
-const TAB_ACTIVE = "rounded-md bg-primary font-semibold text-primary-foreground";
+const TAB_ACTIVE = "font-semibold text-primary";
 
 const MORE_PATHS: Record<string, true> = {
   "/gaji": true,
@@ -31,7 +31,7 @@ function MoreTab({ active }: { active: boolean }) {
         className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
         aria-current={active ? "page" : undefined}
       >
-        <Ellipsis className="size-5" strokeWidth={active ? 2 : 1.5} fill={active ? "currentColor" : "none"} />
+        <Ellipsis className="size-5" strokeWidth={active ? 2 : 1.5} />
         Lainnya
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="end" className="origin-bottom-right">
@@ -59,7 +59,7 @@ export function TabBar() {
     <nav
       aria-label="Menu utama"
       style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-      className="app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border bg-card ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border/80 bg-card/90 ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {tabs.map((item) => {
         if (item.icon === "more") {
@@ -78,7 +78,7 @@ export function TabBar() {
             className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
             activeProps={{ className: `${TAB_CONTROL} ${TAB_ACTIVE}` }}
           >
-            <Icon className="size-5" strokeWidth={active ? 2 : 1.5} fill={active ? "currentColor" : "none"} />
+            <Icon className="size-5" strokeWidth={active ? 2 : 1.5} />
             {item.label}
           </Link>
         );
