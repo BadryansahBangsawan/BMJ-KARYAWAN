@@ -331,17 +331,9 @@ function RouteComponent() {
   }
 
   return (
-    <PageShell narrow className="py-4 lg:py-6">
-      <section className="flex min-h-[calc(100svh-5.5rem-env(safe-area-inset-bottom))] flex-col rounded-xl bg-card px-5 py-5 shadow-[var(--shadow-border)] sm:px-8 sm:py-7 lg:min-h-[calc(100svh-4rem)]">
-        <div className="max-lg:pe-14">
-          <p className="today-settle font-display text-[clamp(4.5rem,22vw,6rem)] leading-none text-foreground">
-            {String(today.day).padStart(2, "0")}
-          </p>
-          <p className="mt-3 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
-          <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
-        </div>
-
-        <ol className="mt-6 grid min-h-0 flex-1 grid-cols-7 gap-1.5" aria-label="Minggu ini">
+    <PageShell>
+      <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
+        <ol className="grid grid-cols-7 gap-2" aria-label="Minggu ini">
           {days.map((day) => {
             const shown = displayedAbsenValue(
               ownAbsenByDate[day.ymd],
@@ -350,16 +342,16 @@ function RouteComponent() {
               day.isSunday,
             );
             return (
-              <li key={day.ymd} className="min-h-0">
+              <li key={day.ymd}>
                 <div
                   className={cn(
-                    "flex h-full min-h-16 flex-col items-center justify-center rounded-md px-0.5",
+                    "flex aspect-square flex-col items-center justify-center rounded-md",
                     absenToneClass(shown),
                     day.isToday ? "ring-2 ring-foreground" : "",
                   )}
                 >
-                  <span className="text-[0.65rem] font-semibold uppercase">{day.label}</span>
-                  <span className="font-display text-xl leading-none">{day.day}</span>
+                  <span className="text-xs font-semibold uppercase">{day.label}</span>
+                  <span className="font-display text-3xl leading-none sm:text-4xl">{day.day}</span>
                   {shown !== undefined ? (
                     <span className="text-[0.65rem] tabular-nums leading-none">{absenLabel(shown)}</span>
                   ) : null}
@@ -369,7 +361,7 @@ function RouteComponent() {
           })}
         </ol>
 
-        <div className="mt-auto pt-6">
+        <div className="mt-6">
           {checkInClock ? (
             <p className="mb-4 text-sm tabular-nums text-muted-foreground">
               Masuk {checkInClock}
@@ -385,17 +377,18 @@ function RouteComponent() {
           {mineToday.data?.value != null ? (
             <p className="mt-2 text-sm text-muted-foreground">{absenCaption(mineToday.data.value)}</p>
           ) : null}
-          {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
-            <div className="mt-6">
-              <Loader />
-            </div>
-          ) : (
-            <p className="mt-6">
-              <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
-              <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
-            </p>
-          )}
         </div>
+
+        {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
+          <div className="mt-6">
+            <Loader />
+          </div>
+        ) : (
+          <p className="mt-6">
+            <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
+            <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
+          </p>
+        )}
       </section>
 
       {errorBlock}
