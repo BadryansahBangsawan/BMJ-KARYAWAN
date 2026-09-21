@@ -333,7 +333,7 @@ function RouteComponent() {
   return (
     <PageShell>
       <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
-        <ol className="flex items-end justify-center gap-1 sm:gap-1.5" aria-label="Minggu ini">
+        <ol className="flex min-h-[7.5rem] items-center justify-center gap-1 sm:min-h-[9.5rem] sm:gap-1.5" aria-label="Minggu ini">
           {days.map((day) => {
             const shown = displayedAbsenValue(
               ownAbsenByDate[day.ymd],
@@ -343,14 +343,14 @@ function RouteComponent() {
             );
             const dist = Math.abs(day.fromToday);
             return (
-              <li key={day.ymd} className="flex justify-center">
+              <li key={day.ymd} className="flex items-center justify-center">
                 <div
                   className={cn(
                     "flex flex-col items-center justify-center rounded-md",
-                    dist === 0 && "size-[4.75rem] sm:size-24",
-                    dist === 1 && "size-14 sm:size-16",
-                    dist === 2 && "size-11 sm:size-12",
-                    dist === 3 && "size-8 sm:size-9",
+                    dist === 0 && "size-[7.5rem] sm:size-[9.5rem]",
+                    dist === 1 && "size-[5.25rem] sm:size-28",
+                    dist === 2 && "size-[3.75rem] sm:size-20",
+                    dist === 3 && "size-12 sm:size-14",
                     absenToneClass(shown),
                     day.isToday ? "ring-2 ring-foreground" : "",
                   )}
@@ -367,8 +367,8 @@ function RouteComponent() {
                   <span
                     className={cn(
                       "font-display leading-none",
-                      dist === 0 && "text-4xl sm:text-5xl",
-                      dist === 1 && "text-2xl",
+                      dist === 0 && "text-5xl sm:text-6xl",
+                      dist === 1 && "text-3xl",
                       dist === 2 && "text-xl",
                       dist === 3 && "text-sm",
                     )}
