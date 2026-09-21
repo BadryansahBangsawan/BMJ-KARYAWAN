@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
 const timestampMs = (name: string) =>
@@ -22,27 +22,31 @@ export const employee = sqliteTable("employee", {
 	createdAt: timestampMs("created_at"),
 });
 
-export const job = sqliteTable("job", {
-	id: text("id").primaryKey(),
-	employeeId: text("employee_id")
-		.notNull()
-		.references(() => employee.id),
-	workDate: text("work_date").notNull(),
-	description: text("description").notNull(),
-	amountIdr: integer("amount_idr").notNull(),
-	struk: text("struk"),
-	customerNote: text("customer_note"),
-	status: text("status").notNull(),
-	kind: text("kind").notNull(),
-	bengkelPercent: integer("bengkel_percent"),
-	sheetNo: integer("sheet_no"),
-	createdByUserId: text("created_by_user_id").references(() => user.id),
-	createdAt: timestampMs("created_at"),
-	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
+export const job = sqliteTable(
+	"job",
+	{
+		id: text("id").primaryKey(),
+		employeeId: text("employee_id")
+			.notNull()
+			.references(() => employee.id),
+		workDate: text("work_date").notNull(),
+		description: text("description").notNull(),
+		amountIdr: integer("amount_idr").notNull(),
+		struk: text("struk"),
+		customerNote: text("customer_note"),
+		status: text("status").notNull(),
+		kind: text("kind").notNull(),
+		bengkelPercent: integer("bengkel_percent"),
+		sheetNo: integer("sheet_no"),
+		createdByUserId: text("created_by_user_id").references(() => user.id),
+		createdAt: timestampMs("created_at"),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [index("job_workDate_employeeId_idx").on(table.workDate, table.employeeId)],
+);
 
 export const kasbon = sqliteTable("kasbon", {
 	id: text("id").primaryKey(),
@@ -134,12 +138,16 @@ export const payrollLine = sqliteTable(
 	(table) => [uniqueIndex("payroll_line_periodId_employeeId_uidx").on(table.periodId, table.employeeId)],
 );
 
-export const storeTxn = sqliteTable("store_txn", {
-	id: text("id").primaryKey(),
-	seq: integer("seq").notNull(),
-	kind: text("kind").notNull(),
-	amountIdr: integer("amount_idr").notNull(),
-	note: text("note"),
-	createdByUserId: text("created_by_user_id").references(() => user.id),
-	createdAt: timestampMs("created_at"),
-});
+export const storeTxn = sqliteTable(
+	"store_txn",
+	{
+		id: text("id").primaryKey(),
+		seq: integer("seq").notNull(),
+		kind: text("kind").notNull(),
+		amountIdr: integer("amount_idr").notNull(),
+		note: text("note"),
+		createdByUserId: text("created_by_user_id").references(() => user.id),
+		createdAt: timestampMs("created_at"),
+	},
+	(table) => [uniqueIndex("store_txn_seq_uidx").on(table.seq)],
+);

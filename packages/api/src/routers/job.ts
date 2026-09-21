@@ -5,7 +5,7 @@ import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 
 
-import { protectedProcedure, router, supervisorProcedure } from "../index";
+import { kasirProcedure, protectedProcedure, router, supervisorProcedure } from "../index";
 
 const TZ = "Asia/Jayapura";
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -106,6 +106,26 @@ export const jobRouter = router({
           ),
         )
         .orderBy(desc(job.workDate), desc(job.createdAt));
+    }),
+
+  monthPendapatan: kasirProcedure
+    .input(
+      z.object({
+        year: z.number().int(),
+        month: z.number().int().min(1).max(12),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const from = `${input.year}-${String(input.month).padStart(2, "0")}-01`;
+      const last = new Date(Date.UTC(input.year, input.month, 0)).getUTCDate();
+      const to = `${input.year}-${String(input.month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+      const rows = await ctx.db
+        .select({ amountIdr: job.amountIdr })
+        .from(job)
+        .where(and(eq(job.status, "diterima"), gte(job.workDate, from), lte(job.workDate, to)));
+      let pendapatan = 0;
+      for (const row of rows) pendapatan += row.amountIdr;
+      return { pendapatan };
     }),
 
   create: protectedProcedure
@@ -219,8 +239,15 @@ export const jobRouter = router({
     .input(
       z.object({
         id: z.string().min(1),
-        status: z.enum(["selesai", "diterima", "batal"]),
-        struk: z.string().optional(),
+        status: z.enum(["diterima", "batal"]),
+        struk: z
+          .string()
+          .trim()
+          .max(120)
+          .optional()
+          .transform((value) =>
+            !value || value.startsWith("data:") ? undefined : value,
+          ),
       }),
     )
     .mutation(async ({ ctx, input }) => {

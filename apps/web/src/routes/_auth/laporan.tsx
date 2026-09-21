@@ -57,7 +57,7 @@ function periodName(preset: PeriodPreset, from: string, to: string) {
 
 export const Route = createFileRoute("/_auth/laporan")({
   beforeLoad: ({ context }) => {
-    if (sessionRole(context.session?.user) === "mekanik") {
+    if (sessionRole(context.session?.user) !== "supervisor") {
       throw redirect({ to: "/dashboard" });
     }
   },

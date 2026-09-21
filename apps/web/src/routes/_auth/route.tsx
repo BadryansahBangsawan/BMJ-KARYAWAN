@@ -3,7 +3,7 @@ import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { getUser } from "@/functions/get-user";
-import { jayapuraYearMonth } from "@/lib/format";
+import { jayapuraYearMonth, monthBounds } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 
@@ -31,8 +31,9 @@ function AuthLayout() {
     const { year, month } = jayapuraYearMonth();
     void queryClient.prefetchQuery(trpc.kasbon.list.queryOptions({}));
     void queryClient.prefetchQuery(
-      trpc.job.list.queryOptions({ from: "2000-01-01", to: "2099-12-31" }),
+      trpc.job.list.queryOptions(monthBounds()),
     );
+    void queryClient.prefetchQuery(trpc.payroll.get.queryOptions({ year, month }));
     void queryClient.prefetchQuery(trpc.employee.me.queryOptions());
     void queryClient.prefetchQuery(trpc.attendance.mineToday.queryOptions());
     if (role === "kasir" || role === "supervisor") {

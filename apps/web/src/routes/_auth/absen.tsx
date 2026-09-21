@@ -83,7 +83,7 @@ function AttendanceLegend() {
 }
 
 function AttendanceMark({ value }: { value: number | undefined }) {
-  const shown = value ?? ABSEN_ALPA;
+  const shown = value;
   return (
     <span className={cn("inline-flex h-6 min-w-8 items-center justify-center rounded-md px-1.5 text-xs tabular-nums", absenToneClass(shown))}>
       {absenLabel(shown)}
@@ -195,8 +195,8 @@ function SelfCheckinPanel() {
         await checkOutMut.mutateAsync({ ...proof, workDate: today });
         toast.success("Absen pulang tercatat");
       }
-      await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
-      await monthQuery.refetch();
+      void queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
+      void queryClient.invalidateQueries({ queryKey: trpc.attendance.month.queryKey({ year, month }) });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Absen gagal");
     } finally {

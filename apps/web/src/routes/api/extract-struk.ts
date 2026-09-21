@@ -168,7 +168,12 @@ export const Route = createFileRoute("/api/extract-struk")({
               if (!jsonText) {
                 return Response.json({ error: "Struk tidak terbaca. Isi uraian manual." }, { status: 422 });
               }
-              const parsed = JSON.parse(jsonText) as { nomorStruk?: unknown; tanggal?: unknown };
+              let parsed: { nomorStruk?: unknown; tanggal?: unknown };
+              try {
+                parsed = JSON.parse(jsonText) as { nomorStruk?: unknown; tanggal?: unknown };
+              } catch {
+                return Response.json({ error: "Struk tidak terbaca. Isi uraian manual." }, { status: 422 });
+              }
               const out: { nomorStruk?: string; tanggal?: string } = {};
               if (typeof parsed.nomorStruk === "string" && parsed.nomorStruk.trim()) {
                 out.nomorStruk = parsed.nomorStruk.trim();

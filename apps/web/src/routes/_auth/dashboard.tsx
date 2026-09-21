@@ -47,10 +47,8 @@ const jobRowSchema = z.object({
   status: z.string(),
 });
 
-const diagramSchema = z.object({
+const pendapatanSchema = z.object({
   pendapatan: z.number(),
-  pengeluaran: z.number(),
-  bengkel: z.number(),
 });
 
 function listPayload(data: unknown): unknown[] {
@@ -108,17 +106,11 @@ function RouteComponent() {
     refetchInterval: 8_000,
   });
   const jobs = useQuery({
-    ...trpc.job.list.queryOptions({
-      from: "2000-01-01",
-      to: "2099-12-31",
-    }),
+    ...trpc.job.list.queryOptions(month),
     refetchInterval: 8_000,
   });
-  const diagram = useQuery({
-    ...trpc.laporan.diagram.queryOptions({
-      from: month.from,
-      to: month.to,
-    }),
+  const monthPendapatan = useQuery({
+    ...trpc.job.monthPendapatan.queryOptions({ year, month: monthNum }),
     enabled: isStaff,
   });
   const absenMonth = useQuery({
@@ -128,16 +120,14 @@ function RouteComponent() {
 
 
 
-  const failed = me.isError || kasbon.isError || jobs.isError || (isStaff && diagram.isError);
+  const failed = me.isError || kasbon.isError || jobs.isError || (isStaff && monthPendapatan.isError);
 
   const employee = employeeMeSchema.safeParse(me.data);
   const employeeId = employee.success ? employee.data?.id : undefined;
   const kasbonRows = parseList(kasbon.data, kasbonRowSchema);
   const jobRows = parseList(jobs.data, jobRowSchema);
-  const diagramParsed = diagramSchema.safeParse(diagram.data);
-  const diagramData = diagramParsed.success
-    ? diagramParsed.data
-    : { pendapatan: 0, pengeluaran: 0, bengkel: 0 };
+  const pendapatanParsed = pendapatanSchema.safeParse(monthPendapatan.data);
+  const pendapatan = pendapatanParsed.success ? pendapatanParsed.data.pendapatan : 0;
 
 
   const ownKasbon = employeeId
@@ -182,7 +172,7 @@ function RouteComponent() {
 
 
   const moneyLabel = role === "mekanik" ? "Sisa kasbon" : "Pendapatan bulan ini";
-  const moneyValue = role === "mekanik" ? formatRp(ownSisa) : formatRp(diagramData.pendapatan);
+  const moneyValue = role === "mekanik" ? formatRp(ownSisa) : formatRp(pendapatan);
   const checkedIn = Boolean(mineToday.data?.checkInAt);
   const checkedOut = Boolean(mineToday.data?.checkOutAt);
   const absenEmployees = (
@@ -229,8 +219,8 @@ function RouteComponent() {
         await checkOutMut.mutateAsync({ ...proof, workDate });
         toast.success("Absen pulang tercatat");
       }
-      await queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
-      await queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({ queryKey: trpc.attendance.mineToday.queryKey() });
+      void queryClient.invalidateQueries({
         queryKey: trpc.attendance.month.queryKey({ year, month: monthNum }),
       });
     } catch (error) {
@@ -247,7 +237,7 @@ function RouteComponent() {
         void kasbon.refetch();
         void jobs.refetch();
         void absenMonth.refetch();
-        if (isStaff) void diagram.refetch();
+        if (isStaff) void monthPendapatan.refetch();
       }}
     />
   ) : null;
@@ -362,6 +352,9 @@ function RouteComponent() {
                 >
                   <span className="text-[0.65rem] font-semibold uppercase">{day.label}</span>
                   <span className="font-display text-xl leading-none">{day.day}</span>
+                  {shown !== undefined ? (
+                    <span className="text-[0.65rem] tabular-nums leading-none">{absenLabel(shown)}</span>
+                  ) : null}
                 </div>
               </li>
             );
@@ -375,12 +368,15 @@ function RouteComponent() {
             busy={clockBusy}
             onFile={(file) => void clockFromFile(file)}
           />
+          {mineToday.data?.value != null ? (
+            <p className="mt-2 text-sm text-muted-foreground">{absenCaption(mineToday.data.value)}</p>
+          ) : null}
         </div>
       </section>
 
       {errorBlock}
 
-      {!me.data && !kasbon.data && !jobs.data && (me.isPending || kasbon.isPending || jobs.isPending) ? (
+      {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
         <Loader />
       ) : (
         <>

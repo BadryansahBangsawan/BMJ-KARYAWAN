@@ -132,7 +132,7 @@ export const employeeRouter = router({
   }),
 
   list: kasirProcedure.query(async ({ ctx }) => {
-    return ctx.db
+    const rows = await ctx.db
       .select({
         id: employee.id,
         userId: employee.userId,
@@ -149,6 +149,18 @@ export const employeeRouter = router({
       .from(employee)
       .leftJoin(user, eq(employee.userId, user.id))
       .orderBy(employee.name);
+    if ((ctx.session.user.role ?? "mekanik") !== "supervisor") {
+      return rows.map((row) => ({
+        id: row.id,
+        userId: row.userId,
+        name: row.name,
+        role: row.role,
+        active: row.active,
+        createdAt: row.createdAt,
+        email: row.email,
+      }));
+    }
+    return rows;
   }),
 
   create: supervisorProcedure

@@ -59,9 +59,9 @@ type EmployeeRow = {
   name: string;
   role: string;
   payKind?: string;
-  ongkosPercent: number;
-  konsumsiMonthlyIdr: number;
-  bonusIdr: number;
+  ongkosPercent?: number;
+  konsumsiMonthlyIdr?: number;
+  bonusIdr?: number;
   active: boolean | number;
   userId?: string | null;
   email?: string | null;
@@ -612,9 +612,9 @@ function KaryawanPage() {
     editForm.setFieldValue("email", row.email ?? "");
     editForm.setFieldValue("password", "");
     editForm.setFieldValue("payKind", asPayKind(row.payKind));
-    editForm.setFieldValue("ongkosPercent", String(row.ongkosPercent));
-    editForm.setFieldValue("konsumsiMonthlyIdr", String(row.konsumsiMonthlyIdr));
-    editForm.setFieldValue("bonusIdr", String(row.bonusIdr));
+    editForm.setFieldValue("ongkosPercent", String(row.ongkosPercent ?? 0));
+    editForm.setFieldValue("konsumsiMonthlyIdr", String(row.konsumsiMonthlyIdr ?? 0));
+    editForm.setFieldValue("bonusIdr", String(row.bonusIdr ?? 0));
     editForm.setFieldValue("active", isEmployeeActive(row));
   }
 
@@ -822,10 +822,10 @@ function KaryawanPage() {
                               : `Persenan ${row.ongkosPercent}%`}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatRp(row.konsumsiMonthlyIdr)}
+                            {formatRp(row.konsumsiMonthlyIdr ?? 0)}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {asPayKind(row.payKind) === "gaji" ? formatRp(row.bonusIdr) : "—"}
+                            {asPayKind(row.payKind) === "gaji" ? formatRp(row.bonusIdr ?? 0) : "—"}
                           </TableCell>
                           <TableCell>
                             <StatusBadge

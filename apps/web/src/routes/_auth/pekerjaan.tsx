@@ -204,9 +204,8 @@ function PekerjaanPage() {
   const extractAbortRef = useRef<AbortController | null>(null);
 
   const listInput = {
-    ...(role === "supervisor"
-      ? { from, to }
-      : { from: "2000-01-01", to: "2099-12-31" }),
+    from,
+    to,
     ...(employeeIdFilter ? { employeeId: employeeIdFilter } : {}),
   };
 
@@ -278,11 +277,9 @@ function PekerjaanPage() {
     trpc.job.setStatus.mutationOptions({
       onSuccess: (_row, input) => {
         toast.success(
-          input.status === "selesai"
-            ? "Pekerjaan ditandai selesai"
-            : input.status === "diterima"
-              ? "Pekerjaan diterima"
-              : "Pekerjaan dibatalkan",
+          input.status === "diterima"
+            ? "Pekerjaan diterima"
+            : "Pekerjaan dibatalkan",
         );
         setCancelId(null);
         invalidateJobs();

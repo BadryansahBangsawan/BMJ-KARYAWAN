@@ -7,7 +7,7 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
 import { AppSidebar } from "../components/app-sidebar";
-import Header from "../components/header";
+import { ProfileBubble } from "../components/profile-bubble";
 import { TabBar } from "../components/tab-bar";
 import { authClient } from "../lib/auth-client";
 
@@ -104,7 +104,6 @@ function RootDocument() {
         <div className="flex min-h-svh bg-background">
           {session ? <AppSidebar /> : null}
           <div className="flex min-h-svh min-w-0 flex-1 flex-col overflow-x-clip">
-            <Header />
             <main
               id="main"
               className={
@@ -117,8 +116,15 @@ function RootDocument() {
             </main>
             <TabBar />
           </div>
+          <ProfileBubble />
         </div>
-        <Toaster richColors closeButton duration={10000} />
+        <Toaster
+          position="top-center"
+          offset="max(12px, env(safe-area-inset-top))"
+          richColors
+          closeButton
+          duration={10000}
+        />
         <div className="hidden md:block">
           <TanStackRouterDevtools position="bottom-left" />
         </div>

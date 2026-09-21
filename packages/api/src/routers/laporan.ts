@@ -11,7 +11,7 @@ import {
 	payrollPeriod,
 } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
-import { kasirProcedure, router } from "../index";
+import { router, supervisorProcedure } from "../index";
 import { splitBengkelOngkos } from "../lib/ongkos";
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -51,6 +51,12 @@ function ymdJayapura(value: Date | number | string): string {
 	const m = parts.find((p) => p.type === "month")?.value ?? "01";
 	const day = parts.find((p) => p.type === "day")?.value ?? "01";
 	return `${y}-${m}-${day}`;
+}
+
+function ymdDiffDays(from: string, to: string): number {
+	const a = Date.parse(`${from}T00:00:00+09:00`);
+	const b = Date.parse(`${to}T00:00:00+09:00`);
+	return Math.floor((b - a) / 86_400_000) + 1;
 }
 
 async function kasbonSisaByEmployee(db: Database) {
@@ -135,7 +141,7 @@ async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[
 }
 
 export const laporanRouter = router({
-	ongkos: kasirProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+	ongkos: supervisorProcedure.input(rangeInput).query(async ({ ctx, input }) => {
 		const jobs = await ctx.db
 			.select()
 			.from(job)
@@ -147,12 +153,12 @@ export const laporanRouter = router({
 		};
 	}),
 
-	kumulatif: kasirProcedure.query(async ({ ctx }) => {
+	kumulatif: supervisorProcedure.query(async ({ ctx }) => {
 		const jobs = await ctx.db.select().from(job);
 		return { rows: await buildOngkosRows(ctx.db, jobs) };
 	}),
 
-	diagram: kasirProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+	diagram: supervisorProcedure.input(rangeInput).query(async ({ ctx, input }) => {
 		const jobs = await ctx.db
 			.select()
 			.from(job)
@@ -167,22 +173,42 @@ export const laporanRouter = router({
 		for (const j of jobs) pendapatan += j.amountIdr;
 
 		const periods = await ctx.db.select().from(payrollPeriod);
-		const overlapping = periods.filter(
-			(p) => p.startDate <= input.to && p.endDate >= input.from,
-		);
-		const use = overlapping;
+		const seen = new Set<string>();
+		const overlapping: typeof periods = [];
+		for (const p of periods) {
+			if (p.startDate > input.to || p.endDate < input.from) continue;
+			if (seen.has(p.id)) continue;
+			seen.add(p.id);
+			overlapping.push(p);
+		}
 		let takeHome = 0;
-		if (use.length > 0) {
+		if (overlapping.length > 0) {
 			const lines = await ctx.db
 				.select()
 				.from(payrollLine)
 				.where(
 					inArray(
 						payrollLine.periodId,
-						use.map((p) => p.id),
+						overlapping.map((p) => p.id),
 					),
 				);
-			for (const line of lines) takeHome += line.takeHomeIdr;
+			const takeHomeByPeriod = new Map<string, number>();
+			for (const line of lines) {
+				takeHomeByPeriod.set(
+					line.periodId,
+					(takeHomeByPeriod.get(line.periodId) ?? 0) + line.takeHomeIdr,
+				);
+			}
+			for (const period of overlapping) {
+				const overlapFrom =
+					period.startDate < input.from ? input.from : period.startDate;
+				const overlapTo = period.endDate > input.to ? input.to : period.endDate;
+				if (overlapFrom > overlapTo) continue;
+				const periodDays = ymdDiffDays(period.startDate, period.endDate);
+				const overlapDays = ymdDiffDays(overlapFrom, overlapTo);
+				const sumTakeHome = takeHomeByPeriod.get(period.id) ?? 0;
+				takeHome += Math.round((sumTakeHome * overlapDays) / periodDays);
+			}
 		}
 
 		const pays = await ctx.db

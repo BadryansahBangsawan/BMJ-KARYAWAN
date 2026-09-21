@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { asc, max } from "drizzle-orm";
 import { z } from "zod";
 
@@ -21,28 +22,38 @@ export const storeRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
-			const [agg] = await ctx.db
-				.select({ m: max(storeTxn.seq) })
-				.from(storeTxn);
-			const seq = (agg?.m ?? 0) + 1;
-			const id = crypto.randomUUID();
 			const note = input.note?.trim() ? input.note.trim() : null;
-			await ctx.db.insert(storeTxn).values({
-				id,
-				seq,
-				kind: input.kind,
-				amountIdr: input.amountIdr,
-				note,
-				createdByUserId: ctx.session.user.id,
+			for (let attempt = 0; attempt < 3; attempt++) {
+				const [agg] = await ctx.db
+					.select({ m: max(storeTxn.seq) })
+					.from(storeTxn);
+				const seq = (agg?.m ?? 0) + 1;
+				const id = crypto.randomUUID();
+				try {
+					await ctx.db.insert(storeTxn).values({
+						id,
+						seq,
+						kind: input.kind,
+						amountIdr: input.amountIdr,
+						note,
+						createdByUserId: ctx.session.user.id,
+					});
+					return {
+						id,
+						seq,
+						kind: input.kind,
+						amountIdr: input.amountIdr,
+						note,
+						createdByUserId: ctx.session.user.id,
+					};
+				} catch (err) {
+					if (!/UNIQUE/i.test(String(err))) throw err;
+				}
+			}
+			throw new TRPCError({
+				code: "CONFLICT",
+				message: "Gagal nomor transaksi, coba lagi",
 			});
-			return {
-				id,
-				seq,
-				kind: input.kind,
-				amountIdr: input.amountIdr,
-				note,
-				createdByUserId: ctx.session.user.id,
-			};
 		}),
 
 	summary: kasirProcedure.query(async ({ ctx }) => {
