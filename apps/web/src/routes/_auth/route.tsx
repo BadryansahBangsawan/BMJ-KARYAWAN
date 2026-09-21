@@ -9,6 +9,7 @@ import { useTRPC } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_auth")({
   staleTime: 5 * 60 * 1000,
+  shouldReload: ({ cause }) => cause === "enter",
   component: AuthLayout,
   beforeLoad: async () => {
     const session = await getUser();
@@ -36,16 +37,14 @@ function AuthLayout() {
     void queryClient.prefetchQuery(trpc.payroll.get.queryOptions({ year, month }));
     void queryClient.prefetchQuery(trpc.employee.me.queryOptions());
     void queryClient.prefetchQuery(trpc.attendance.mineToday.queryOptions());
+    void queryClient.prefetchQuery(trpc.attendance.month.queryOptions({ year, month }));
     if (role === "kasir" || role === "supervisor") {
       void queryClient.prefetchQuery(trpc.kasbon.summary.queryOptions());
-    }
-    if (role === "kasir") {
       void queryClient.prefetchQuery(trpc.store.list.queryOptions());
       void queryClient.prefetchQuery(trpc.store.summary.queryOptions());
     }
     if (role === "supervisor") {
       void queryClient.prefetchQuery(trpc.employee.list.queryOptions());
-      void queryClient.prefetchQuery(trpc.attendance.month.queryOptions({ year, month }));
     }
   }, [queryClient, role, trpc]);
 

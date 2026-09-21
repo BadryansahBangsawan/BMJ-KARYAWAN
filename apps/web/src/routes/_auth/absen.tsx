@@ -208,10 +208,7 @@ function SelfCheckinPanel() {
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-border)]">
         <p className="mb-1 text-sm text-muted-foreground">Hari ini</p>
-        <p className="mb-2 text-base font-semibold">{formatLongDate(today)}</p>
-        <p className="mb-4 text-sm text-muted-foreground">
-          06:00–08:59 = 1. 09:00–09:29 = 9&gt;. 09:30–12:00 = 0,5.
-        </p>
+        <p className="mb-4 text-base font-semibold">{formatLongDate(today)}</p>
         <AbsenClockButton
           checkedIn={checkedIn}
           checkedOut={checkedOut}
@@ -297,8 +294,8 @@ function AbsenPage() {
     date,
   }));
 
-  const invalidateMonth = async () => {
-    await queryClient.invalidateQueries({
+  const invalidateMonth = () => {
+    void queryClient.invalidateQueries({
       queryKey: trpc.attendance.month.queryKey({ year, month }),
     });
   };
@@ -396,9 +393,6 @@ function AbsenPage() {
           ) : (
             <div className="flex min-w-0 flex-col gap-4">
               <AttendanceLegend />
-              <p className="text-sm text-muted-foreground">
-                Tidak absen otomatis merah (0). Tanggal setelah hari ini tidak bisa diisi.
-              </p>
               <div className="overflow-x-auto rounded-xl bg-card shadow-[var(--shadow-border)]">
                 <Table>
                   <TableHeader>

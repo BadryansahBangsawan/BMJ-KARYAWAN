@@ -18,7 +18,7 @@ export function PageHeader({
           {title}
         </h1>
         {description ? (
-          <p className="text-pretty text-muted-foreground lg:mt-1">{description}</p>
+          <p className="hidden text-pretty text-muted-foreground lg:mt-1 lg:block">{description}</p>
         ) : null}
         {children}
       </div>

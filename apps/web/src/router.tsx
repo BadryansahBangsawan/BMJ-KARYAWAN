@@ -99,6 +99,7 @@ export const getRouter = () => {
     scrollRestoration: true,
     defaultPreload: "intent",
     defaultPreloadStaleTime: 30_000,
+    defaultPreloadDelay: 0,
     defaultPendingMs: Number.POSITIVE_INFINITY,
     context: { trpc, queryClient },
     defaultNotFoundComponent: () => <div>Halaman tidak ditemukan</div>,

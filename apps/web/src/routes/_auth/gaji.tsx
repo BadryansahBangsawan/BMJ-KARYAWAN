@@ -135,17 +135,17 @@ function GajiPage() {
 
   const recomputeMut = useMutation(
     trpc.payroll.recompute.mutationOptions({
-      onSuccess: async () => {
-        await invalidate();
+      onSuccess: () => {
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),
   );
   const deductionMut = useMutation(
     trpc.payroll.setDeduction.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: () => {
         toast.success("Potongan disimpan");
-        await invalidate();
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),

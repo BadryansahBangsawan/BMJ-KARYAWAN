@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BusyLabel } from "@/components/busy-label";
-import { jpegFileFromVideo } from "@/lib/workshop-gps";
+import { jpegFileFromVideo, markClockPermissionGranted } from "@/lib/workshop-gps";
 
 export function AbsenClockButton({
   checkedIn,
@@ -56,6 +56,7 @@ export function AbsenClockButton({
           height: { ideal: 720 },
         },
       });
+      markClockPermissionGranted();
       streamRef.current = stream;
       setOpen(true);
     } catch {
@@ -90,7 +91,7 @@ export function AbsenClockButton({
   }
 
   return (
-    <div className="grid gap-2">
+    <div>
       <Button
         type="button"
         className="h-14 min-h-14 w-full text-base"
@@ -101,9 +102,6 @@ export function AbsenClockButton({
       >
         <BusyLabel busy={busy}>{label}</BusyLabel>
       </Button>
-      <p className="text-center text-xs text-muted-foreground">
-        Kamera depan, lalu GPS dicek di titik bengkel.
-      </p>
 
       <Dialog
         open={open}
@@ -114,7 +112,7 @@ export function AbsenClockButton({
         <DialogContent className="sm:max-w-md" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Ambil foto absen</DialogTitle>
-            <DialogDescription>Hadapkan wajah ke kamera, lalu ambil foto.</DialogDescription>
+            <DialogDescription className="sr-only">Ambil foto untuk absen.</DialogDescription>
           </DialogHeader>
           <video
             ref={setVideoEl}

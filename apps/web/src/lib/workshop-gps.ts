@@ -1,3 +1,13 @@
+const CLOCK_PERM_KEY = "bmj-karyawan-clock-perm";
+
+export function markClockPermissionGranted() {
+  try {
+    localStorage.setItem(CLOCK_PERM_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
 export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }> {
   const { promise, resolve, reject } = Promise.withResolvers<{ lat: number; lng: number }>();
   if (!navigator.geolocation) {
@@ -6,6 +16,7 @@ export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }>
   }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
+      markClockPermissionGranted();
       resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     },
     (err) => {
@@ -19,7 +30,7 @@ export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }>
       }
       reject(new Error("Permintaan GPS habis waktu. Coba lagi."));
     },
-    { timeout: 15_000, maximumAge: 0, enableHighAccuracy: true },
+    { timeout: 15_000, maximumAge: 30_000, enableHighAccuracy: true },
   );
   return promise;
 }

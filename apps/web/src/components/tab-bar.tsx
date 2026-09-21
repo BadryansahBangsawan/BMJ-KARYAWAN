@@ -72,6 +72,7 @@ export function TabBar() {
           <Link
             key={item.to}
             to={item.to}
+            preload="intent"
             activeOptions={{ exact: true }}
             aria-current={active ? "page" : undefined}
             className={active ? `${TAB_CONTROL} ${TAB_ACTIVE}` : TAB_CONTROL}
