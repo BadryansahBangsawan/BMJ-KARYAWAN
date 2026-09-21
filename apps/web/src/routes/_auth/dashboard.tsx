@@ -244,12 +244,16 @@ function RouteComponent() {
 
   if (role === "supervisor") {
     return (
-      <PageShell className="gap-6">
-        <section className="rounded-xl bg-card px-5 py-5 shadow-[var(--shadow-border)] sm:px-6">
-          <p className="text-sm text-muted-foreground">Pantau karyawan · {today.monthYear}</p>
-          <p className="mt-1 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
-          <p className="mt-1 font-display text-5xl leading-none tabular-nums">{String(today.day).padStart(2, "0")}</p>
-          <p className="mt-4 text-sm text-pretty">
+      <PageShell>
+        <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
+          <div className="max-lg:pe-14">
+            <p className="today-settle font-display text-[clamp(4.5rem,22vw,6rem)] leading-none text-foreground">
+              {String(today.day).padStart(2, "0")}
+            </p>
+            <p className="mt-3 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
+            <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
+          </div>
+          <p className="mt-6 text-sm text-pretty">
             {todayRoster.length === 0
               ? "Tidak ada karyawan aktif."
               : sundayToday
@@ -325,13 +329,15 @@ function RouteComponent() {
   }
 
   return (
-    <PageShell className="gap-6">
+    <PageShell>
       <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
-        <p className="today-settle font-display text-[clamp(4.5rem,22vw,6rem)] leading-none text-foreground">
-          {String(today.day).padStart(2, "0")}
-        </p>
-        <p className="mt-3 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
-        <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
+        <div className="max-lg:pe-14">
+          <p className="today-settle font-display text-[clamp(4.5rem,22vw,6rem)] leading-none text-foreground">
+            {String(today.day).padStart(2, "0")}
+          </p>
+          <p className="mt-3 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
+          <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
+        </div>
 
         <ol className="mt-6 grid grid-cols-7 gap-1.5" aria-label="Minggu ini">
           {days.map((day) => {
@@ -372,20 +378,20 @@ function RouteComponent() {
             <p className="mt-2 text-sm text-muted-foreground">{absenCaption(mineToday.data.value)}</p>
           ) : null}
         </div>
-      </section>
 
-      {errorBlock}
-
-      {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
-        <Loader />
-      ) : (
-        <>
-          <p className="px-1">
+        {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
+          <div className="mt-6">
+            <Loader />
+          </div>
+        ) : (
+          <p className="mt-6">
             <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
             <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
           </p>
-        </>
-      )}
+        )}
+      </section>
+
+      {errorBlock}
     </PageShell>
   );
 }
