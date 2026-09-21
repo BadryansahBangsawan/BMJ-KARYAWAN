@@ -333,15 +333,16 @@ function RouteComponent() {
 
   return (
     <PageShell>
-      <section className="flex w-full min-w-0 flex-col rounded-xl bg-card px-5 py-4 shadow-[var(--shadow-border)] sm:px-8 sm:py-5">
-        <div
-          ref={calRef}
-          className="-mx-5 overflow-x-auto overscroll-x-contain snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:-mx-8"
-        >
-          <ol
-            className="flex w-max items-end gap-1 px-[max(1.25rem,calc(50%-2rem))] py-2"
-            aria-label="Kalender absen"
+      <section className="flex w-full min-w-0 flex-col rounded-xl bg-card px-5 py-5 shadow-[var(--shadow-border)] sm:px-8 sm:py-6">
+        <div className="flex min-h-[7.25rem] w-full min-w-0 items-center">
+          <div
+            ref={calRef}
+            className="-mx-5 w-[calc(100%+2.5rem)] overflow-x-auto overscroll-x-contain snap-x snap-mandatory sm:-mx-8 sm:w-[calc(100%+4rem)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
+            <ol
+              className="flex w-max items-center gap-1 px-[max(1.25rem,calc(50%-2rem))]"
+              aria-label="Kalender absen"
+            >
             {days.map((day) => {
               const shown = displayedAbsenValue(
                 ownAbsenByDate[day.ymd],
@@ -399,8 +400,8 @@ function RouteComponent() {
               );
             })}
           </ol>
+          </div>
         </div>
-
 
         <div className="pt-5">
           {checkInClock ? (
