@@ -56,7 +56,6 @@ export function tabsForRole(role: UserRole): TabItem[] {
       { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
       { to: "/absen", label: "Absen", icon: "absen" },
-      { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
   }
   if (role === "kasir") {
@@ -66,7 +65,6 @@ export function tabsForRole(role: UserRole): TabItem[] {
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
       { to: "/absen", label: "Absen", icon: "absen" },
       { to: "/toko", label: "Toko", icon: "toko" },
-      { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
   }
   return [
@@ -85,7 +83,6 @@ export function navForRole(role: UserRole): NavItem[] {
       { to: "/kasbon", label: "Kasbon", icon: "kasbon" },
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
       { to: "/absen", label: "Absen", icon: "absen" },
-      { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
   }
   if (role === "kasir") {
@@ -95,7 +92,6 @@ export function navForRole(role: UserRole): NavItem[] {
       { to: "/pekerjaan", label: "Pekerjaan", icon: "pekerjaan" },
       { to: "/absen", label: "Absen", icon: "absen" },
       { to: "/toko", label: "Toko", icon: "toko" },
-      { to: "/gaji", label: "Gaji", icon: "gaji" },
     ];
   }
   return [

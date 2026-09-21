@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "@BMJ-KARYAWAN/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -63,6 +63,11 @@ function lineName(line: PayrollLine) {
 }
 
 export const Route = createFileRoute("/_auth/gaji")({
+  beforeLoad: ({ context }) => {
+    if (sessionRole(context.session?.user) !== "supervisor") {
+      throw redirect({ to: "/dashboard" });
+    }
+  },
   component: GajiPage,
 });
 

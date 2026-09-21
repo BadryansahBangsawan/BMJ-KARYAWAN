@@ -9,10 +9,11 @@ import z from "zod";
 import { AbsenClockButton } from "@/components/absen-clock-button";
 import { ActionQueue } from "@/components/action-queue";
 import Loader from "@/components/loader";
+import { PaySlip } from "@/components/pay-slip";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
 import { ABSEN_ALPA, absenCaption, absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
-import { formatClock, formatRp, jayapuraYearMonth, todayParts, todayYmd, weekDays } from "@/lib/format";
+import { formatClock, formatRp, jayapuraYearMonth, monthLabel, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { authClient } from "@/lib/auth-client";
 import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
@@ -118,6 +119,23 @@ function RouteComponent() {
     ...trpc.attendance.month.queryOptions({ year, month: monthNum }),
     refetchInterval: 8_000,
   });
+  const payroll = useQuery({
+    ...trpc.payroll.get.queryOptions({ year, month: monthNum }),
+    enabled: role === "mekanik" || role === "kasir",
+  });
+  const slipLine = (payroll.data as { period?: { payDate?: string }; lines?: Array<{
+    employeeName?: string | null;
+    name?: string | null;
+    employeeId: string;
+    daysPresent: number;
+    dailyPayIdr: number;
+    jobShareIdr: number;
+    konsumsiIdr: number;
+    bonusIdr: number;
+    kasbonDeductionIdr: number;
+    takeHomeIdr: number;
+  }> } | undefined)?.lines?.[0];
+  const slipPayDate = (payroll.data as { period?: { payDate?: string } } | undefined)?.period?.payDate;
 
 
 
@@ -401,7 +419,7 @@ function RouteComponent() {
                 </li>
               );
             })}
-          </ol>
+            </ol>
           </div>
         </div>
 
@@ -421,18 +439,26 @@ function RouteComponent() {
           {mineToday.data?.value != null ? (
             <p className="mt-2 text-sm text-muted-foreground">{absenCaption(mineToday.data.value)}</p>
           ) : null}
-          {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
-            <div className="mt-6">
-              <Loader />
-            </div>
-          ) : (
-            <p className="mt-6">
-              <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
-              <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
-            </p>
-          )}
         </div>
       </section>
+
+      {slipLine ? (
+        <PaySlip
+          line={slipLine}
+          periodLabel={monthLabel(year, monthNum)}
+          payDate={slipPayDate}
+          showName={false}
+        />
+      ) : payroll.isPending ? (
+        <Loader />
+      ) : null}
+
+      {role === "kasir" ? (
+        <p className="px-1">
+          <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
+          <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
+        </p>
+      ) : null}
 
       {errorBlock}
     </PageShell>
