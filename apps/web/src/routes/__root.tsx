@@ -6,8 +6,8 @@ import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanst
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
+import { AppBar } from "../components/app-bar";
 import { AppSidebar } from "../components/app-sidebar";
-import { ProfileBubble } from "../components/profile-bubble";
 import { TabBar } from "../components/tab-bar";
 import { authClient } from "../lib/auth-client";
 
@@ -104,11 +104,12 @@ function RootDocument() {
         <div className="flex min-h-svh bg-background">
           {session ? <AppSidebar /> : null}
           <div className="flex min-h-svh min-w-0 flex-1 flex-col overflow-x-clip">
+            {session ? <AppBar /> : null}
             <main
               id="main"
               className={
                 session
-                  ? "min-w-0 flex-1 overflow-x-clip pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-0"
+                  ? "min-w-0 flex-1 overflow-x-clip pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0"
                   : "min-w-0 flex-1 overflow-x-clip"
               }
             >
@@ -116,7 +117,6 @@ function RootDocument() {
             </main>
             <TabBar />
           </div>
-          <ProfileBubble />
         </div>
         <Toaster
           position="top-center"

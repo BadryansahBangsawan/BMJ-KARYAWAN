@@ -59,7 +59,7 @@ export function TabBar() {
     <nav
       aria-label="Menu utama"
       style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-      className="app-chrome fixed inset-x-0 bottom-0 z-40 grid border-t border-border/80 bg-card/90 ps-[max(0px,env(safe-area-inset-left))] pe-[max(0px,env(safe-area-inset-right))] pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="app-chrome fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 grid h-16 rounded-2xl border border-border bg-card px-1 shadow-[var(--shadow-floating)] lg:hidden"
     >
       {tabs.map((item) => {
         if (item.icon === "more") {

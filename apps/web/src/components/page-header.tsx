@@ -14,7 +14,7 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0 flex-1">
-        <h1 className="max-lg:pe-14 text-xl font-semibold leading-[1.1] tracking-tight text-balance lg:text-[1.75rem]">
+        <h1 className="hidden text-[1.75rem] font-semibold leading-[1.1] tracking-tight text-balance lg:block">
           {title}
         </h1>
         {description ? (
