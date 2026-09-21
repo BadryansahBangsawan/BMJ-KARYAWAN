@@ -106,9 +106,6 @@ export const payrollPeriod = sqliteTable(
 		startDate: text("start_date").notNull(),
 		endDate: text("end_date").notNull(),
 		payDate: text("pay_date").notNull(),
-		status: text("status").notNull(),
-		finalizedByUserId: text("finalized_by_user_id").references(() => user.id),
-		finalizedAt: integer("finalized_at", { mode: "timestamp_ms" }),
 	},
 	(table) => [uniqueIndex("payroll_period_year_month_uidx").on(table.year, table.month)],
 );

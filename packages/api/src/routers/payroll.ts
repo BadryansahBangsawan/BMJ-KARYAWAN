@@ -119,7 +119,7 @@ async function getPeriod(db: Database, year: number, month: number) {
   return rows[0] ?? null;
 }
 
-async function getOrCreateDraftPeriod(
+async function getOrCreatePeriod(
   db: Database,
   year: number,
   month: number,
@@ -137,7 +137,6 @@ async function getOrCreateDraftPeriod(
         startDate,
         endDate,
         payDate,
-        status: "draft",
       })
       .returning();
     return inserted[0]!;
@@ -151,7 +150,7 @@ async function getOrCreateDraftPeriod(
   }
 }
 
-async function rebuildDraftLines(
+async function rebuildLines(
   db: Database,
   period: typeof payrollPeriod.$inferSelect,
   keepDeductions: boolean,
@@ -291,13 +290,13 @@ export const payrollRouter = router({
     let period = await getPeriod(ctx.db, input.year, input.month);
     let built = false;
     if (!period) {
-      period = await getOrCreateDraftPeriod(ctx.db, input.year, input.month);
-      await rebuildDraftLines(ctx.db, period, false);
+      period = await getOrCreatePeriod(ctx.db, input.year, input.month);
+      await rebuildLines(ctx.db, period, false);
       built = true;
     }
     let named = await linesWithNames(ctx.db, period.id);
     if (!built && named.length === 0) {
-      await rebuildDraftLines(ctx.db, period, false);
+      await rebuildLines(ctx.db, period, false);
       named = await linesWithNames(ctx.db, period.id);
     }
     if (role !== "supervisor") {
@@ -325,12 +324,12 @@ export const payrollRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertNotFuturePeriod(input.year, input.month);
-      const period = await getOrCreateDraftPeriod(
+      const period = await getOrCreatePeriod(
         ctx.db,
         input.year,
         input.month,
       );
-      await rebuildDraftLines(ctx.db, period, input.keepDeductions === true);
+      await rebuildLines(ctx.db, period, input.keepDeductions === true);
       const lines = await linesWithNames(ctx.db, period.id);
       return {
         period,

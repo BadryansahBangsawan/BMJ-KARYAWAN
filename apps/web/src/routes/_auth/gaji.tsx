@@ -54,7 +54,7 @@ type PayrollLine = {
 };
 
 type PayrollGet = {
-  period?: { id: string; year: number; month: number; status: string; payDate?: string };
+  period?: { id: string; year: number; month: number; payDate?: string };
   lines?: PayrollLine[];
 };
 
@@ -126,7 +126,7 @@ function GajiPage() {
       : meId
         ? allLines.filter((line) => line.employeeId === meId)
         : [];
-  const canEditDraft = role === "supervisor";
+  const canEdit = role === "supervisor";
   const totalTakeHome = lines.reduce((sum, line) => sum + line.takeHomeIdr, 0);
 
   const invalidate = () => {
@@ -180,7 +180,7 @@ function GajiPage() {
         title="Gaji"
         description={PAGE_DESCRIPTION["/gaji"]}
         actions={
-          canEditDraft ? (
+          canEdit ? (
             <>
               <Button
                 type="button"
@@ -239,12 +239,12 @@ function GajiPage() {
               <StatePanel
                 title="Belum ada baris gaji"
                 description={
-                  canEditDraft
+                  canEdit
                     ? "Hitung ulang untuk membuat slip dari kehadiran dan kasbon bulan ini."
                     : "Pilih bulan lain, atau minta supervisor menghitung gaji."
                 }
                 action={
-                  canEditDraft ? (
+                  canEdit ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -278,7 +278,7 @@ function GajiPage() {
                         line={line}
                         periodLabel={monthLabel(year, month)}
                         potongan={
-                          canEditDraft ? (
+                          canEdit ? (
                             <PotonganEditor
                               id={`potongan-${line.id}`}
                               line={line}
@@ -325,7 +325,7 @@ function GajiPage() {
                             {formatRp(line.konsumsiIdr)}
                           </TableCell>
                           <TableCell className="text-end">
-                            {canEditDraft ? (
+                            {canEdit ? (
                               <PotonganEditor
                                 id={`potongan-table-${line.id}`}
                                 line={line}

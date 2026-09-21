@@ -12,7 +12,7 @@ Mekanik, kasir, dan supervisor di bengkel BMJ memakai aplikasi ini setiap hari. 
 
 - Mekanik: absen, catat pekerjaan, ajukan kasbon.
 - Kasir: cairkan kasbon, terima pekerjaan, catat transaksi toko.
-- Supervisor: setujui/tolak kasbon, isi absen, hitung dan kunci gaji, laporan, kelola karyawan.
+- Supervisor: setujui/tolak kasbon, isi absen, hitung gaji, laporan, kelola karyawan.
 
 Situasi: kerja operasional di bengkel, bukan browsing. HP dan laptop keduanya dipakai sesuai role.
 
@@ -26,7 +26,7 @@ Tidak ada daftar publik. Akun dibuat supervisor atau bootstrap pertama.
 
 ## Positioning
 
-Satu workspace role-aware untuk uang dan kerja bengkel: integer rupiah, tanggal kalender, zona Asia/Jayapura, dan alur status yang sama dengan operasi nyata (kasbon cair baru jadi hutang; gaji dikunci tidak bisa diubah). Spreadsheet bersama tidak bisa menegakkan itu.
+Satu workspace role-aware untuk uang dan kerja bengkel: integer rupiah, tanggal kalender, zona Asia/Jayapura, dan alur status yang sama dengan operasi nyata (kasbon cair baru jadi hutang). Spreadsheet bersama tidak bisa menegakkan itu.
 
 ## Operating Context
 
