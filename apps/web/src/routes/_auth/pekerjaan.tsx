@@ -95,7 +95,7 @@ function jobKindLabel(job: JobRow) {
 }
 
 function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
-  return job.employeeName ?? job.name ?? nameById[job.employeeId] ?? "—";
+  return job.employeeName?.trim() || job.name?.trim() || nameById[job.employeeId] || "—";
 }
 
 function jobNeedsAction(job: JobRow, role: UserRole) {

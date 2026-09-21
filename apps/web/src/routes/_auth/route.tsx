@@ -3,7 +3,7 @@ import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { getUser } from "@/functions/get-user";
-import { jayapuraYearMonth, monthBounds } from "@/lib/format";
+import { jayapuraYearMonth, monthBounds, todayYmd } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 
@@ -45,6 +45,9 @@ function AuthLayout() {
     }
     if (role === "supervisor") {
       void queryClient.prefetchQuery(trpc.employee.list.queryOptions());
+      void queryClient.prefetchQuery(
+        trpc.job.list.queryOptions({ from: "2020-01-01", to: todayYmd() }),
+      );
     }
   }, [queryClient, role, trpc]);
 

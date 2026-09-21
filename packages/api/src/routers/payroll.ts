@@ -101,8 +101,22 @@ async function kasbonSisaByEmployee(db: Database) {
 async function linesWithNames(db: Database, periodId: string) {
   return db
     .select({
-      line: payrollLine,
+      id: payrollLine.id,
+      periodId: payrollLine.periodId,
+      employeeId: payrollLine.employeeId,
       employeeName: employee.name,
+      name: employee.name,
+      daysPresent: payrollLine.daysPresent,
+      alpaDays: payrollLine.alpaDays,
+      ongkosPercent: payrollLine.ongkosPercent,
+      dailyPayIdr: payrollLine.dailyPayIdr,
+      jobShareIdr: payrollLine.jobShareIdr,
+      konsumsiIdr: payrollLine.konsumsiIdr,
+      bonusIdr: payrollLine.bonusIdr,
+      kasbonBalanceIdr: payrollLine.kasbonBalanceIdr,
+      kasbonDeductionIdr: payrollLine.kasbonDeductionIdr,
+      takeHomeIdr: payrollLine.takeHomeIdr,
+      kasbonRemainingIdr: payrollLine.kasbonRemainingIdr,
     })
     .from(payrollLine)
     .innerJoin(employee, eq(payrollLine.employeeId, employee.id))
@@ -305,14 +319,11 @@ export const payrollRouter = router({
         .from(employee)
         .where(eq(employee.userId, ctx.session.user.id))
         .limit(1);
-      named = me ? named.filter((row) => row.line.employeeId === me.id) : [];
+      named = me ? named.filter((row) => row.employeeId === me.id) : [];
     }
     return {
       period,
-      lines: named.map((row) => ({
-        ...row.line,
-        employeeName: row.employeeName,
-      })),
+      lines: named,
     };
   }),
 
@@ -333,10 +344,7 @@ export const payrollRouter = router({
       const lines = await linesWithNames(ctx.db, period.id);
       return {
         period,
-        lines: lines.map((row) => ({
-          ...row.line,
-          employeeName: row.employeeName,
-        })),
+        lines,
       };
     }),
 

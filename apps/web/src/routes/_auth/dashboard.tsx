@@ -12,7 +12,7 @@ import Loader from "@/components/loader";
 import { PageShell } from "@/components/page-shell";
 import { PageError } from "@/components/state-panel";
 import { absenCaption, absenLabel, absenToneClass, displayedAbsenValue } from "@/lib/absen";
-import { formatClock, formatRp, jayapuraYearMonth, monthBounds, todayParts, todayYmd, weekDays } from "@/lib/format";
+import { formatClock, formatRp, jayapuraYearMonth, todayParts, todayYmd, weekDays } from "@/lib/format";
 import { authClient } from "@/lib/auth-client";
 import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
@@ -87,7 +87,6 @@ function RouteComponent() {
   const isStaff = role === "kasir" || role === "supervisor";
   const today = todayParts();
   const days = weekDays();
-  const month = monthBounds();
   const { year, month: monthNum } = jayapuraYearMonth();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -106,7 +105,8 @@ function RouteComponent() {
     refetchInterval: 8_000,
   });
   const jobs = useQuery({
-    ...trpc.job.list.queryOptions(month),
+    ...trpc.job.list.queryOptions({ from: "2020-01-01", to: todayYmd() }),
+    enabled: role === "supervisor",
     refetchInterval: 8_000,
   });
   const monthPendapatan = useQuery({
@@ -120,7 +120,7 @@ function RouteComponent() {
 
 
 
-  const failed = me.isError || kasbon.isError || jobs.isError || (isStaff && monthPendapatan.isError);
+  const failed = me.isError || kasbon.isError || jobs.isError || absenMonth.isError || (isStaff && monthPendapatan.isError);
 
   const employee = employeeMeSchema.safeParse(me.data);
   const employeeId = employee.success ? employee.data?.id : undefined;
@@ -144,17 +144,17 @@ function RouteComponent() {
   const queueItems =
     role === "supervisor"
       ? [
-          ...pendingKasbon.slice(0, 4).map((row, index) => ({
+          ...pendingKasbon.slice(0, 8).map((row, index) => ({
             id: row.id ?? `pending-${index}`,
-            title: row.employeeName ?? row.name ?? "Kasbon menunggu",
+            title: row.employeeName?.trim() || row.name?.trim() || "—",
             subtitle: row.keperluan,
             trailing: formatRp(row.amountIdr),
             to: "/kasbon" as const,
           })),
-          ...liveJobs.slice(0, 4).map((row, index) => ({
+          ...liveJobs.slice(0, 8).map((row, index) => ({
             id: row.id ?? `job-${index}`,
             title: row.description ?? "Pekerjaan",
-            subtitle: `${row.employeeName ?? row.name ?? "Mekanik"} · ${row.status === "selesai" ? "Menunggu diterima" : "Proses"}`,
+            subtitle: `${row.employeeName?.trim() || row.name?.trim() || "—"} · ${row.status === "selesai" ? "Menunggu diterima" : "Proses"}`,
             to: "/pekerjaan" as const,
           })),
         ]
@@ -247,39 +247,31 @@ function RouteComponent() {
   if (role === "supervisor") {
     return (
       <PageShell>
-        <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
+        <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8">
           <div className="max-lg:pe-14">
-            <p className="today-settle font-display text-[clamp(4.5rem,22vw,6rem)] leading-none text-foreground">
+            <p className="font-display text-5xl leading-none tabular-nums">
               {String(today.day).padStart(2, "0")}
             </p>
-            <p className="mt-3 text-2xl font-semibold capitalize leading-tight tracking-tight">{today.weekday}</p>
+            <p className="mt-3 text-2xl font-semibold capitalize">{today.weekday}</p>
             <p className="mt-1 text-lg text-muted-foreground">{today.monthYear}</p>
           </div>
           <p className="mt-6 text-sm text-pretty">
-            {todayRoster.length === 0
+            {!absenMonth.isError && todayRoster.length === 0
               ? "Tidak ada karyawan aktif."
               : sundayToday
                 ? "Hari Minggu. Absen tidak diisi."
-                : `${nHadir} hadir · ${nLate} telat 9> · ${nHalf} setengah · ${nAlpa} belum absen`}
+                : `${nHadir} hadir · ${nLate} telat 9> · ${nHalf} setengah · ${nAlpa} alpa`}
           </p>
         </section>
 
         {errorBlock}
 
         <section className="flex flex-col gap-3">
-          <div className="flex items-end justify-between gap-3">
-            <h2 className="text-lg font-semibold tracking-tight">Siapa yang sudah absen</h2>
-            <Link
-              to="/absen"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 bg-card")}
-            >
-              Grid absen
-            </Link>
-          </div>
-          {todayRoster.length === 0 ? (
+          <h2 className="text-lg font-semibold tracking-tight">Siapa yang sudah absen</h2>
+          {!absenMonth.isError && todayRoster.length === 0 ? (
             <p className="text-sm text-muted-foreground">Tidak ada karyawan aktif.</p>
           ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
+            <ul className="grid gap-2">
               {todayRoster.map((emp) => (
                 <li key={emp.id}>
                   <Link
@@ -291,7 +283,7 @@ function RouteComponent() {
                   >
                     <span className="truncate font-medium">{emp.name}</span>
                     <span className="shrink-0 text-end text-sm tabular-nums">
-                      {emp.shown === undefined ? "·" : `${absenLabel(emp.shown)} · ${absenCaption(emp.shown)}`}
+                      {absenCaption(emp.shown)}
                     </span>
                   </Link>
                 </li>
@@ -312,14 +304,15 @@ function RouteComponent() {
           emptyDescription="Kasbon dan pekerjaan menunggu sudah bersih."
         />
 
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
           {shortcuts.map((item) => (
             <Link
               key={item.label}
               to={item.to}
               className={cn(
                 buttonVariants({ variant: item.to === "/absen" ? "default" : "outline" }),
-                item.to === "/absen" ? "h-14 min-h-14" : "h-14 min-h-14 bg-card",
+                "h-14 min-h-14 w-full",
+                item.to !== "/absen" && "bg-card",
               )}
             >
               {item.label}

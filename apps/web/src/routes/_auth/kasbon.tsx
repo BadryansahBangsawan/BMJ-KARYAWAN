@@ -275,7 +275,7 @@ function KasbonPage() {
                   {pending.map((row) => (
                     <MobileListRow
                       key={row.id}
-                      title={row.employeeName ?? row.name ?? row.employeeId}
+                      title={row.employeeName?.trim() || row.name?.trim() || "—"}
                       subtitle={row.keperluan}
                       trailing={formatRp(row.amountIdr)}
                     >
@@ -318,7 +318,7 @@ function KasbonPage() {
                   {approved.map((row) => (
                     <MobileListRow
                       key={row.id}
-                      title={row.employeeName ?? row.name ?? row.employeeId}
+                      title={row.employeeName?.trim() || row.name?.trim() || "—"}
                       subtitle={row.keperluan}
                       trailing={formatRp(row.amountIdr)}
                     >
@@ -387,7 +387,7 @@ function KasbonPage() {
                       return (
                         <MobileListRow
                           key={row.id}
-                          title={row.employeeName ?? row.name ?? "—"}
+                          title={row.employeeName?.trim() || row.name?.trim() || "—"}
                           subtitle={
                             <>
                               {row.keperluan}
@@ -591,7 +591,7 @@ function KasbonPage() {
         title="Tolak kasbon"
         description={
           rejectRow
-            ? `Kasbon ${rejectRow.employeeName ?? rejectRow.name ?? ""} sebesar ${formatRp(rejectRow.amountIdr)} akan ditolak.`
+            ? `Kasbon ${rejectRow.employeeName?.trim() || rejectRow.name?.trim() || "—"} sebesar ${formatRp(rejectRow.amountIdr)} akan ditolak.`
             : "Kasbon akan ditolak."
         }
         submitLabel="Tolak kasbon"

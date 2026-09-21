@@ -59,7 +59,7 @@ type PayrollGet = {
 };
 
 function lineName(line: PayrollLine) {
-  return line.employeeName ?? line.name ?? line.employeeId;
+  return line.employeeName?.trim() || line.name?.trim() || "—";
 }
 
 export const Route = createFileRoute("/_auth/gaji")({

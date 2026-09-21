@@ -24,7 +24,7 @@ export type PaySlipLine = {
 };
 
 function slipName(line: PaySlipLine) {
-  return line.employeeName ?? line.name ?? line.employeeId;
+  return line.employeeName?.trim() || line.name?.trim() || "—";
 }
 
 function Row({

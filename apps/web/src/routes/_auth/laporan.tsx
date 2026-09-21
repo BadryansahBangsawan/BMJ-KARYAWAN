@@ -115,7 +115,7 @@ function LaporanTable({
           {rows.map((row, index) => (
             <MobileListRow
               key={`${row.name ?? row.employeeName ?? "row"}-${index}`}
-              title={row.name ?? row.employeeName ?? "—"}
+              title={row.employeeName?.trim() || row.name?.trim() || "—"}
               subtitle={`Diterima ${formatRp(row.diterimaAmount ?? 0)} · Mekanik ${formatRp(row.mechanicShare ?? 0)} · Bengkel ${formatRp(row.bengkelShare ?? 0)}`}
               trailing={formatRp(row.totalAmount ?? 0)}
               meta={
@@ -142,7 +142,7 @@ function LaporanTable({
           <TableBody>
             {rows.map((row, index) => (
               <TableRow key={`${row.name ?? row.employeeName ?? "row"}-${index}`}>
-                <TableCell>{row.name ?? row.employeeName ?? "—"}</TableCell>
+                <TableCell>{row.employeeName?.trim() || row.name?.trim() || "—"}</TableCell>
                 <TableCell className="text-end tabular-nums">{formatRp(row.totalAmount ?? 0)}</TableCell>
                 <TableCell className="text-end tabular-nums">{formatRp(row.diterimaAmount ?? 0)}</TableCell>
                 <TableCell className="text-end tabular-nums">{formatRp(row.mechanicShare ?? 0)}</TableCell>
