@@ -339,7 +339,7 @@ function RouteComponent() {
                 day.isSunday,
               );
               const dist = Math.abs(day.fromToday);
-              const weight = dist === 0 ? 9 : dist === 1 ? 5.5 : dist === 2 ? 4 : 2.5;
+              const weight = dist === 0 ? 10 : dist === 1 ? 5.75 : dist === 2 ? 4.25 : 2.75;
               return (
                 <li
                   key={day.ymd}
@@ -348,7 +348,8 @@ function RouteComponent() {
                 >
                   <div
                     className={cn(
-                      "flex aspect-square w-full flex-col items-center justify-center overflow-hidden rounded-md",
+                      "flex w-full flex-col items-center justify-center overflow-hidden rounded-md",
+                      dist === 0 ? "aspect-[3/4]" : "aspect-[4/5]",
                       absenToneClass(shown),
                       day.isToday ? "ring-2 ring-foreground" : "",
                     )}
@@ -365,10 +366,10 @@ function RouteComponent() {
                     <span
                       className={cn(
                         "font-display leading-none",
-                        dist === 0 && "text-[clamp(1.75rem,22cqw,4.5rem)]",
-                        dist === 1 && "text-[clamp(1.125rem,13cqw,2.25rem)]",
-                        dist === 2 && "text-[clamp(0.8rem,9cqw,1.35rem)]",
-                        dist === 3 && "text-[clamp(0.65rem,6.5cqw,0.95rem)]",
+                        dist === 0 && "text-[clamp(2rem,24cqw,4.75rem)]",
+                        dist === 1 && "text-[clamp(1.25rem,14cqw,2.5rem)]",
+                        dist === 2 && "text-[clamp(0.85rem,10cqw,1.5rem)]",
+                        dist === 3 && "text-[clamp(0.7rem,7cqw,1.05rem)]",
                       )}
                     >
                       {day.day}
