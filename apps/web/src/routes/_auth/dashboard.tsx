@@ -348,17 +348,18 @@ function RouteComponent() {
                 >
                   <div
                     className={cn(
-                      "flex w-full flex-col items-center justify-center overflow-hidden rounded-md",
-                      dist === 0 ? "aspect-[3/4]" : "aspect-[4/5]",
+                      "flex w-full flex-col items-center justify-between px-0.5 py-1.5 rounded-md",
+                      dist === 0 ? "aspect-[3/4] py-2" : "aspect-[4/5]",
                       absenToneClass(shown),
                       day.isToday ? "ring-2 ring-foreground" : "",
                     )}
                   >
                     <span
                       className={cn(
-                        "font-semibold uppercase",
-                        dist === 0 ? "text-[clamp(0.6rem,3.2cqw,0.8rem)]" : "text-[0.55rem]",
-                        dist >= 2 && "hidden",
+                        "shrink-0 font-semibold uppercase leading-none",
+                        dist === 0 && "text-[clamp(0.65rem,3.4cqw,0.85rem)]",
+                        dist === 1 && "text-[clamp(0.5rem,2.6cqw,0.7rem)]",
+                        dist >= 2 && "text-[clamp(0.4rem,2cqw,0.55rem)]",
                       )}
                     >
                       {day.label}
@@ -366,17 +367,17 @@ function RouteComponent() {
                     <span
                       className={cn(
                         "font-display leading-none",
-                        dist === 0 && "text-[clamp(2rem,24cqw,4.75rem)]",
-                        dist === 1 && "text-[clamp(1.25rem,14cqw,2.5rem)]",
-                        dist === 2 && "text-[clamp(0.85rem,10cqw,1.5rem)]",
-                        dist === 3 && "text-[clamp(0.7rem,7cqw,1.05rem)]",
+                        dist === 0 && "text-[clamp(1.75rem,20cqw,4.25rem)]",
+                        dist === 1 && "text-[clamp(1.125rem,12cqw,2.25rem)]",
+                        dist === 2 && "text-[clamp(0.8rem,9cqw,1.35rem)]",
+                        dist === 3 && "text-[clamp(0.65rem,6.5cqw,1rem)]",
                       )}
                     >
                       {day.day}
                     </span>
-                    {shown !== undefined && dist <= 1 ? (
-                      <span className="text-[0.65rem] tabular-nums leading-none">{absenLabel(shown)}</span>
-                    ) : null}
+                    <span className="shrink-0 text-[0.65rem] tabular-nums leading-none">
+                      {shown !== undefined && dist <= 1 ? absenLabel(shown) : "\u00a0"}
+                    </span>
                   </div>
                 </li>
               );
