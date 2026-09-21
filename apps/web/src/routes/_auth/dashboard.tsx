@@ -325,8 +325,11 @@ function RouteComponent() {
 
   return (
     <PageShell>
-      <section className="rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8">
-        <ol className="flex min-h-[7.5rem] items-center justify-center gap-1 sm:min-h-[9.5rem] sm:gap-1.5" aria-label="Minggu ini">
+      <section className="flex min-h-[calc(100svh-5.5rem-env(safe-area-inset-bottom))] w-full min-w-0 flex-col overflow-hidden rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8 lg:min-h-[calc(100svh-4rem)]">
+        <ol
+          className="@container flex w-full min-w-0 items-center justify-center gap-1 p-px sm:gap-1.5"
+          aria-label="Minggu ini"
+        >
           {days.map((day) => {
             const shown = displayedAbsenValue(
               ownAbsenByDate[day.ymd],
@@ -336,14 +339,19 @@ function RouteComponent() {
             );
             const dist = Math.abs(day.fromToday);
             return (
-              <li key={day.ymd} className="flex items-center justify-center">
+              <li
+                key={day.ymd}
+                className={cn(
+                  "flex min-w-0 items-center justify-center",
+                  dist === 0 && "flex-[7.5_1_0%]",
+                  dist === 1 && "flex-[5.25_1_0%]",
+                  dist === 2 && "flex-[3.75_1_0%]",
+                  dist === 3 && "flex-[3_1_0%]",
+                )}
+              >
                 <div
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-md",
-                    dist === 0 && "size-[7.5rem] sm:size-[9.5rem]",
-                    dist === 1 && "size-[5.25rem] sm:size-28",
-                    dist === 2 && "size-[3.75rem] sm:size-20",
-                    dist === 3 && "size-12 sm:size-14",
+                    "flex aspect-square w-full flex-col items-center justify-center rounded-md",
                     absenToneClass(shown),
                     day.isToday ? "ring-2 ring-foreground" : "",
                   )}
@@ -351,7 +359,7 @@ function RouteComponent() {
                   <span
                     className={cn(
                       "font-semibold uppercase",
-                      dist === 0 ? "text-xs" : "text-[0.55rem]",
+                      dist === 0 ? "text-[clamp(0.55rem,3cqw,0.75rem)]" : "text-[0.55rem]",
                       dist >= 2 && "hidden",
                     )}
                   >
@@ -360,10 +368,10 @@ function RouteComponent() {
                   <span
                     className={cn(
                       "font-display leading-none",
-                      dist === 0 && "text-5xl sm:text-6xl",
-                      dist === 1 && "text-3xl",
-                      dist === 2 && "text-xl",
-                      dist === 3 && "text-sm",
+                      dist === 0 && "text-[clamp(1.5rem,18cqw,3.75rem)]",
+                      dist === 1 && "text-[clamp(1rem,12cqw,1.875rem)]",
+                      dist === 2 && "text-[clamp(0.7rem,8cqw,1.25rem)]",
+                      dist === 3 && "text-[clamp(0.6rem,6cqw,0.875rem)]",
                     )}
                   >
                     {day.day}
@@ -377,7 +385,7 @@ function RouteComponent() {
           })}
         </ol>
 
-        <div className="mt-6">
+        <div className="mt-auto pt-6">
           {checkInClock ? (
             <p className="mb-4 text-sm tabular-nums text-muted-foreground">
               Masuk {checkInClock}
@@ -393,18 +401,17 @@ function RouteComponent() {
           {mineToday.data?.value != null ? (
             <p className="mt-2 text-sm text-muted-foreground">{absenCaption(mineToday.data.value)}</p>
           ) : null}
+          {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
+            <div className="mt-6">
+              <Loader />
+            </div>
+          ) : (
+            <p className="mt-6">
+              <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
+              <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
+            </p>
+          )}
         </div>
-
-        {!me.data && !kasbon.data && (me.isPending || kasbon.isPending) ? (
-          <div className="mt-6">
-            <Loader />
-          </div>
-        ) : (
-          <p className="mt-6">
-            <span className="block text-sm text-muted-foreground">{moneyLabel}</span>
-            <span className="font-display text-4xl leading-none tracking-tight tabular-nums">{moneyValue}</span>
-          </p>
-        )}
       </section>
 
       {errorBlock}
