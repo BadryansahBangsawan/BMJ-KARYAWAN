@@ -2,7 +2,7 @@ import { buttonVariants } from "@BMJ-KARYAWAN/ui/components/button";
 import { cn } from "@BMJ-KARYAWAN/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -86,12 +86,13 @@ function RouteComponent() {
   const role = sessionRole(session?.user);
   const isStaff = role === "kasir" || role === "supervisor";
   const today = todayParts();
-  const days = weekDays();
   const { year, month: monthNum } = jayapuraYearMonth();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [clockBusy, setClockBusy] = useState(false);
   const workDate = todayYmd();
+  const days = weekDays(workDate, 14);
+  const calRef = useRef<HTMLDivElement>(null);
 
   const mineToday = useQuery({
     ...trpc.attendance.mineToday.queryOptions(),
@@ -232,6 +233,13 @@ function RouteComponent() {
     }
   }
 
+  useEffect(() => {
+    const node = calRef.current?.querySelector("[data-cal-today]");
+    if (node instanceof HTMLElement) {
+      node.scrollIntoView({ inline: "center", block: "nearest", behavior: "instant" });
+    }
+  }, [workDate]);
+
   const errorBlock = failed ? (
     <PageError
       onRetry={() => {
@@ -325,11 +333,14 @@ function RouteComponent() {
 
   return (
     <PageShell>
-      <section className="flex min-h-[calc(100svh-5.5rem-env(safe-area-inset-bottom))] w-full min-w-0 flex-col overflow-hidden rounded-xl bg-card px-5 py-6 shadow-[var(--shadow-border)] sm:px-8 sm:py-8 lg:min-h-[calc(100svh-4rem)]">
-        <div className="flex min-h-0 flex-1 items-center">
+      <section className="flex w-full min-w-0 flex-col rounded-xl bg-card px-5 py-4 shadow-[var(--shadow-border)] sm:px-8 sm:py-6">
+        <div
+          ref={calRef}
+          className="-mx-5 overflow-x-auto overscroll-x-contain snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           <ol
-            className="@container flex w-full min-w-0 items-center justify-center gap-0.5 sm:gap-1"
-            aria-label="Minggu ini"
+            className="flex w-max items-end gap-1 px-[max(1.25rem,calc(50%-2rem))] py-1"
+            aria-label="Kalender absen"
           >
             {days.map((day) => {
               const shown = displayedAbsenValue(
@@ -338,17 +349,22 @@ function RouteComponent() {
                 workDate,
                 day.isSunday,
               );
-              const dist = Math.abs(day.fromToday);
-              const weight = dist === 0 ? 10 : dist === 1 ? 5.75 : dist === 2 ? 4.25 : 2.75;
+              const dist = Math.min(Math.abs(day.fromToday), 4);
               return (
                 <li
                   key={day.ymd}
-                  className="flex min-w-0 items-center justify-center"
-                  style={{ flex: `${weight} 1 0%` }}
+                  data-cal-today={day.isToday ? "" : undefined}
+                  className={cn(
+                    "snap-center shrink-0 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-safe:active:scale-95",
+                    dist === 0 && "w-16",
+                    dist === 1 && "w-12",
+                    dist === 2 && "w-10",
+                    dist >= 3 && "w-8",
+                  )}
                 >
                   <div
                     className={cn(
-                      "flex w-full flex-col items-center justify-between px-0.5 py-1.5 rounded-md",
+                      "flex w-full flex-col items-center justify-between rounded-md px-0.5 py-1.5",
                       dist === 0 ? "aspect-[3/4] py-2" : "aspect-[4/5]",
                       absenToneClass(shown),
                       day.isToday ? "ring-2 ring-foreground" : "",
@@ -357,9 +373,9 @@ function RouteComponent() {
                     <span
                       className={cn(
                         "shrink-0 font-semibold uppercase leading-none",
-                        dist === 0 && "text-[clamp(0.65rem,3.4cqw,0.85rem)]",
-                        dist === 1 && "text-[clamp(0.5rem,2.6cqw,0.7rem)]",
-                        dist >= 2 && "text-[clamp(0.4rem,2cqw,0.55rem)]",
+                        dist === 0 && "text-[0.65rem]",
+                        dist === 1 && "text-[0.5rem]",
+                        dist >= 2 && "text-[0.4rem]",
                       )}
                     >
                       {day.label}
@@ -367,15 +383,15 @@ function RouteComponent() {
                     <span
                       className={cn(
                         "font-display leading-none",
-                        dist === 0 && "text-[clamp(1.75rem,20cqw,4.25rem)]",
-                        dist === 1 && "text-[clamp(1.125rem,12cqw,2.25rem)]",
-                        dist === 2 && "text-[clamp(0.8rem,9cqw,1.35rem)]",
-                        dist === 3 && "text-[clamp(0.65rem,6.5cqw,1rem)]",
+                        dist === 0 && "text-3xl",
+                        dist === 1 && "text-xl",
+                        dist === 2 && "text-sm",
+                        dist >= 3 && "text-xs",
                       )}
                     >
                       {day.day}
                     </span>
-                    <span className="shrink-0 text-[0.65rem] tabular-nums leading-none">
+                    <span className="shrink-0 text-[0.6rem] tabular-nums leading-none">
                       {shown !== undefined && dist <= 1 ? absenLabel(shown) : "\u00a0"}
                     </span>
                   </div>
@@ -385,7 +401,7 @@ function RouteComponent() {
           </ol>
         </div>
 
-        <div className="pt-6">
+        <div className="pt-5">
           {checkInClock ? (
             <p className="mb-4 text-sm tabular-nums text-muted-foreground">
               Masuk {checkInClock}

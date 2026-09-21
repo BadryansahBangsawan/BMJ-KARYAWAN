@@ -61,7 +61,7 @@ export function todayParts(ymd = todayYmd()) {
   };
 }
 
-export function weekDays(ymd = todayYmd()) {
+export function weekDays(ymd = todayYmd(), span = 3) {
   const date = new Date(`${ymd}T12:00:00+09:00`);
   const days: Array<{
     ymd: string;
@@ -71,7 +71,7 @@ export function weekDays(ymd = todayYmd()) {
     isSunday: boolean;
     fromToday: number;
   }> = [];
-  for (let offset = -3; offset <= 3; offset += 1) {
+  for (let offset = -span; offset <= span; offset += 1) {
     const cell = new Date(date);
     cell.setUTCDate(cell.getUTCDate() + offset);
     const cellYmd = cell.toISOString().slice(0, 10);
