@@ -1,0 +1,14 @@
+{
+  "identifier": "mobile",
+  "description": "Android absen: GPS native + HTTP API",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "geolocation:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://karyawan.badry.engineer/*" }]
+    }
+  ]
+}

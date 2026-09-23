@@ -71,3 +71,12 @@ apps/android/android/.gradle
 apps/android/android/**/build
 apps/android/android/local.properties
 apps/android/android/captures
+
+# Tauri native client
+apps/karyawan/src-tauri/target
+apps/karyawan/src-tauri/gen/schemas
+apps/karyawan/src-tauri/gen/android/.gradle
+apps/karyawan/src-tauri/gen/android/**/build
+apps/karyawan/src-tauri/gen/android/local.properties
+apps/karyawan/src-tauri/gen/android/key.properties
+apps/karyawan/src-tauri/gen/android/captures

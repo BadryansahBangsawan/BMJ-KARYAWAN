@@ -1,0 +1,179 @@
+{
+  "name": "Bengkel Serui",
+  "address": "Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen",
+  "lat": -1.8779371,
+  "lng": 136.2299775,
+  "radiusM": 50,
+  "maxAccuracyM": 80,
+  "tz": "Asia/Jayapura",
+  "locale": "id",
+  "apiBase": "https://karyawan.badry.engineer",
+  "seedPrimary": "#125FB3",
+  "workWeekdays": [1, 2, 3, 4, 5, 6],
+  "clock": {
+    "hadirStart": "06:00",
+    "hadirEnd": "08:59",
+    "telatEnd": "09:29",
+    "setengahEnd": "12:00"
+  },
+  "roles": [
+    {
+      "id": "mekanik",
+      "label": "Mekanik",
+      "isSystem": true,
+      "permissions": [
+        "absenSelf",
+        "kasbonCreate",
+        "jobCreateSelf",
+        "payrollViewSelf",
+        "announcementRead",
+        "leaveCreate"
+      ]
+    },
+    {
+      "id": "kasir",
+      "label": "Kasir",
+      "isSystem": true,
+      "permissions": [
+        "absenSelf",
+        "kasbonCreate",
+        "kasbonDisburse",
+        "kasbonPay",
+        "jobCreateSelf",
+        "jobAccept",
+        "storeCreate",
+        "payrollViewSelf",
+        "announcementRead",
+        "leaveCreate"
+      ]
+    },
+    {
+      "id": "supervisor",
+      "label": "Supervisor",
+      "isSystem": true,
+      "permissions": [
+        "absenSelf",
+        "absenRoster",
+        "kasbonCreate",
+        "kasbonApprove",
+        "kasbonReject",
+        "kasbonDisburse",
+        "kasbonPay",
+        "jobCreateSelf",
+        "jobCreateAny",
+        "jobAccept",
+        "jobCancel",
+        "payrollViewSelf",
+        "payrollViewAll",
+        "payrollRebuild",
+        "employeeRead",
+        "employeeWrite",
+        "laporanView",
+        "announcementRead",
+        "announcementWrite",
+        "leaveCreate",
+        "leaveApprove",
+        "roleManage",
+        "settingsWorkshop"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "dashboard",
+      "label": "Dasbor",
+      "icon": "dashboard",
+      "path": "/dasbor",
+      "navOrder": 0,
+      "enabled": true,
+      "anyOf": []
+    },
+    {
+      "id": "absen",
+      "label": "Absen",
+      "icon": "fingerprint",
+      "path": "/absen",
+      "navOrder": 1,
+      "enabled": true,
+      "anyOf": ["absenSelf", "absenRoster"]
+    },
+    {
+      "id": "kasbon",
+      "label": "Kasbon",
+      "icon": "payments",
+      "path": "/kasbon",
+      "navOrder": 2,
+      "enabled": true,
+      "anyOf": [
+        "kasbonCreate",
+        "kasbonApprove",
+        "kasbonReject",
+        "kasbonDisburse",
+        "kasbonPay"
+      ]
+    },
+    {
+      "id": "pekerjaan",
+      "label": "Pekerjaan",
+      "icon": "build",
+      "path": "/pekerjaan",
+      "navOrder": 3,
+      "enabled": true,
+      "anyOf": ["jobCreateSelf", "jobCreateAny", "jobAccept", "jobCancel"]
+    },
+    {
+      "id": "toko",
+      "label": "Toko",
+      "icon": "storefront",
+      "path": "/toko",
+      "navOrder": 4,
+      "enabled": true,
+      "anyOf": ["storeCreate"]
+    },
+    {
+      "id": "gaji",
+      "label": "Gaji",
+      "icon": "wallet",
+      "path": "/gaji",
+      "navOrder": 5,
+      "enabled": true,
+      "anyOf": ["payrollViewAll"]
+    },
+    {
+      "id": "laporan",
+      "label": "Laporan",
+      "icon": "insights",
+      "path": "/laporan",
+      "navOrder": 6,
+      "enabled": true,
+      "anyOf": ["laporanView"]
+    },
+    {
+      "id": "karyawan",
+      "label": "Karyawan",
+      "icon": "groups",
+      "path": "/karyawan",
+      "navOrder": 7,
+      "enabled": true,
+      "anyOf": ["employeeRead", "employeeWrite"]
+    },
+    {
+      "id": "pengumuman",
+      "label": "Pengumuman",
+      "icon": "campaign",
+      "path": "/pengumuman",
+      "navOrder": 8,
+      "enabled": true,
+      "anyOf": ["announcementRead", "announcementWrite"]
+    },
+    {
+      "id": "izin",
+      "label": "Izin",
+      "icon": "event",
+      "path": "/izin",
+      "navOrder": 9,
+      "enabled": true,
+      "anyOf": ["leaveCreate", "leaveApprove"]
+    }
+  ]
+}
