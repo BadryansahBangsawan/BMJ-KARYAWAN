@@ -91,7 +91,7 @@ function jobKindLabel(job: JobRow) {
   if (job.kind === "persenan") {
     return job.bengkelPercent != null ? `Persenan ${job.bengkelPercent}%` : "Persenan";
   }
-  return "Gaji";
+  return "Ongkos";
 }
 
 function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
@@ -296,8 +296,6 @@ function PekerjaanPage() {
       amountIdr: "",
       struk: "",
       customerNote: "",
-      kind: "ongkos" as "ongkos" | "persenan",
-      bengkelPercent: "",
     },
     onSubmit: async ({ value }) => {
       const payload: {
@@ -306,21 +304,15 @@ function PekerjaanPage() {
         amountIdr: number;
         struk?: string;
         customerNote?: string;
-        kind: "ongkos" | "persenan";
-        bengkelPercent?: number;
         employeeId?: string;
       } = {
         workDate: role === "mekanik" ? todayYmd() : value.workDate,
         description: value.description,
         amountIdr: Number(value.amountIdr),
-        kind: role === "mekanik" ? "ongkos" : value.kind,
       };
       const nomor = value.struk.trim();
       if (nomor) payload.struk = nomor;
       if (value.customerNote) payload.customerNote = value.customerNote;
-      if (role !== "mekanik" && value.kind === "persenan") {
-        payload.bengkelPercent = Number(value.bengkelPercent);
-      }
       if (role === "supervisor" && value.employeeId) {
         payload.employeeId = value.employeeId;
       }
@@ -337,8 +329,6 @@ function PekerjaanPage() {
           amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan ongkos lebih dari 0."),
           struk: z.string().max(120, "Nomor struk terlalu panjang."),
           customerNote: z.string(),
-          kind: z.enum(["ongkos", "persenan"]),
-          bengkelPercent: z.string(),
         })
         .superRefine((value, ctx) => {
           if (role === "supervisor" && !value.employeeId) {
@@ -354,16 +344,6 @@ function PekerjaanPage() {
               path: ["workDate"],
               message: "Tanggal tidak boleh setelah hari ini.",
             });
-          }
-          if (value.kind === "persenan") {
-            const percent = Number(value.bengkelPercent);
-            if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
-              ctx.addIssue({
-                code: "custom",
-                path: ["bengkelPercent"],
-                message: "Masukkan persen bengkel 0–100.",
-              });
-            }
           }
         }),
     },
@@ -584,7 +564,6 @@ function PekerjaanPage() {
             setCreateOpen(open);
             if (open) {
               form.setFieldValue("workDate", todayYmd());
-              if (role === "mekanik") form.setFieldValue("kind", "ongkos");
             } else {
               setStrukPreview("");
               setExtracting(false);
@@ -595,7 +574,7 @@ function PekerjaanPage() {
           description={
             role === "mekanik"
               ? "Uraian dan ongkos. Langsung tercatat, tanpa konfirmasi kasir."
-              : "Masukkan uraian, ongkos, dan jenis. Nominal dalam rupiah utuh."
+              : "Masukkan uraian dan ongkos. Nominal dalam rupiah utuh."
           }
           submitLabel="Catat pekerjaan"
           submitting={createMut.isPending || extracting}
@@ -758,53 +737,6 @@ function PekerjaanPage() {
             )}
           </form.Field>
 
-
-
-          {role === "supervisor" ? (
-            <>
-              <form.Field name="kind">
-                {(field) => (
-                  <div className="space-y-2">
-                    <span className="text-sm font-medium">Jenis</span>
-                    <FilterChips
-                      ariaLabel="Jenis"
-                      value={field.state.value}
-                      onChange={(value) => field.handleChange(value)}
-                      options={[
-                        { value: "ongkos", label: "Gaji" },
-                        { value: "persenan", label: "Persenan" },
-                      ]}
-                    />
-                  </div>
-                )}
-              </form.Field>
-              <form.Subscribe selector={(state) => state.values.kind}>
-                {(kind) =>
-                  kind === "persenan" ? (
-                    <form.Field name="bengkelPercent">
-                      {(field) => (
-                        <div className="space-y-2">
-                          <Label htmlFor={field.name}>Persen bengkel (0–100)</Label>
-                          <Input
-                            id={field.name}
-                            inputMode="numeric"
-                            className="tabular-nums"
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            placeholder="30"
-                            aria-invalid={field.state.meta.errors.length > 0}
-                            aria-describedby={fieldDescribedBy("bengkelPercent-error", field.state.meta.errors)}
-                          />
-                          <FieldError id="bengkelPercent-error" errors={field.state.meta.errors} />
-                        </div>
-                      )}
-                    </form.Field>
-                  ) : null
-                }
-              </form.Subscribe>
-            </>
-          ) : null}
         </FormDialog>
       ) : null}
 

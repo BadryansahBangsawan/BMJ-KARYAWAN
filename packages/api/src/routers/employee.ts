@@ -276,10 +276,6 @@ export const employeeRouter = router({
             await assertUserIdFree(ctx.db, emailUser.id, existing.id);
           }
           nextUserId = emailUser.id;
-          await ctx.db
-            .update(user)
-            .set({ role: nextRole })
-            .where(eq(user.id, emailUser.id));
           if (input.password && existing.userId === emailUser.id) {
             await setCredentialPassword(ctx.db, emailUser.id, input.password);
           }
@@ -304,11 +300,12 @@ export const employeeRouter = router({
         });
       }
 
-      if (nextUserId === undefined && existing.userId && input.role) {
+      const linkedUserId = nextUserId === undefined ? existing.userId : nextUserId;
+      if (linkedUserId) {
         await ctx.db
           .update(user)
-          .set({ role: nextRole })
-          .where(eq(user.id, existing.userId));
+          .set({ name: nextName, role: nextRole })
+          .where(eq(user.id, linkedUserId));
       }
 
       const [row] = await ctx.db

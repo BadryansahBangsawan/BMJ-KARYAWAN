@@ -10,7 +10,6 @@ import { kasirProcedure, protectedProcedure, router, supervisorProcedure } from 
 const TZ = "Asia/Jayapura";
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const jobStatusSchema = z.enum(["proses", "selesai", "diterima", "batal"]);
-const jobKindSchema = z.enum(["ongkos", "persenan"]);
 
 type Role = "supervisor" | "kasir" | "mekanik";
 
@@ -144,8 +143,6 @@ export const jobRouter = router({
             !value || value.startsWith("data:") ? undefined : value,
           ),
         customerNote: z.string().optional(),
-        kind: jobKindSchema,
-        bengkelPercent: z.number().int().min(0).max(100).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -154,19 +151,12 @@ export const jobRouter = router({
         throw new TRPCError({ code: "FORBIDDEN", message: "Kasir cannot create jobs" });
       }
 
-      const kind = role === "mekanik" ? "ongkos" : input.kind;
+      const kind = "ongkos";
       const workDate = role === "mekanik" ? todayYmd() : input.workDate;
       if (workDate > todayYmd()) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Tidak bisa catat pekerjaan di tanggal yang belum terjadi",
-        });
-      }
-
-      if (kind === "persenan" && input.bengkelPercent === undefined) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "bengkelPercent required (0–100)",
         });
       }
 
@@ -210,8 +200,7 @@ export const jobRouter = router({
           });
         }
         targetId = input.employeeId;
-        bengkelPercent =
-          kind === "persenan" ? (input.bengkelPercent ?? target.ongkosPercent) : target.ongkosPercent;
+        bengkelPercent = target.ongkosPercent;
       }
 
 
