@@ -16,7 +16,8 @@ import Loader from "./loader";
 export default function SignInForm({ googleClientId = "" }: { googleClientId?: string }) {
   const navigate = useNavigate();
   const { isPending } = authClient.useSession();
-  const showGoogle = googleClientId.trim() !== "";
+  const showGoogle =
+    googleClientId.trim() !== "" && (typeof navigator === "undefined" || !/; wv\)/.test(navigator.userAgent));
 
   const form = useForm({
     defaultValues: {

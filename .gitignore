@@ -60,3 +60,14 @@ apps/web/playwright/.cache
 .cache
 tmp
 temp
+
+# Android sideload shell
+*.jks
+*.keystore
+*.apk
+*.aab
+key.properties
+apps/android/android/.gradle
+apps/android/android/**/build
+apps/android/android/local.properties
+apps/android/android/captures

@@ -1,0 +1,14 @@
+{
+  "name": "@BMJ-KARYAWAN/android",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "apk": "cap sync android && cd android && JAVA_HOME=\"${JAVA_HOME_21:-$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home}\" ./gradlew assembleRelease"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4"
+  }
+}
