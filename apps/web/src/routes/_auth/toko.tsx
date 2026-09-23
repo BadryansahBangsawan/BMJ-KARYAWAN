@@ -18,9 +18,11 @@ import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
-import { formatDateTime, formatRp } from "@/lib/format";
+import { formatDateTime, formatRp, monthBounds } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
+import { DateRangeFields } from "@/components/period-fields";
 import { FieldError, fieldDescribedBy } from "@/components/field-error";
 import { FilterChips } from "@/components/filter-bar";
 import { FormDialog } from "@/components/form-dialog";
@@ -33,15 +35,6 @@ import { PageShell } from "@/components/page-shell";
 import { ResponsiveRecords } from "@/components/responsive-records";
 import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
-
-type StoreTxn = {
-  id: string;
-  seq: number;
-  kind: string;
-  amountIdr: number;
-  note?: string | null;
-  createdAt?: string | number | Date | null;
-};
 
 const KIND_LABEL: Record<string, string> = {
   kasir: "Tunai",
@@ -66,18 +59,15 @@ function TokoPage() {
   const { data: session } = authClient.useSession();
   const role = sessionRole(session?.user);
   const [createOpen, setCreateOpen] = useState(false);
+  const bounds = monthBounds();
+  const [from, setFrom] = useState(bounds.from);
+  const [to, setTo] = useState(bounds.to);
+  const range = { from, to };
 
-  const listQuery = useQuery(trpc.store.list.queryOptions());
-  const summaryQuery = useQuery(trpc.store.summary.queryOptions());
-  const rows = (listQuery.data ?? []) as StoreTxn[];
-  const summary = summaryQuery.data as
-    | {
-        transaksiKali?: number;
-        tunai?: number;
-        nonTunai?: number;
-        panjar?: number;
-      }
-    | undefined;
+  const listQuery = useQuery(trpc.store.list.queryOptions(range));
+  const summaryQuery = useQuery(trpc.store.summary.queryOptions(range));
+  const rows: RouterOutputs["store"]["list"] = listQuery.data ?? [];
+  const summary = summaryQuery.data;
 
   const kali = summary?.transaksiKali ?? rows.length;
   const tunai = summary?.tunai ?? 0;
@@ -86,8 +76,8 @@ function TokoPage() {
   const totalHariIni = tunai + nonTunai + panjar;
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: trpc.store.list.queryKey() });
-    void queryClient.invalidateQueries({ queryKey: trpc.store.summary.queryKey() });
+    void queryClient.invalidateQueries({ queryKey: trpc.store.list.queryKey(range) });
+    void queryClient.invalidateQueries({ queryKey: trpc.store.summary.queryKey(range) });
   };
 
   const createMut = useMutation(
@@ -136,13 +126,17 @@ function TokoPage() {
             Catat transaksi
           </Button>
         }
-      />
+      >
+        <div className="mt-3">
+          <DateRangeFields from={from} to={to} onFromChange={setFrom} onToChange={setTo} />
+        </div>
+      </PageHeader>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricCard
           dominant
           className="sm:col-span-3"
-          label="Total hari ini"
+          label="Total periode"
           value={formatRp(totalHariIni)}
           hint={kali === 1 ? "1 transaksi" : `${kali} transaksi`}
         />

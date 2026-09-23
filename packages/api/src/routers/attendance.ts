@@ -22,8 +22,8 @@ import {
 // Workshop location — update these coordinates to match the real workshop.
 // Radius is in metres; 50m keeps clock-in on the workshop lot.
 // ---------------------------------------------------------------------------
-const WORKSHOP_LAT = -1.8779371;  // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
-const WORKSHOP_LNG = 136.2299775; // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
+export const WORKSHOP_LAT = -1.8779371;  // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
+export const WORKSHOP_LNG = 136.2299775; // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
 const CHECKIN_RADIUS_M = 50;
 
 /** Haversine distance in metres between two WGS-84 coordinates. */
@@ -172,7 +172,9 @@ export const attendanceRouter = router({
             value,
             markedByUserId: ctx.session.user.id,
             checkInAt: now,
-            checkInPhoto: null,
+            checkInPhoto: input.photo,
+            checkInLat: input.lat,
+            checkInLng: input.lng,
           })
           .where(eq(attendance.id, rowId))
           .returning({
@@ -200,7 +202,9 @@ export const attendanceRouter = router({
             value,
             markedByUserId: ctx.session.user.id,
             checkInAt: now,
-            checkInPhoto: null,
+            checkInPhoto: input.photo,
+            checkInLat: input.lat,
+            checkInLng: input.lng,
           })
           .returning({
             id: attendance.id,
@@ -301,7 +305,9 @@ export const attendanceRouter = router({
         .set({
           markedByUserId: ctx.session.user.id,
           checkOutAt: new Date(),
-          checkOutPhoto: null,
+          checkOutPhoto: input.photo,
+          checkOutLat: input.lat,
+          checkOutLng: input.lng,
         })
         .where(eq(attendance.id, existing.id))
         .returning({
@@ -349,6 +355,8 @@ export const attendanceRouter = router({
                 employeeId: attendance.employeeId,
                 workDate: attendance.workDate,
                 value: attendance.value,
+                checkInPhoto: attendance.checkInPhoto,
+                checkInLat: attendance.checkInLat,
               })
               .from(attendance)
               .where(
@@ -375,8 +383,56 @@ export const attendanceRouter = router({
           employeeId: row.employeeId,
           workDate: row.workDate,
           value: row.value,
+          hasProof: Boolean(row.checkInPhoto || row.checkInLat != null),
         })),
       };
+    }),
+
+  proof: supervisorProcedure
+    .input(
+      z.object({
+        employeeId: z.string().min(1),
+        workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .select({
+          employeeId: attendance.employeeId,
+          workDate: attendance.workDate,
+          value: attendance.value,
+          checkInAt: attendance.checkInAt,
+          checkOutAt: attendance.checkOutAt,
+          checkInPhoto: attendance.checkInPhoto,
+          checkOutPhoto: attendance.checkOutPhoto,
+          checkInLat: attendance.checkInLat,
+          checkInLng: attendance.checkInLng,
+          checkOutLat: attendance.checkOutLat,
+          checkOutLng: attendance.checkOutLng,
+        })
+        .from(attendance)
+        .where(
+          and(
+            eq(attendance.employeeId, input.employeeId),
+            eq(attendance.workDate, input.workDate),
+          ),
+        )
+        .limit(1);
+      if (!row) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Absen tidak ditemukan",
+        });
+      }
+      const checkInDistanceM =
+        row.checkInLat != null && row.checkInLng != null
+          ? Math.round(haversineM(row.checkInLat, row.checkInLng, WORKSHOP_LAT, WORKSHOP_LNG))
+          : null;
+      const checkOutDistanceM =
+        row.checkOutLat != null && row.checkOutLng != null
+          ? Math.round(haversineM(row.checkOutLat, row.checkOutLng, WORKSHOP_LAT, WORKSHOP_LNG))
+          : null;
+      return { ...row, checkInDistanceM, checkOutDistanceM };
     }),
 
   set: supervisorProcedure

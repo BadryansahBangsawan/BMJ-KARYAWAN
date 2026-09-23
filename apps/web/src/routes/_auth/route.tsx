@@ -3,7 +3,7 @@ import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { getUser } from "@/functions/get-user";
-import { jayapuraYearMonth, monthBounds, todayYmd } from "@/lib/format";
+import { jayapuraYearMonth, monthBounds } from "@/lib/format";
 import { clearSessionCache, readClientSession, writeClientSession } from "@/lib/session-query";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
@@ -50,14 +50,13 @@ function AuthLayout() {
     void queryClient.prefetchQuery(trpc.attendance.month.queryOptions({ year, month }));
     if (role === "kasir" || role === "supervisor") {
       void queryClient.prefetchQuery(trpc.kasbon.summary.queryOptions());
-      void queryClient.prefetchQuery(trpc.store.list.queryOptions());
-      void queryClient.prefetchQuery(trpc.store.summary.queryOptions());
+      void queryClient.prefetchQuery(trpc.store.list.queryOptions(monthBounds()));
+      void queryClient.prefetchQuery(trpc.store.summary.queryOptions(monthBounds()));
     }
     if (role === "supervisor") {
       void queryClient.prefetchQuery(trpc.employee.list.queryOptions());
-      void queryClient.prefetchQuery(
-        trpc.job.list.queryOptions({ from: "2020-01-01", to: todayYmd() }),
-      );
+      void queryClient.prefetchQuery(trpc.job.list.queryOptions({ status: "proses" }));
+      void queryClient.prefetchQuery(trpc.job.list.queryOptions({ status: "selesai" }));
     }
   }, [queryClient, role, trpc]);
 

@@ -36,16 +36,28 @@ import {
   absenToneClass,
   displayedAbsenValue,
 } from "@/lib/absen";
-import { formatLongDate, jayapuraYearMonth, monthLabel, todayYmd } from "@/lib/format";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@BMJ-KARYAWAN/ui/components/dialog";
+import { formatClock, formatLongDate, jayapuraYearMonth, monthLabel, todayYmd } from "@/lib/format";
 import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
+import { Button } from "@BMJ-KARYAWAN/ui/components/button";
 
-// ---------------------------------------------------------------------------
-// Shared types
-// ---------------------------------------------------------------------------
 type EmployeeRow = { id: string; name: string; role?: string };
-type AttendanceRow = { id?: string; employeeId: string; workDate: string; value: number };
+type AttendanceRow = {
+  id?: string;
+  employeeId: string;
+  workDate: string;
+  value: number;
+  hasProof?: boolean;
+};
 type DayCol = { day: number; date: string };
 
 // ---------------------------------------------------------------------------
@@ -98,6 +110,8 @@ function AttendanceCell({
   value,
   busy,
   locked,
+  hasProof,
+  onProof,
   onChange,
 }: {
   employeeName: string;
@@ -106,6 +120,8 @@ function AttendanceCell({
   value: number | undefined;
   busy: boolean;
   locked?: boolean;
+  hasProof?: boolean;
+  onProof?: () => void;
   onChange: (employeeId: string, workDate: string, next: 0 | 50 | 90 | 100 | null) => void;
 }) {
   const shown = locked ? undefined : displayedAbsenValue(value, date, todayYmd());
@@ -120,6 +136,7 @@ function AttendanceCell({
             ? "0"
             : "none";
   return (
+    <div className="flex flex-col items-center gap-0.5">
     <Select
       value={selectValue}
       disabled={busy || locked}
@@ -153,6 +170,18 @@ function AttendanceCell({
         <SelectItem value="0">0</SelectItem>
       </SelectContent>
     </Select>
+    {hasProof ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-6 px-1 text-[0.65rem]"
+        onClick={onProof}
+      >
+        Bukti
+      </Button>
+    ) : null}
+    </div>
   );
 }
 
@@ -266,20 +295,26 @@ function AbsenPage() {
   const [month, setMonth] = useState(now.month);
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(() => new Set());
   const pendingRef = useRef(new Set<string>());
+  const [proofKey, setProofKey] = useState<{
+    employeeId: string;
+    workDate: string;
+    name: string;
+  } | null>(null);
 
 
   const monthQuery = useQuery({
     ...trpc.attendance.month.queryOptions({ year, month }),
     enabled: isSupervisor,
   });
+  const proofQuery = useQuery({
+    ...trpc.attendance.proof.queryOptions({
+      employeeId: proofKey?.employeeId ?? "",
+      workDate: proofKey?.workDate ?? "1970-01-01",
+    }),
+    enabled: isSupervisor && proofKey != null,
+  });
 
-  const monthData = monthQuery.data as
-    | {
-        employees?: EmployeeRow[];
-        marks?: AttendanceRow[];
-        days?: string[];
-      }
-    | undefined;
+  const monthData = monthQuery.data as RouterOutputs["attendance"]["month"] | undefined;
 
   const employees = monthData?.employees ?? [];
   const marks = monthData?.marks ?? [];
@@ -422,6 +457,14 @@ function AbsenPage() {
                                 value={byKey[key]?.value}
                                 busy={pendingKeys.has(key)}
                                 locked={d.date > today}
+                                hasProof={byKey[key]?.hasProof}
+                                onProof={() =>
+                                  setProofKey({
+                                    employeeId: employee.id,
+                                    workDate: d.date,
+                                    name: employee.name,
+                                  })
+                                }
                                 onChange={setMark}
                               />
                             </TableCell>
@@ -434,8 +477,48 @@ function AbsenPage() {
               </div>
             </div>
           )}
+          <Dialog open={proofKey != null} onOpenChange={(open) => { if (!open) setProofKey(null); }}>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Bukti absen</DialogTitle>
+                <DialogDescription>
+                  {proofKey ? `${proofKey.name} · ${formatLongDate(proofKey.workDate)}` : ""}
+                </DialogDescription>
+              </DialogHeader>
+              {proofQuery.isPending ? (
+                <Loader />
+              ) : proofQuery.isError ? (
+                <p className="text-sm text-destructive">{proofQuery.error.message}</p>
+              ) : proofQuery.data ? (
+                <AbsenProofBody proof={proofQuery.data} />
+              ) : null}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </PageShell>
+  );
+}
+
+function AbsenProofBody({ proof }: { proof: RouterOutputs["attendance"]["proof"] }) {
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      <p className="tabular-nums text-muted-foreground">
+        Masuk {formatClock(proof.checkInAt) ?? "—"}
+        {proof.checkInDistanceM != null ? ` · ${proof.checkInDistanceM} m dari bengkel` : ""}
+      </p>
+      {proof.checkInPhoto ? (
+        <img src={proof.checkInPhoto} alt="Foto absen masuk" className="w-full rounded-md" />
+      ) : (
+        <p className="text-muted-foreground">Tidak ada foto masuk.</p>
+      )}
+      <p className="tabular-nums text-muted-foreground">
+        Pulang {formatClock(proof.checkOutAt) ?? "—"}
+        {proof.checkOutDistanceM != null ? ` · ${proof.checkOutDistanceM} m dari bengkel` : ""}
+      </p>
+      {proof.checkOutPhoto ? (
+        <img src={proof.checkOutPhoto} alt="Foto absen pulang" className="w-full rounded-md" />
+      ) : null}
+    </div>
   );
 }

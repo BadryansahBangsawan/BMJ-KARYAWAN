@@ -103,7 +103,9 @@ function GajiPage() {
       : meId
         ? allLines.filter((line) => line.employeeId === meId)
         : [];
-  const canEdit = role === "supervisor";
+  const locked = payrollQuery.data?.locked === true;
+  const isCurrentMonth = year === now.year && month === now.month;
+  const canEdit = role === "supervisor" && !locked;
   const totalTakeHome = lines.reduce((sum, line) => sum + line.takeHomeIdr, 0);
 
   const invalidate = () => {
@@ -122,6 +124,24 @@ function GajiPage() {
     trpc.payroll.setDeduction.mutationOptions({
       onSuccess: () => {
         toast.success("Potongan disimpan");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const lockMut = useMutation(
+    trpc.payroll.lock.mutationOptions({
+      onSuccess: () => {
+        toast.success("Gaji dikunci");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+  const unlockMut = useMutation(
+    trpc.payroll.unlock.mutationOptions({
+      onSuccess: () => {
+        toast.success("Gaji dibuka");
         invalidate();
       },
       onError: (error) => toast.error(error.message),
@@ -149,26 +169,55 @@ function GajiPage() {
         title="Gaji"
         description={PAGE_DESCRIPTION["/gaji"]}
         actions={
-          canEdit ? (
+          role === "supervisor" ? (
             <>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={recomputeMut.isPending}
-                aria-busy={recomputeMut.isPending}
-                onClick={() => recompute(false)}
-              >
-                <BusyLabel busy={recomputeMut.isPending}>Hitung ulang</BusyLabel>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={recomputeMut.isPending}
-                aria-busy={recomputeMut.isPending}
-                onClick={() => recompute(true)}
-              >
-                <BusyLabel busy={recomputeMut.isPending}>Hitung ulang dan pertahankan potongan</BusyLabel>
-              </Button>
+              {canEdit ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={recomputeMut.isPending}
+                    aria-busy={recomputeMut.isPending}
+                    onClick={() => recompute(false)}
+                  >
+                    <BusyLabel busy={recomputeMut.isPending}>Hitung ulang</BusyLabel>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={recomputeMut.isPending}
+                    aria-busy={recomputeMut.isPending}
+                    onClick={() => recompute(true)}
+                  >
+                    <BusyLabel busy={recomputeMut.isPending}>Hitung ulang dan pertahankan potongan</BusyLabel>
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Terkunci</p>
+              )}
+              {isCurrentMonth ? (
+                locked ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={unlockMut.isPending}
+                    aria-busy={unlockMut.isPending}
+                    onClick={() => unlockMut.mutate({ year, month })}
+                  >
+                    <BusyLabel busy={unlockMut.isPending}>Buka kunci</BusyLabel>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={lockMut.isPending}
+                    aria-busy={lockMut.isPending}
+                    onClick={() => lockMut.mutate({ year, month })}
+                  >
+                    <BusyLabel busy={lockMut.isPending}>Kunci bulan ini</BusyLabel>
+                  </Button>
+                )
+              ) : null}
             </>
           ) : null
         }

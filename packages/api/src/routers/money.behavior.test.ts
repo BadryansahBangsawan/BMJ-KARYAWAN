@@ -1,10 +1,12 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, setSystemTime, test } from "bun:test";
+import { WORKSHOP_LAT, WORKSHOP_LNG } from "./attendance";
 import { createClient, type Client } from "@libsql/client";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 
 import { kasbon, kasbonPayment } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
+import { monthRange, todayYmd } from "../lib/domain";
 import type { Context } from "../context";
 import { appRouter } from "./index";
 
@@ -106,6 +108,10 @@ const DDL = [
     check_out_at INTEGER,
     check_in_photo TEXT,
     check_out_photo TEXT,
+    check_in_lat REAL,
+    check_in_lng REAL,
+    check_out_lat REAL,
+    check_out_lng REAL,
     created_at INTEGER NOT NULL DEFAULT (CAST(unixepoch() * 1000 AS INTEGER)),
     UNIQUE (employee_id, work_date)
   )`,
@@ -116,6 +122,7 @@ const DDL = [
     start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
     pay_date TEXT NOT NULL,
+    locked_at INTEGER,
     UNIQUE (year, month)
   )`,
   `CREATE TABLE payroll_line (
@@ -279,6 +286,10 @@ describe("money behavior", () => {
     };
     await insertUser(client, supervisor);
     await insertEmployee(client, { id: "emp-1", name: "Mek" });
+    const today = todayYmd();
+    const year = Number(today.slice(0, 4));
+    const month = Number(today.slice(5, 7));
+    const range = monthRange(year, month);
     await client.execute({
       sql: `INSERT INTO kasbon (
               id, employee_id, keperluan, amount_idr, status,
@@ -289,7 +300,8 @@ describe("money behavior", () => {
     });
     await client.execute({
       sql: `INSERT INTO payroll_period (id, year, month, start_date, end_date, pay_date)
-            VALUES ('period-1', 2026, 8, '2026-08-01', '2026-08-31', '2026-09-01')`,
+            VALUES ('period-1', ?, ?, ?, ?, ?)`,
+      args: [year, month, range.startDate, range.endDate, range.payDate],
     });
     await client.execute({
       sql: `INSERT INTO payroll_line (
@@ -351,5 +363,99 @@ describe("money behavior", () => {
       .from(kasbon)
       .where(eq(kasbon.id, "k-old"));
     expect(olderAfter40?.status).toBe("disbursed");
+  });
+
+  test("recompute of a past month is locked", async () => {
+    const { db } = await openMemory();
+    const supervisor: SessionUser = {
+      id: "user-sup",
+      name: "Sup",
+      email: "sup@test.local",
+      role: "supervisor",
+    };
+    const sup = caller(db, supervisor);
+    await expect(sup.payroll.recompute({ year: 2020, month: 1 })).rejects.toThrow(
+      "Gaji bulan ini terkunci",
+    );
+  });
+
+  test("absen to kasbon deduction lowers remaining debt", async () => {
+    setSystemTime(new Date("2026-09-23T07:00:00+09:00"));
+    try {
+      const { client, db } = await openMemory();
+      const supervisor: SessionUser = {
+        id: "user-sup",
+        name: "Sup",
+        email: "sup@test.local",
+        role: "supervisor",
+      };
+      const kasir: SessionUser = {
+        id: "user-kasir",
+        name: "Kas",
+        email: "kasir@test.local",
+        role: "kasir",
+      };
+      const mekanikUser: SessionUser = {
+        id: "user-mek",
+        name: "Mek",
+        email: "mek@test.local",
+        role: "mekanik",
+      };
+      await insertUser(client, supervisor);
+      await insertUser(client, kasir);
+      await insertUser(client, mekanikUser);
+      await insertEmployee(client, {
+        id: "emp-mek",
+        userId: mekanikUser.id,
+        name: "Mek",
+      });
+      await client.execute({
+        sql: `UPDATE employee SET ongkos_percent = 0, konsumsi_monthly_idr = 0 WHERE id = 'emp-mek'`,
+      });
+
+      const mek = caller(db, mekanikUser);
+      const sup = caller(db, supervisor);
+      const kas = caller(db, kasir);
+      const photo = `data:image/jpeg;base64,${"A".repeat(40)}`;
+
+      await mek.attendance.selfCheckin({
+        lat: WORKSHOP_LAT,
+        lng: WORKSHOP_LNG,
+        workDate: "2026-09-23",
+        photo,
+      });
+      const job = await mek.job.create({
+        workDate: "2026-09-23",
+        description: "servis",
+        amountIdr: 100_000,
+      });
+      expect(job.status).toBe("diterima");
+
+      const kasbonRow = await mek.kasbon.create({
+        keperluan: "bon",
+        amountIdr: 40_000,
+      });
+      await sup.kasbon.approve({ kasbonId: kasbonRow.id });
+      await kas.kasbon.disburse({ kasbonId: kasbonRow.id });
+
+      const recomputed = await sup.payroll.recompute({ year: 2026, month: 9 });
+      const line = recomputed.lines.find((row) => row.employeeId === "emp-mek");
+      expect(line).toBeTruthy();
+      expect(line!.jobShareIdr).toBe(100_000);
+      expect(line!.kasbonBalanceIdr).toBe(40_000);
+
+      await sup.payroll.setDeduction({
+        lineId: line!.id,
+        kasbonDeductionIdr: 25_000,
+      });
+      expect(await paymentSum(db, kasbonRow.id)).toBe(25_000);
+      const slip = await mek.payroll.get({ year: 2026, month: 9 });
+      const mine = slip.lines.find((row) => row.employeeId === "emp-mek");
+      expect(mine?.kasbonDeductionIdr).toBe(25_000);
+      expect(mine?.takeHomeIdr).toBe(line!.jobShareIdr + line!.konsumsiIdr - 25_000);
+      expect(mine?.kasbonRemainingIdr).toBe(15_000);
+    } finally {
+      setSystemTime();
+    }
   });
 });

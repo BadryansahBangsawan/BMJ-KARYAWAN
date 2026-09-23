@@ -18,6 +18,8 @@ import {
   alpaDays,
   allocatePayrollDeduction,
   clampKasbonDeduction,
+  isPastYearMonth,
+  isPayrollLocked,
   kasbonStatusAfterSisa,
   monthRange,
   presentHundredths,
@@ -47,6 +49,15 @@ function assertNotFuturePeriod(year: number, month: number) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Tidak bisa hitung gaji untuk bulan yang belum terjadi",
+    });
+  }
+}
+
+function assertUnlocked(year: number, month: number, lockedAt: Date | number | null | undefined) {
+  if (isPayrollLocked(year, month, lockedAt)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Gaji bulan ini terkunci",
     });
   }
 }
@@ -416,7 +427,7 @@ async function rebuildLines(
 export const payrollRouter = router({
   get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
     if (isFutureYearMonth(input.year, input.month)) {
-      return { period: null, lines: [] };
+      return { period: null, lines: [], locked: false };
     }
 
     const today = todayYmd();
@@ -427,11 +438,16 @@ export const payrollRouter = router({
     if (!isCurrentMonth) {
       const period = await getPeriod(ctx.db, input.year, input.month);
       if (!period) {
-        return { period: null, lines: [] };
+        return {
+          period: null,
+          lines: [],
+          locked: isPayrollLocked(input.year, input.month, null),
+        };
       }
       const named = await linesWithNames(ctx.db, period.id);
       return {
         period,
+        locked: isPayrollLocked(input.year, input.month, period.lockedAt),
         lines: await restrictLinesToSession(
           ctx.db,
           ctx.session.user.id,
@@ -529,7 +545,9 @@ export const payrollRouter = router({
         startDate: range.startDate,
         endDate: range.endDate,
         payDate: range.payDate,
+        lockedAt: null,
       },
+      locked: isPayrollLocked(input.year, input.month, persistedPeriod?.lockedAt),
       lines: await restrictLinesToSession(
         ctx.db,
         ctx.session.user.id,
@@ -547,6 +565,8 @@ export const payrollRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       assertNotFuturePeriod(input.year, input.month);
+      const existing = await getPeriod(ctx.db, input.year, input.month);
+      assertUnlocked(input.year, input.month, existing?.lockedAt);
       const period = await getOrCreatePeriod(
         ctx.db,
         input.year,
@@ -599,6 +619,7 @@ export const payrollRouter = router({
         });
       }
       assertNotFuturePeriod(period.year, period.month);
+      assertUnlocked(period.year, period.month, period.lockedAt);
 
       return await ctx.db.transaction(async (tx) => {
         const oldPays = await tx
@@ -675,4 +696,40 @@ export const payrollRouter = router({
         return updated[0]!;
       });
     }),
+
+  lock: supervisorProcedure.input(yearMonthInput).mutation(async ({ ctx, input }) => {
+    if (isFutureYearMonth(input.year, input.month) || isPastYearMonth(input.year, input.month)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Hanya bulan berjalan yang bisa dikunci",
+      });
+    }
+    const period = await getOrCreatePeriod(ctx.db, input.year, input.month);
+    const [updated] = await ctx.db
+      .update(payrollPeriod)
+      .set({ lockedAt: new Date() })
+      .where(eq(payrollPeriod.id, period.id))
+      .returning();
+    return updated!;
+  }),
+
+  unlock: supervisorProcedure.input(yearMonthInput).mutation(async ({ ctx, input }) => {
+    if (isFutureYearMonth(input.year, input.month) || isPastYearMonth(input.year, input.month)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Hanya bulan berjalan yang bisa dibuka",
+      });
+    }
+    const period = await getPeriod(ctx.db, input.year, input.month);
+    if (!period) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Gaji bulan ini tidak ditemukan" });
+    }
+    const [updated] = await ctx.db
+      .update(payrollPeriod)
+      .set({ lockedAt: null })
+      .where(eq(payrollPeriod.id, period.id))
+      .returning();
+    return updated!;
+  }),
 });
+

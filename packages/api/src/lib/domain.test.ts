@@ -4,6 +4,8 @@ import {
   allocatePayrollDeduction,
   alpaDays,
   clampKasbonDeduction,
+  isPastYearMonth,
+  isPayrollLocked,
   isSundayJayapura,
   kasbonStatusAfterSisa,
   presentHundredths,
@@ -102,5 +104,14 @@ describe("domain", () => {
   test("todayYmd is Jayapura civil date", () => {
     expect(todayYmd(new Date("2026-09-22T16:00:00Z"))).toBe("2026-09-23");
     expect(todayYmd(new Date("2026-09-22T14:59:00Z"))).toBe("2026-09-22");
+  });
+
+  test("isPayrollLocked auto-locks past months", () => {
+    const now = new Date("2026-09-23T07:00:00+09:00");
+    expect(isPastYearMonth(2026, 8, now)).toBe(true);
+    expect(isPastYearMonth(2026, 9, now)).toBe(false);
+    expect(isPayrollLocked(2026, 8, null, now)).toBe(true);
+    expect(isPayrollLocked(2026, 9, null, now)).toBe(false);
+    expect(isPayrollLocked(2026, 9, now, now)).toBe(true);
   });
 });

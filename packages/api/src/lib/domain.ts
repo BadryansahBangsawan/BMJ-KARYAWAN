@@ -27,6 +27,28 @@ export function todayYmd(now?: Date): string {
   return ymdInJayapura(now ?? new Date());
 }
 
+export function ymdFromTimestamp(value: Date | number | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return ymdInJayapura(date);
+}
+
+export function isPastYearMonth(year: number, month: number, now = new Date()): boolean {
+  const today = todayYmd(now);
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  return year < y || (year === y && month < m);
+}
+
+export function isPayrollLocked(
+  year: number,
+  month: number,
+  lockedAt: Date | number | null | undefined,
+  now = new Date(),
+): boolean {
+  if (isPastYearMonth(year, month, now)) return true;
+  return lockedAt != null;
+}
+
 export function isSundayJayapura(workDate: string): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDate);
   if (!match) return true;

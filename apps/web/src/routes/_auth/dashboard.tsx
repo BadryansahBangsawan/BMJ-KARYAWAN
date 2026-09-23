@@ -54,8 +54,13 @@ function RouteComponent() {
     ...trpc.kasbon.list.queryOptions(),
     refetchInterval: 8_000,
   });
-  const jobs = useQuery({
-    ...trpc.job.list.queryOptions({ from: "2020-01-01", to: todayYmd() }),
+  const prosesJobs = useQuery({
+    ...trpc.job.list.queryOptions({ status: "proses" }),
+    enabled: role === "supervisor",
+    refetchInterval: 8_000,
+  });
+  const selesaiJobs = useQuery({
+    ...trpc.job.list.queryOptions({ status: "selesai" }),
     enabled: role === "supervisor",
     refetchInterval: 8_000,
   });
@@ -77,12 +82,21 @@ function RouteComponent() {
 
 
 
-  const failed = me.isError || kasbon.isError || jobs.isError || absenMonth.isError || (isStaff && monthPendapatan.isError);
+  const failed =
+    me.isError ||
+    kasbon.isError ||
+    prosesJobs.isError ||
+    selesaiJobs.isError ||
+    absenMonth.isError ||
+    (isStaff && monthPendapatan.isError);
 
   const employee: RouterOutputs["employee"]["me"] | undefined = me.data;
   const employeeId = employee?.id;
   const kasbonRows: RouterOutputs["kasbon"]["list"] = kasbon.data ?? [];
-  const jobRows: RouterOutputs["job"]["list"] = jobs.data ?? [];
+  const jobRows: RouterOutputs["job"]["list"] = [
+    ...(prosesJobs.data ?? []),
+    ...(selesaiJobs.data ?? []),
+  ];
   const pendapatan =
     (monthPendapatan.data as RouterOutputs["job"]["monthPendapatan"] | undefined)?.pendapatan ?? 0;
 
@@ -201,7 +215,8 @@ function RouteComponent() {
       onRetry={() => {
         void me.refetch();
         void kasbon.refetch();
-        void jobs.refetch();
+        void prosesJobs.refetch();
+        void selesaiJobs.refetch();
         void absenMonth.refetch();
         if (isStaff) void monthPendapatan.refetch();
       }}

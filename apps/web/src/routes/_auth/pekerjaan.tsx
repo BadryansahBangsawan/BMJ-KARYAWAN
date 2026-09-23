@@ -28,7 +28,7 @@ import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Ban, Camera, Check, CircleCheck, CircleDashed, Loader2 } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import z from "zod";
 import { toast } from "sonner";
@@ -50,122 +50,23 @@ import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
 import { formatLongDate, formatRp, monthBounds, todayYmd } from "@/lib/format";
 import { jpegDataUrlFromFile } from "@/lib/workshop-gps";
-import { sessionRole, type UserRole } from "@/lib/session-role";
+import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
-import type { RouterOutputs } from "@/utils/trpc";
-
-type JobRow = RouterOutputs["job"]["list"][number];
+import {
+  JobRowActions,
+  extractStruk,
+  isStrukImage,
+  jobKindLabel,
+  jobMechanicName,
+  jobNeedsAction,
+  jobStatusMeta,
+} from "./pekerjaan-form";
 
 type StatusFilter = "" | "proses" | "selesai" | "diterima" | "batal";
-
-export const JOB_STATUS = {
-  proses: { label: "Proses", icon: CircleDashed, tone: "neutral" },
-  selesai: { label: "Selesai", icon: CircleCheck, tone: "neutral" },
-  diterima: { label: "Diterima", icon: Check, tone: "success" },
-  batal: { label: "Batal", icon: Ban, tone: "danger" },
-} as const;
 
 export const Route = createFileRoute("/_auth/pekerjaan")({
   component: PekerjaanPage,
 });
-
-function jobKindLabel(job: JobRow) {
-  if (job.kind === "persenan") {
-    return job.bengkelPercent != null ? `Persenan ${job.bengkelPercent}%` : "Persenan";
-  }
-  return "Ongkos";
-}
-
-function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
-  return job.employeeName?.trim() || nameById[job.employeeId] || "—";
-}
-
-function jobNeedsAction(job: JobRow, role: UserRole) {
-  if (role === "mekanik") return false;
-  return job.status === "proses" || job.status === "selesai";
-}
-
-function jobStatusMeta(status: string) {
-  return (
-    JOB_STATUS[status as keyof typeof JOB_STATUS] ?? {
-      label: status,
-      icon: CircleDashed,
-      tone: "neutral" as const,
-    }
-  );
-}
-
-function isStrukImage(value: string) {
-  const trimmed = value.trim();
-  if (/^https?:\/\//i.test(trimmed) || /^data:image\//i.test(trimmed)) return true;
-  return /\.(avif|gif|jpe?g|png|svg|webp)(\?|#|$)/i.test(trimmed);
-}
-
-async function extractStruk(
-  dataUrl: string,
-  signal?: AbortSignal,
-): Promise<{ tanggal?: string; nomorStruk?: string }> {
-  const res = await fetch("/api/extract-struk", {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: dataUrl }),
-    signal,
-  });
-  const data = (await res.json().catch(() => ({}))) as {
-    tanggal?: string;
-    nomorStruk?: string;
-    error?: string;
-  };
-  if (!res.ok) {
-    throw new Error(data.error || "Gagal membaca struk.");
-  }
-  return data;
-}
-
-function JobRowActions({
-  job,
-  role,
-  busy,
-  onTerima,
-  onBatal,
-  onDetail,
-}: {
-  job: JobRow;
-  role: UserRole;
-  busy: boolean;
-  onTerima: () => void;
-  onBatal: () => void;
-  onDetail: () => void;
-}) {
-  const canTerima =
-    (role === "kasir" || role === "supervisor") &&
-    (job.status === "proses" || job.status === "selesai");
-  const canBatal = role === "supervisor" && job.status !== "batal";
-  const hasDetail = Boolean(job.customerNote || job.struk);
-
-  if (!canTerima && !canBatal && !hasDetail) return null;
-
-  return (
-    <>
-      {canTerima ? (
-        <Button size="sm" variant="outline" disabled={busy} onClick={onTerima}>
-          Terima pekerjaan
-        </Button>
-      ) : null}
-      {hasDetail ? (
-        <Button size="sm" variant="outline" onClick={onDetail}>
-          Lihat detail
-        </Button>
-      ) : null}
-      {canBatal ? (
-        <Button size="sm" variant="destructive" disabled={busy} onClick={onBatal}>
-          Batalkan pekerjaan
-        </Button>
-      ) : null}
-    </>
-  );
-}
 
 function PekerjaanPage() {
   const trpc = useTRPC();

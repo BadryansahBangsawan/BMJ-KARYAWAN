@@ -30,9 +30,10 @@ import { formatDateTime, formatRp } from "@/lib/format";
 import { sessionRole, roleLabel } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 import type { RouterOutputs } from "@/utils/trpc";
-import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
+import { FieldError, fieldDescribedBy } from "@/components/field-error";
 import { ClearFiltersButton, FilterBar, FilterChips } from "@/components/filter-bar";
 import { FormDialog } from "@/components/form-dialog";
+import { PayKasbonDialog, RejectKasbonDialog } from "./kasbon-dialogs";
 import Loader from "@/components/loader";
 import { MetricCard } from "@/components/metric-card";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
@@ -611,86 +612,41 @@ function KasbonPage() {
         </form.Field>
       </FormDialog>
 
-      <FormDialog
+      <RejectKasbonDialog
         open={rejectId !== null}
+        name={rejectRow?.employeeName?.trim() || "—"}
+        amountIdr={rejectRow?.amountIdr ?? 0}
+        reason={rejectReason}
+        submitting={rejectMut.isPending}
+        onReasonChange={setRejectReason}
         onOpenChange={(open) => {
           if (!open) {
             setRejectId(null);
             setRejectReason("");
           }
         }}
-        title="Tolak kasbon"
-        description={
-          rejectRow
-            ? `Kasbon ${rejectRow.employeeName?.trim() || "—"} sebesar ${formatRp(rejectRow.amountIdr)} akan ditolak.`
-            : "Kasbon akan ditolak."
-        }
-        submitLabel="Tolak kasbon"
-        submitVariant="destructive"
-        submitting={rejectMut.isPending}
         onSubmit={() => {
-          if (!rejectId || !rejectReason.trim()) {
-            focusFirstInvalid();
-            return;
-          }
+          if (!rejectId) return;
           rejectMut.mutate({ kasbonId: rejectId, reason: rejectReason.trim() });
         }}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="reject-reason">Alasan</Label>
-          <Textarea
-            id="reject-reason"
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Mis. stok belum lunas"
-            aria-invalid={!rejectReason.trim()}
-            aria-describedby={!rejectReason.trim() ? "reject-reason-error" : undefined}
-          />
-          {!rejectReason.trim() ? (
-            <p id="reject-reason-error" className="text-sm text-destructive">
-              Masukkan alasan penolakan.
-            </p>
-          ) : null}
-        </div>
-      </FormDialog>
-
-      <FormDialog
+      />
+      <PayKasbonDialog
         open={payId !== null}
+        sisaIdr={paySisa}
+        amount={payAmount}
+        submitting={payMut.isPending}
+        onAmountChange={setPayAmount}
         onOpenChange={(open) => {
           if (!open) {
             setPayId(null);
             setPayAmount("");
           }
         }}
-        title="Catat pembayaran"
-        description={`Sisa yang masih harus dibayar ${formatRp(paySisa)}.`}
-        submitLabel="Catat pembayaran"
-        submitting={payMut.isPending}
         onSubmit={() => {
-          if (!payId || !(Number(payAmount) > 0)) {
-            focusFirstInvalid();
-            return;
-          }
+          if (!payId) return;
           payMut.mutate({ kasbonId: payId, amountIdr: Number(payAmount) });
         }}
-      >
-        <div className="space-y-2">
-          <Label htmlFor="pay-amount">Jumlah</Label>
-          <MoneyField
-            id="pay-amount"
-            value={payAmount}
-            onChange={(e) => setPayAmount(e.target.value)}
-            placeholder="50000"
-            aria-invalid={!(Number(payAmount) > 0)}
-            aria-describedby={!(Number(payAmount) > 0) ? "pay-amount-error" : undefined}
-          />
-          {!(Number(payAmount) > 0) ? (
-            <p id="pay-amount-error" className="text-sm text-destructive">
-              Masukkan jumlah lebih dari 0.
-            </p>
-          ) : null}
-        </div>
-      </FormDialog>
+      />
     </PageShell>
   );
 }

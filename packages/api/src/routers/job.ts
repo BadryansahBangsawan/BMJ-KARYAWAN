@@ -32,8 +32,8 @@ export const jobRouter = router({
       const year = Number(today.slice(0, 4));
       const month = Number(today.slice(5, 7));
       const range = monthRange(year, month);
-      const from = input?.from ?? range.startDate;
-      const to = input?.to ?? range.endDate;
+      const from = input?.from ?? (input?.status ? undefined : range.startDate);
+      const to = input?.to ?? (input?.status ? undefined : range.endDate);
       let employeeId = input?.employeeId;
       if (role === "mekanik") {
         const own = await employeeByUserId(ctx.db, ctx.session.user.id);
@@ -67,8 +67,8 @@ export const jobRouter = router({
         .innerJoin(employee, eq(job.employeeId, employee.id))
         .where(
           and(
-            gte(job.workDate, from),
-            lte(job.workDate, to),
+            from ? gte(job.workDate, from) : undefined,
+            to ? lte(job.workDate, to) : undefined,
             employeeId ? eq(job.employeeId, employeeId) : undefined,
             input?.status ? eq(job.status, input.status) : undefined,
           ),

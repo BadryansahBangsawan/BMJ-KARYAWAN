@@ -30,7 +30,7 @@ export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }>
       }
       reject(new Error("Permintaan GPS habis waktu. Coba lagi."));
     },
-    { timeout: 15_000, maximumAge: 30_000, enableHighAccuracy: true },
+    { timeout: 15_000, maximumAge: 0, enableHighAccuracy: true },
   );
   return promise;
 }

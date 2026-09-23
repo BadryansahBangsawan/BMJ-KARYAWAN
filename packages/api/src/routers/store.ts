@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { asc, max } from "drizzle-orm";
+import { and, asc, gte, lte, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { storeTxn } from "@BMJ-KARYAWAN/db/schema/karyawan";
@@ -7,10 +7,29 @@ import { storeTxn } from "@BMJ-KARYAWAN/db/schema/karyawan";
 import { kasirOnlyProcedure, kasirProcedure, router } from "../index";
 
 const kindSchema = z.enum(["kasir", "non_tunai", "panjar"]);
+const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const rangeInput = z
+	.object({ from: ymd, to: ymd })
+	.refine((value) => value.from <= value.to, {
+		message: "Dari harus sebelum sampai",
+		path: ["from"],
+	});
+
+function createdAtRange(from: string, to: string) {
+	return {
+		start: new Date(`${from}T00:00:00+09:00`),
+		end: new Date(`${to}T23:59:59.999+09:00`),
+	};
+}
 
 export const storeRouter = router({
-	list: kasirProcedure.query(async ({ ctx }) => {
-		return await ctx.db.select().from(storeTxn).orderBy(asc(storeTxn.seq));
+	list: kasirProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+		const { start, end } = createdAtRange(input.from, input.to);
+		return await ctx.db
+			.select()
+			.from(storeTxn)
+			.where(and(gte(storeTxn.createdAt, start), lte(storeTxn.createdAt, end)))
+			.orderBy(asc(storeTxn.seq));
 	}),
 
 	create: kasirOnlyProcedure
@@ -56,8 +75,12 @@ export const storeRouter = router({
 			});
 		}),
 
-	summary: kasirProcedure.query(async ({ ctx }) => {
-		const rows = await ctx.db.select().from(storeTxn);
+	summary: kasirProcedure.input(rangeInput).query(async ({ ctx, input }) => {
+		const { start, end } = createdAtRange(input.from, input.to);
+		const rows = await ctx.db
+			.select()
+			.from(storeTxn)
+			.where(and(gte(storeTxn.createdAt, start), lte(storeTxn.createdAt, end)));
 		const counts = { kasir: 0, non_tunai: 0, panjar: 0 };
 		const sums = { kasir: 0, non_tunai: 0, panjar: 0 };
 		for (const row of rows) {

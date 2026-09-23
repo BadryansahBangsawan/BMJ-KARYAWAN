@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
 const timestampMs = (name: string) =>
@@ -93,6 +93,10 @@ export const attendance = sqliteTable(
 		checkOutAt: integer("check_out_at", { mode: "timestamp_ms" }),
 		checkInPhoto: text("check_in_photo"),
 		checkOutPhoto: text("check_out_photo"),
+		checkInLat: real("check_in_lat"),
+		checkInLng: real("check_in_lng"),
+		checkOutLat: real("check_out_lat"),
+		checkOutLng: real("check_out_lng"),
 		createdAt: timestampMs("created_at"),
 	},
 	(table) => [uniqueIndex("attendance_employeeId_workDate_uidx").on(table.employeeId, table.workDate)],
@@ -107,6 +111,7 @@ export const payrollPeriod = sqliteTable(
 		startDate: text("start_date").notNull(),
 		endDate: text("end_date").notNull(),
 		payDate: text("pay_date").notNull(),
+		lockedAt: integer("locked_at", { mode: "timestamp_ms" }),
 	},
 	(table) => [uniqueIndex("payroll_period_year_month_uidx").on(table.year, table.month)],
 );
