@@ -27,14 +27,5 @@ export function absenToneClass(value: number | undefined) {
   return "bg-muted text-muted-foreground";
 }
 
-/** Past/today workdays with no row display as alpa (0). Future stays empty. */
-export function displayedAbsenValue(
-  value: number | undefined,
-  workDate: string,
-  today: string,
-  isSunday = false,
-) {
-  if (value !== undefined) return value;
-  if (isSunday || workDate > today) return undefined;
-  return ABSEN_ALPA;
-}
+export { displayedAbsenValue } from "@BMJ-KARYAWAN/api/lib/domain";
+

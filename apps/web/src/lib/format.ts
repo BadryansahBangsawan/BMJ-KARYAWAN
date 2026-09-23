@@ -1,3 +1,5 @@
+import { todayYmd } from "@BMJ-KARYAWAN/api/lib/domain";
+
 const TZ = "Asia/Jayapura";
 
 export function formatIdr(n: number) {
@@ -8,9 +10,15 @@ export function formatRp(n: number) {
   return `Rp ${formatIdr(n)}`;
 }
 
-export function todayYmd() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+export { todayYmd };
+
+export function formatHariHadir(hundredths: number) {
+  return (hundredths / 100).toLocaleString("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
 }
+
 
 export function jayapuraYearMonth(ymd = todayYmd()) {
   const [yearPart, monthPart] = ymd.split("-");

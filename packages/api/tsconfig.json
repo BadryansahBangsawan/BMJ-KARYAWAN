@@ -2,5 +2,6 @@
   "extends": "@BMJ-KARYAWAN/config/tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true
-  }
+  },
+  "exclude": ["node_modules", "src/**/*.test.ts"]
 }

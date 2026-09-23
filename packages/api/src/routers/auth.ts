@@ -32,19 +32,21 @@ export const authRouter = router({
       const userId = crypto.randomUUID();
       const passwordHash = await hashPassword(input.password);
       try {
-        await ctx.db.insert(user).values({
-          id: userId,
-          name: input.name,
-          email: input.email.trim(),
-          emailVerified: true,
-          role: "supervisor",
-        });
-        await ctx.db.insert(account).values({
-          id: crypto.randomUUID(),
-          accountId: userId,
-          providerId: "credential",
-          userId,
-          password: passwordHash,
+        await ctx.db.transaction(async (tx) => {
+          await tx.insert(user).values({
+            id: userId,
+            name: input.name,
+            email: input.email.trim(),
+            emailVerified: true,
+            role: "supervisor",
+          });
+          await tx.insert(account).values({
+            id: crypto.randomUUID(),
+            accountId: userId,
+            providerId: "credential",
+            userId,
+            password: passwordHash,
+          });
         });
       } catch {
         throw new TRPCError({

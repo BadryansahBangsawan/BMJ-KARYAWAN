@@ -5,7 +5,6 @@ import type { Database } from "@BMJ-KARYAWAN/db";
 import {
 	employee,
 	job,
-	kasbon,
 	kasbonPayment,
 	payrollLine,
 	payrollPeriod,
@@ -13,6 +12,9 @@ import {
 
 import { router, supervisorProcedure } from "../index";
 import { splitBengkelOngkos } from "../lib/ongkos";
+
+import { ymdInJayapura } from "../lib/domain";
+import { kasbonSisaByEmployee } from "../lib/workshop-db";
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -41,16 +43,7 @@ type OngkosRow = {
 
 function ymdJayapura(value: Date | number | string): string {
 	const d = value instanceof Date ? value : new Date(value);
-	const parts = new Intl.DateTimeFormat("en-US", {
-		timeZone: "Asia/Jayapura",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	}).formatToParts(d);
-	const y = parts.find((p) => p.type === "year")?.value ?? "1970";
-	const m = parts.find((p) => p.type === "month")?.value ?? "01";
-	const day = parts.find((p) => p.type === "day")?.value ?? "01";
-	return `${y}-${m}-${day}`;
+	return ymdInJayapura(d);
 }
 
 function ymdDiffDays(from: string, to: string): number {
@@ -59,27 +52,10 @@ function ymdDiffDays(from: string, to: string): number {
 	return Math.floor((b - a) / 86_400_000) + 1;
 }
 
-async function kasbonSisaByEmployee(db: Database) {
-	const kasbonRows = await db.select().from(kasbon);
-	const payRows = await db.select().from(kasbonPayment);
-	const paid = new Map<string, number>();
-	for (const p of payRows) {
-		paid.set(p.kasbonId, (paid.get(p.kasbonId) ?? 0) + p.amountIdr);
-	}
-	const sisa = new Map<string, number>();
-	for (const k of kasbonRows) {
-		if (k.status !== "disbursed" && k.status !== "lunas") continue;
-		sisa.set(
-			k.employeeId,
-			(sisa.get(k.employeeId) ?? 0) + (k.amountIdr - (paid.get(k.id) ?? 0)),
-		);
-	}
-	return sisa;
-}
 
 async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[]> {
 	const employees = await db.select().from(employee);
-	const sisaMap = await kasbonSisaByEmployee(db);
+	const sisaByEmployee = await kasbonSisaByEmployee(db);
 	const percentById = new Map(employees.map((e) => [e.id, e.ongkosPercent]));
 	const byEmp = new Map<string, OngkosRow>();
 	for (const e of employees) {
@@ -90,7 +66,7 @@ async function buildOngkosRows(db: Database, jobs: JobRow[]): Promise<OngkosRow[
 			diterimaAmount: 0,
 			mechanicShare: 0,
 			bengkelShare: 0,
-			kasbonSisa: sisaMap.get(e.id) ?? 0,
+			kasbonSisa: sisaByEmployee[e.id] ?? 0,
 		});
 	}
 	const seen = new Set<string>();
@@ -221,6 +197,7 @@ export const laporanRouter = router({
 			if (payDate >= input.from && payDate <= input.to) manual += p.amountIdr;
 		}
 
+		// payroll-source payments are already inside takeHomeIdr and must not be added
 		const pengeluaran = takeHome + manual;
 		return {
 			from: input.from,

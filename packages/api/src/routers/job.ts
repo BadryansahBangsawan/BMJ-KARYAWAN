@@ -1,4 +1,3 @@
-import type { Database } from "@BMJ-KARYAWAN/db";
 import { employee, job } from "@BMJ-KARYAWAN/db/schema/karyawan";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
@@ -6,45 +5,13 @@ import { z } from "zod";
 
 
 import { kasirProcedure, protectedProcedure, router, supervisorProcedure } from "../index";
+import { monthRange, sessionRole, todayYmd } from "../lib/domain";
+import { employeeByUserId } from "../lib/workshop-db";
 
-const TZ = "Asia/Jayapura";
+
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const jobStatusSchema = z.enum(["proses", "selesai", "diterima", "batal"]);
 
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function roleOf(user: { role?: string | null }): Role {
-  if (user.role === "supervisor" || user.role === "kasir" || user.role === "mekanik") {
-    return user.role;
-  }
-  return "mekanik";
-}
-
-function currentMonthRange(now = new Date()) {
-  const date = now.toLocaleDateString("en-CA", { timeZone: TZ });
-  const [yearStr, monthStr] = date.split("-");
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return {
-    from: `${yearStr}-${monthStr}-01`,
-    to: `${yearStr}-${monthStr}-${String(lastDay).padStart(2, "0")}`,
-  };
-}
-
-function todayYmd(now = new Date()) {
-  return now.toLocaleDateString("en-CA", { timeZone: TZ });
-}
-
-
-async function employeeByUserId(db: Database, userId: string) {
-  const [row] = await db
-    .select()
-    .from(employee)
-    .where(eq(employee.userId, userId))
-    .limit(1);
-  return row ?? null;
-}
 
 
 export const jobRouter = router({
@@ -60,11 +27,13 @@ export const jobRouter = router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const role = roleOf(ctx.session.user);
-      const range = currentMonthRange();
-      const from = input?.from ?? range.from;
-      const to = input?.to ?? range.to;
-
+      const role = sessionRole(ctx.session.user);
+      const today = todayYmd();
+      const year = Number(today.slice(0, 4));
+      const month = Number(today.slice(5, 7));
+      const range = monthRange(year, month);
+      const from = input?.from ?? range.startDate;
+      const to = input?.to ?? range.endDate;
       let employeeId = input?.employeeId;
       if (role === "mekanik") {
         const own = await employeeByUserId(ctx.db, ctx.session.user.id);
@@ -146,7 +115,7 @@ export const jobRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const role = roleOf(ctx.session.user);
+      const role = sessionRole(ctx.session.user);
       if (role === "kasir") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Kasir cannot create jobs" });
       }
@@ -240,7 +209,7 @@ export const jobRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const role = roleOf(ctx.session.user);
+      const role = sessionRole(ctx.session.user);
       if (role === "mekanik") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Mekanik cannot change job status" });
       }

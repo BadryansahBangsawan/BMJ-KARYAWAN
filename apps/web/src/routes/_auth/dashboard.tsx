@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import z from "zod";
 
 import { AbsenClockButton } from "@/components/absen-clock-button";
 import { ActionQueue } from "@/components/action-queue";
@@ -18,66 +17,15 @@ import { authClient } from "@/lib/auth-client";
 import { coalesceAuthSession, sessionRole } from "@/lib/session-role";
 import { captureClockProof } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_auth/dashboard")({
   component: RouteComponent,
 });
 
-const employeeMeSchema = z.object({ id: z.string() }).nullable();
-
-const kasbonRowSchema = z.object({
-  id: z.string().optional(),
-  employeeId: z.string(),
-  employeeName: z.string().nullable().optional(),
-  name: z.string().nullable().optional(),
-  keperluan: z.string().optional(),
-  amountIdr: z.number(),
-  status: z.string(),
-  sisaIdr: z.number().optional(),
-  sisa: z.number().optional(),
-  paidIdr: z.number().optional(),
-  payments: z.array(z.object({ amountIdr: z.number() })).optional(),
-});
-
-const jobRowSchema = z.object({
-  id: z.string().optional(),
-  employeeId: z.string(),
-  employeeName: z.string().nullable().optional(),
-  name: z.string().nullable().optional(),
-  description: z.string().optional(),
-  status: z.string(),
-});
-
-const pendapatanSchema = z.object({
-  pendapatan: z.number(),
-});
-
-function listPayload(data: unknown): unknown[] {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
-    return data.items;
-  }
-  return [];
-}
-
-function parseList<T>(data: unknown, schema: z.ZodType<T>): T[] {
-  const parsed: T[] = [];
-  for (const row of listPayload(data)) {
-    const result = schema.safeParse(row);
-    if (result.success) parsed.push(result.data);
-  }
-  return parsed;
-}
-
-function kasbonSisa(row: z.infer<typeof kasbonRowSchema>): number {
+function kasbonSisa(row: RouterOutputs["kasbon"]["list"][number]): number {
   if (row.status !== "disbursed" && row.status !== "lunas") return 0;
-  if (typeof row.sisaIdr === "number") return row.sisaIdr;
-  if (typeof row.sisa === "number") return row.sisa;
-  const paid =
-    typeof row.paidIdr === "number"
-      ? row.paidIdr
-      : (row.payments ?? []).reduce((sum, payment) => sum + payment.amountIdr, 0);
-  return row.amountIdr - paid;
+  return row.sisaIdr;
 }
 
 function RouteComponent() {
@@ -123,30 +71,20 @@ function RouteComponent() {
     ...trpc.payroll.get.queryOptions({ year, month: monthNum }),
     enabled: role === "mekanik" || role === "kasir",
   });
-  const slipLine = (payroll.data as { period?: { payDate?: string }; lines?: Array<{
-    employeeName?: string | null;
-    name?: string | null;
-    employeeId: string;
-    daysPresent: number;
-    dailyPayIdr: number;
-    jobShareIdr: number;
-    konsumsiIdr: number;
-    bonusIdr: number;
-    kasbonDeductionIdr: number;
-    takeHomeIdr: number;
-  }> } | undefined)?.lines?.[0];
-  const slipPayDate = (payroll.data as { period?: { payDate?: string } } | undefined)?.period?.payDate;
+  const payrollData: RouterOutputs["payroll"]["get"] | undefined = payroll.data;
+  const slipLine = payrollData?.lines?.[0];
+  const slipPayDate = payrollData?.period?.payDate;
 
 
 
   const failed = me.isError || kasbon.isError || jobs.isError || absenMonth.isError || (isStaff && monthPendapatan.isError);
 
-  const employee = employeeMeSchema.safeParse(me.data);
-  const employeeId = employee.success ? employee.data?.id : undefined;
-  const kasbonRows = parseList(kasbon.data, kasbonRowSchema);
-  const jobRows = parseList(jobs.data, jobRowSchema);
-  const pendapatanParsed = pendapatanSchema.safeParse(monthPendapatan.data);
-  const pendapatan = pendapatanParsed.success ? pendapatanParsed.data.pendapatan : 0;
+  const employee: RouterOutputs["employee"]["me"] | undefined = me.data;
+  const employeeId = employee?.id;
+  const kasbonRows: RouterOutputs["kasbon"]["list"] = kasbon.data ?? [];
+  const jobRows: RouterOutputs["job"]["list"] = jobs.data ?? [];
+  const pendapatan =
+    (monthPendapatan.data as RouterOutputs["job"]["monthPendapatan"] | undefined)?.pendapatan ?? 0;
 
 
   const ownKasbon = employeeId
@@ -165,7 +103,7 @@ function RouteComponent() {
       ? [
           ...pendingKasbon.slice(0, 8).map((row, index) => ({
             id: row.id ?? `pending-${index}`,
-            title: row.employeeName?.trim() || row.name?.trim() || "—",
+            title: row.employeeName?.trim() || "—",
             subtitle: row.keperluan,
             trailing: formatRp(row.amountIdr),
             to: "/kasbon" as const,
@@ -173,7 +111,7 @@ function RouteComponent() {
           ...liveJobs.slice(0, 8).map((row, index) => ({
             id: row.id ?? `job-${index}`,
             title: row.description ?? "Pekerjaan",
-            subtitle: `${row.employeeName?.trim() || row.name?.trim() || "—"} · ${row.status === "selesai" ? "Menunggu diterima" : "Proses"}`,
+            subtitle: `${row.employeeName?.trim() || "—"} · ${row.status === "selesai" ? "Menunggu diterima" : "Proses"}`,
             to: "/pekerjaan" as const,
           })),
         ]
@@ -445,6 +383,7 @@ function RouteComponent() {
           line={slipLine}
           periodLabel={monthLabel(year, monthNum)}
           payDate={slipPayDate}
+          alpaDays={slipLine.alpaDays}
           showName={false}
         />
       ) : payroll.isPending ? (

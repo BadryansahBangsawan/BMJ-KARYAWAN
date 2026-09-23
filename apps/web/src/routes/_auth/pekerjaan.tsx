@@ -52,27 +52,9 @@ import { formatLongDate, formatRp, monthBounds, todayYmd } from "@/lib/format";
 import { jpegDataUrlFromFile } from "@/lib/workshop-gps";
 import { sessionRole, type UserRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
 
-type JobRow = {
-  id: string;
-  employeeId: string;
-  employeeName?: string | null;
-  name?: string | null;
-  workDate: string;
-  description: string;
-  amountIdr: number;
-  struk?: string | null;
-  customerNote?: string | null;
-  status: string;
-  kind: string;
-  bengkelPercent?: number | null;
-};
-
-type EmployeeRow = {
-  id: string;
-  name: string;
-  role: string;
-};
+type JobRow = RouterOutputs["job"]["list"][number];
 
 type StatusFilter = "" | "proses" | "selesai" | "diterima" | "batal";
 
@@ -95,7 +77,7 @@ function jobKindLabel(job: JobRow) {
 }
 
 function jobMechanicName(job: JobRow, nameById: Record<string, string>) {
-  return job.employeeName?.trim() || job.name?.trim() || nameById[job.employeeId] || "—";
+  return job.employeeName?.trim() || nameById[job.employeeId] || "—";
 }
 
 function jobNeedsAction(job: JobRow, role: UserRole) {
@@ -218,8 +200,8 @@ function PekerjaanPage() {
     enabled: role === "kasir" || role === "supervisor",
   });
 
-  const jobs = (jobsQuery.data ?? []) as JobRow[];
-  const allEmployees = (employeesQuery.data ?? []) as EmployeeRow[];
+  const jobs = jobsQuery.data ?? [];
+  const allEmployees = employeesQuery.data ?? [];
   const employees = allEmployees.filter((row) => row.role === "mekanik");
   const nameById: Record<string, string> = {};
   for (const row of allEmployees) {

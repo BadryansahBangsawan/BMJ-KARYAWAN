@@ -14,9 +14,20 @@ import {
 } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
 import { protectedProcedure, router, supervisorProcedure } from "../index";
+import {
+  alpaDays,
+  allocatePayrollDeduction,
+  clampKasbonDeduction,
+  kasbonStatusAfterSisa,
+  monthRange,
+  presentHundredths,
+  todayYmd,
+  workDatesMonSat,
+  type DebtSlice,
+} from "../lib/domain";
 import { splitBengkelOngkos } from "../lib/ongkos";
-
-const TZ = "Asia/Jayapura";
+import { kasbonSisaByEmployee, paymentTotals } from "../lib/workshop-db";
+type DbOrTx = Database | Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const yearMonthInput = z.object({
   year: z.number().int(),
@@ -24,7 +35,7 @@ const yearMonthInput = z.object({
 });
 
 function isFutureYearMonth(year: number, month: number) {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+  const today = todayYmd();
   const [yStr, mStr] = today.split("-");
   const y = Number(yStr);
   const m = Number(mStr);
@@ -38,64 +49,6 @@ function assertNotFuturePeriod(year: number, month: number) {
       message: "Tidak bisa hitung gaji untuk bulan yang belum terjadi",
     });
   }
-}
-
-function monthRange(year: number, month: number) {
-  const ym = `${year}-${String(month).padStart(2, "0")}`;
-  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const startDate = `${ym}-01`;
-  const endDate = `${ym}-${String(last).padStart(2, "0")}`;
-  const nextYear = month === 12 ? year + 1 : year;
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const payDate = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
-  return { startDate, endDate, payDate };
-}
-
-function mechanicPayIdr(line: {
-  dailyPayIdr: number;
-  jobShareIdr: number;
-  konsumsiIdr: number;
-}) {
-  return line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr;
-}
-
-function clampKasbonDeduction(
-  amountIdr: number,
-  kasbonBalanceIdr: number,
-  payIdr: number,
-) {
-  return Math.min(Math.max(0, amountIdr), kasbonBalanceIdr, Math.max(0, payIdr));
-}
-
-async function paymentTotals(db: Database, kasbonIds: string[]) {
-  const totals: Record<string, number> = {};
-  if (kasbonIds.length === 0) return totals;
-  const rows = await db
-    .select()
-    .from(kasbonPayment)
-    .where(inArray(kasbonPayment.kasbonId, kasbonIds));
-  for (const row of rows) {
-    totals[row.kasbonId] = (totals[row.kasbonId] ?? 0) + row.amountIdr;
-  }
-  return totals;
-}
-
-async function kasbonSisaByEmployee(db: Database) {
-  const debt = await db
-    .select()
-    .from(kasbon)
-    .where(inArray(kasbon.status, ["disbursed", "lunas"]));
-  const totals = await paymentTotals(
-    db,
-    debt.map((row) => row.id),
-  );
-  const sisaByEmployee: Record<string, number> = {};
-  for (const row of debt) {
-    const sisa = row.amountIdr - (totals[row.id] ?? 0);
-    if (sisa <= 0) continue;
-    sisaByEmployee[row.employeeId] = (sisaByEmployee[row.employeeId] ?? 0) + sisa;
-  }
-  return sisaByEmployee;
 }
 
 async function linesWithNames(db: Database, periodId: string) {
@@ -164,37 +117,36 @@ async function getOrCreatePeriod(
   }
 }
 
-async function rebuildLines(
+async function restrictLinesToSession<T extends { employeeId: string }>(
   db: Database,
-  period: typeof payrollPeriod.$inferSelect,
-  keepDeductions: boolean,
-) {
+  userId: string,
+  role: string | null | undefined,
+  lines: T[],
+): Promise<T[]> {
+  if ((role ?? "mekanik") === "supervisor") return lines;
+  const [me] = await db
+    .select({ id: employee.id })
+    .from(employee)
+    .where(eq(employee.userId, userId))
+    .limit(1);
+  return me ? lines.filter((row) => row.employeeId === me.id) : [];
+}
 
-  const previousRows = keepDeductions
-    ? await db
-        .select()
-        .from(payrollLine)
-        .where(eq(payrollLine.periodId, period.id))
-    : [];
-  const previousDeduction: Record<string, number> = {};
-  for (const row of previousRows) {
-    previousDeduction[row.employeeId] = row.kasbonDeductionIdr;
-  }
-
+async function monthInputs(db: Database, startDate: string, endDate: string) {
   const emps = await db
     .select()
     .from(employee)
     .where(ne(employee.role, "supervisor"))
     .orderBy(asc(employee.name));
 
-  const [attRows, jobRows, sisaByEmployee] = await Promise.all([
+  const [attRows, jobRows] = await Promise.all([
     db
       .select()
       .from(attendance)
       .where(
         and(
-          gte(attendance.workDate, period.startDate),
-          lte(attendance.workDate, period.endDate),
+          gte(attendance.workDate, startDate),
+          lte(attendance.workDate, endDate),
         ),
       ),
     db
@@ -203,34 +155,47 @@ async function rebuildLines(
       .where(
         and(
           eq(job.status, "diterima"),
-          gte(job.workDate, period.startDate),
-          lte(job.workDate, period.endDate),
+          gte(job.workDate, startDate),
+          lte(job.workDate, endDate),
         ),
       ),
-    kasbonSisaByEmployee(db),
   ]);
 
+  return { emps, attRows, jobRows };
+}
+
+function attendanceAggregates(
+  attRows: { employeeId: string; workDate: string; value: number }[],
+) {
+  const marksByEmp: Record<string, Record<string, number>> = {};
   const daysPresentByEmp: Record<string, number> = {};
-  const alpaByEmp: Record<string, number> = {};
   const onTimeDaysByEmp: Record<string, number> = {};
   for (const row of attRows) {
+    (marksByEmp[row.employeeId] ??= {})[row.workDate] = row.value;
     daysPresentByEmp[row.employeeId] =
-      (daysPresentByEmp[row.employeeId] ?? 0) + row.value;
-    if (row.value === 0) {
-      alpaByEmp[row.employeeId] = (alpaByEmp[row.employeeId] ?? 0) + 1;
-    }
+      (daysPresentByEmp[row.employeeId] ?? 0) + presentHundredths(row.value);
     if (row.value === 100) {
-      onTimeDaysByEmp[row.employeeId] = (onTimeDaysByEmp[row.employeeId] ?? 0) + 1;
+      onTimeDaysByEmp[row.employeeId] =
+        (onTimeDaysByEmp[row.employeeId] ?? 0) + 1;
     }
   }
+  return { marksByEmp, daysPresentByEmp, onTimeDaysByEmp };
+}
 
+function jobShareByEmployee(
+  emps: { id: string; payKind: string; ongkosPercent: number }[],
+  jobRows: {
+    employeeId: string;
+    amountIdr: number;
+    bengkelPercent: number | null;
+  }[],
+) {
   const percentByEmp: Record<string, number> = {};
   const payKindByEmp: Record<string, string> = {};
   for (const emp of emps) {
     percentByEmp[emp.id] = emp.ongkosPercent;
     payKindByEmp[emp.id] = emp.payKind;
   }
-
   const jobShareByEmp: Record<string, number> = {};
   for (const row of jobRows) {
     if (payKindByEmp[row.employeeId] === "gaji") continue;
@@ -238,92 +203,339 @@ async function rebuildLines(
       row.amountIdr,
       row.bengkelPercent ?? percentByEmp[row.employeeId] ?? 0,
     );
-    jobShareByEmp[row.employeeId] = (jobShareByEmp[row.employeeId] ?? 0) + mechanicIdr;
+    jobShareByEmp[row.employeeId] =
+      (jobShareByEmp[row.employeeId] ?? 0) + mechanicIdr;
   }
+  return jobShareByEmp;
+}
 
-  const values = emps.flatMap((emp) => {
-    const daysPresentTenths = daysPresentByEmp[emp.id] ?? 0;
-    const alpaDays = alpaByEmp[emp.id] ?? 0;
-    const onTimeDays = onTimeDaysByEmp[emp.id] ?? 0;
-    const isGaji = emp.payKind === "gaji";
-    const jobShareIdr = isGaji ? 0 : (jobShareByEmp[emp.id] ?? 0);
-    const dailyPayIdr = isGaji && emp.active ? emp.bonusIdr || 0 : 0;
-    const bonusIdr = 0;
-    const konsumsiIdr = (emp.konsumsiMonthlyIdr || 0) * onTimeDays;
-    const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr;
-    const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
-    if (
-      !emp.active &&
-      daysPresentTenths === 0 &&
-      jobShareIdr === 0 &&
-      dailyPayIdr === 0 &&
-      kasbonBalanceIdr === 0
-    ) {
-      return [];
-    }
-    const kept = previousDeduction[emp.id];
-    const kasbonDeductionIdr =
-      keepDeductions && kept !== undefined
-        ? clampKasbonDeduction(kept, kasbonBalanceIdr, payIdr)
-        : 0;
-    return [
-      {
-        id: crypto.randomUUID(),
-        periodId: period.id,
-        employeeId: emp.id,
-        daysPresent: daysPresentTenths,
-        alpaDays,
-        ongkosPercent: emp.ongkosPercent,
-        dailyPayIdr,
-        jobShareIdr,
-        konsumsiIdr,
-        bonusIdr,
-        kasbonBalanceIdr,
-        kasbonDeductionIdr,
-        takeHomeIdr: payIdr - kasbonDeductionIdr,
-        kasbonRemainingIdr: kasbonBalanceIdr - kasbonDeductionIdr,
-      },
-    ];
-  });
+async function debtSlicesForEmployee(
+  db: DbOrTx,
+  employeeId: string,
+): Promise<DebtSlice[]> {
+  const rows = await db
+    .select()
+    .from(kasbon)
+    .where(
+      and(
+        eq(kasbon.employeeId, employeeId),
+        inArray(kasbon.status, ["disbursed", "lunas"]),
+      ),
+    );
+  const totals = await paymentTotals(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    amountIdr: row.amountIdr,
+    paidIdr: totals[row.id] ?? 0,
+    disbursedAt:
+      row.disbursedAt == null
+        ? null
+        : row.disbursedAt instanceof Date
+          ? row.disbursedAt.getTime()
+          : row.disbursedAt,
+    createdAt:
+      row.createdAt instanceof Date
+        ? row.createdAt.getTime()
+        : Number(row.createdAt),
+  }));
+}
+
+async function refreshKasbonStatuses(db: DbOrTx, kasbonIds: string[]) {
+  const unique = [...new Set(kasbonIds)];
+  if (unique.length === 0) return;
+  const rows = await db
+    .select()
+    .from(kasbon)
+    .where(inArray(kasbon.id, unique));
+  const totals = await paymentTotals(db, unique);
+  for (const row of rows) {
+    const sisa = row.amountIdr - (totals[row.id] ?? 0);
+    await db
+      .update(kasbon)
+      .set({ status: kasbonStatusAfterSisa(sisa) })
+      .where(eq(kasbon.id, row.id));
+  }
+}
+
+async function payrollPaidByLineIds(db: Database, lineIds: string[]) {
+  const totals: Record<string, number> = {};
+  if (lineIds.length === 0) return totals;
+  const rows = await db
+    .select()
+    .from(kasbonPayment)
+    .where(
+      and(
+        eq(kasbonPayment.source, "payroll"),
+        inArray(kasbonPayment.payrollLineId, lineIds),
+      ),
+    );
+  for (const row of rows) {
+    if (!row.payrollLineId) continue;
+    totals[row.payrollLineId] = (totals[row.payrollLineId] ?? 0) + row.amountIdr;
+  }
+  return totals;
+}
+
+async function rebuildLines(
+  db: Database,
+  period: typeof payrollPeriod.$inferSelect,
+  keepDeductions: boolean,
+  createdByUserId: string,
+) {
+  const { emps, attRows, jobRows } = await monthInputs(
+    db,
+    period.startDate,
+    period.endDate,
+  );
+  const { marksByEmp, daysPresentByEmp, onTimeDaysByEmp } =
+    attendanceAggregates(attRows);
+  const jobShareByEmp = jobShareByEmployee(emps, jobRows);
+  const workDates = workDatesMonSat(period.year, period.month);
+  const asOf = todayYmd();
 
   await db.transaction(async (tx) => {
+    const previousRows = await tx
+      .select({
+        id: payrollLine.id,
+        employeeId: payrollLine.employeeId,
+        kasbonDeductionIdr: payrollLine.kasbonDeductionIdr,
+      })
+      .from(payrollLine)
+      .where(eq(payrollLine.periodId, period.id));
+    const previousDeduction: Record<string, number> = {};
+    const previousIds = previousRows.map((row) => row.id);
+    for (const row of previousRows) {
+      previousDeduction[row.employeeId] = row.kasbonDeductionIdr;
+    }
+
+    const oldPays =
+      previousIds.length === 0
+        ? []
+        : await tx
+            .select()
+            .from(kasbonPayment)
+            .where(
+              and(
+                eq(kasbonPayment.source, "payroll"),
+                inArray(kasbonPayment.payrollLineId, previousIds),
+              ),
+            );
+    if (previousIds.length > 0) {
+      await tx
+        .delete(kasbonPayment)
+        .where(
+          and(
+            eq(kasbonPayment.source, "payroll"),
+            inArray(kasbonPayment.payrollLineId, previousIds),
+          ),
+        );
+    }
+    const restoredKasbonIds = oldPays.map((row) => row.kasbonId);
+    await refreshKasbonStatuses(tx, restoredKasbonIds);
+
+    const sisaByEmployee = await kasbonSisaByEmployee(tx);
+
+    const values = emps.flatMap((emp) => {
+      const daysPresent = daysPresentByEmp[emp.id] ?? 0;
+      const marks = marksByEmp[emp.id] ?? {};
+      const alpaDayCount = alpaDays(workDates, marks, asOf);
+      const onTimeDays = onTimeDaysByEmp[emp.id] ?? 0;
+      const isGaji = emp.payKind === "gaji";
+      const jobShareIdr = isGaji ? 0 : (jobShareByEmp[emp.id] ?? 0);
+      const dailyPayIdr = isGaji && emp.active ? emp.bonusIdr || 0 : 0;
+      const bonusIdr = 0;
+      const konsumsiIdr = (emp.uangMakanHarianIdr || 0) * onTimeDays;
+      const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr;
+      const kasbonBalanceIdr = sisaByEmployee[emp.id] ?? 0;
+      if (
+        !emp.active &&
+        daysPresent === 0 &&
+        jobShareIdr === 0 &&
+        dailyPayIdr === 0 &&
+        kasbonBalanceIdr === 0
+      ) {
+        return [];
+      }
+      const kept = previousDeduction[emp.id];
+      const kasbonDeductionIdr =
+        keepDeductions && kept !== undefined
+          ? clampKasbonDeduction(kept, kasbonBalanceIdr, payIdr)
+          : 0;
+      return [
+        {
+          id: crypto.randomUUID(),
+          periodId: period.id,
+          employeeId: emp.id,
+          daysPresent,
+          alpaDays: alpaDayCount,
+          ongkosPercent: emp.ongkosPercent,
+          dailyPayIdr,
+          jobShareIdr,
+          konsumsiIdr,
+          bonusIdr,
+          kasbonBalanceIdr,
+          kasbonDeductionIdr,
+          takeHomeIdr: payIdr - kasbonDeductionIdr,
+          kasbonRemainingIdr: kasbonBalanceIdr - kasbonDeductionIdr,
+        },
+      ];
+    });
+
     await tx.delete(payrollLine).where(eq(payrollLine.periodId, period.id));
     if (values.length > 0) {
       await tx.insert(payrollLine).values(values);
     }
+
+    const touchedKasbonIds: string[] = [];
+    for (const line of values) {
+      if (line.kasbonDeductionIdr <= 0) continue;
+      const slices = await debtSlicesForEmployee(tx, line.employeeId);
+      const allocated = allocatePayrollDeduction(
+        slices,
+        line.kasbonDeductionIdr,
+      );
+      for (const payment of allocated) {
+        await tx.insert(kasbonPayment).values({
+          id: crypto.randomUUID(),
+          kasbonId: payment.kasbonId,
+          amountIdr: payment.amountIdr,
+          source: "payroll",
+          payrollLineId: line.id,
+          createdByUserId,
+        });
+        touchedKasbonIds.push(payment.kasbonId);
+      }
+    }
+    await refreshKasbonStatuses(tx, touchedKasbonIds);
   });
 }
-
 
 export const payrollRouter = router({
   get: protectedProcedure.input(yearMonthInput).query(async ({ ctx, input }) => {
     if (isFutureYearMonth(input.year, input.month)) {
       return { period: null, lines: [] };
     }
-    const role = ctx.session.user.role ?? "mekanik";
-    let period = await getPeriod(ctx.db, input.year, input.month);
-    let built = false;
-    if (!period) {
-      period = await getOrCreatePeriod(ctx.db, input.year, input.month);
-      await rebuildLines(ctx.db, period, false);
-      built = true;
+
+    const today = todayYmd();
+    const [yStr, mStr] = today.split("-");
+    const isCurrentMonth =
+      input.year === Number(yStr) && input.month === Number(mStr);
+
+    if (!isCurrentMonth) {
+      const period = await getPeriod(ctx.db, input.year, input.month);
+      if (!period) {
+        return { period: null, lines: [] };
+      }
+      const named = await linesWithNames(ctx.db, period.id);
+      return {
+        period,
+        lines: await restrictLinesToSession(
+          ctx.db,
+          ctx.session.user.id,
+          ctx.session.user.role,
+          named,
+        ),
+      };
     }
-    let named = await linesWithNames(ctx.db, period.id);
-    if (!built && named.length === 0) {
-      await rebuildLines(ctx.db, period, false);
-      named = await linesWithNames(ctx.db, period.id);
+
+    const range = monthRange(input.year, input.month);
+    const persistedPeriod = await getPeriod(ctx.db, input.year, input.month);
+    const { emps, attRows, jobRows } = await monthInputs(
+      ctx.db,
+      range.startDate,
+      range.endDate,
+    );
+    const sisaByEmployee = await kasbonSisaByEmployee(ctx.db);
+    const persistedLines = persistedPeriod
+      ? await ctx.db
+          .select()
+          .from(payrollLine)
+          .where(eq(payrollLine.periodId, persistedPeriod.id))
+      : [];
+    const persistedByEmp: Record<string, (typeof persistedLines)[number]> = {};
+    for (const row of persistedLines) {
+      persistedByEmp[row.employeeId] = row;
     }
-    if (role !== "supervisor") {
-      const [me] = await ctx.db
-        .select({ id: employee.id })
-        .from(employee)
-        .where(eq(employee.userId, ctx.session.user.id))
-        .limit(1);
-      named = me ? named.filter((row) => row.employeeId === me.id) : [];
-    }
+    const paidByLine = await payrollPaidByLineIds(
+      ctx.db,
+      persistedLines.map((row) => row.id),
+    );
+
+    const { marksByEmp, daysPresentByEmp, onTimeDaysByEmp } =
+      attendanceAggregates(attRows);
+    const jobShareByEmp = jobShareByEmployee(emps, jobRows);
+    const workDates = workDatesMonSat(input.year, input.month);
+
+    const lines = emps.flatMap((emp) => {
+      const daysPresent = daysPresentByEmp[emp.id] ?? 0;
+      const marks = marksByEmp[emp.id] ?? {};
+      const alpaDayCount = alpaDays(workDates, marks, today);
+      const onTimeDays = onTimeDaysByEmp[emp.id] ?? 0;
+      const isGaji = emp.payKind === "gaji";
+      const jobShareIdr = isGaji ? 0 : (jobShareByEmp[emp.id] ?? 0);
+      const dailyPayIdr = isGaji && emp.active ? emp.bonusIdr || 0 : 0;
+      const bonusIdr = 0;
+      const konsumsiIdr = (emp.uangMakanHarianIdr || 0) * onTimeDays;
+      const payIdr = dailyPayIdr + jobShareIdr + konsumsiIdr;
+      const persisted = persistedByEmp[emp.id];
+      const liveSisa = sisaByEmployee[emp.id] ?? 0;
+      const grossSisa = persisted
+        ? liveSisa + (paidByLine[persisted.id] ?? 0)
+        : liveSisa;
+      if (
+        !emp.active &&
+        daysPresent === 0 &&
+        jobShareIdr === 0 &&
+        dailyPayIdr === 0 &&
+        grossSisa === 0
+      ) {
+        return [];
+      }
+      const kasbonDeductionIdr = persisted
+        ? clampKasbonDeduction(persisted.kasbonDeductionIdr, grossSisa, payIdr)
+        : 0;
+      return [
+        {
+          id: persisted?.id ?? null,
+          periodId: persistedPeriod?.id ?? null,
+          employeeId: emp.id,
+          employeeName: emp.name,
+          name: emp.name,
+          daysPresent,
+          alpaDays: alpaDayCount,
+          ongkosPercent: emp.ongkosPercent,
+          dailyPayIdr,
+          jobShareIdr,
+          konsumsiIdr,
+          bonusIdr,
+          kasbonBalanceIdr: grossSisa,
+          kasbonDeductionIdr,
+          takeHomeIdr: payIdr - kasbonDeductionIdr,
+          kasbonRemainingIdr: persisted
+            ? grossSisa - kasbonDeductionIdr
+            : liveSisa,
+        },
+      ];
+    });
+
     return {
-      period,
-      lines: named,
+      period: persistedPeriod ?? {
+        id: null,
+        year: input.year,
+        month: input.month,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        payDate: range.payDate,
+      },
+      lines: await restrictLinesToSession(
+        ctx.db,
+        ctx.session.user.id,
+        ctx.session.user.role,
+        lines,
+      ),
     };
   }),
 
@@ -340,7 +552,12 @@ export const payrollRouter = router({
         input.year,
         input.month,
       );
-      await rebuildLines(ctx.db, period, input.keepDeductions === true);
+      await rebuildLines(
+        ctx.db,
+        period,
+        input.keepDeductions === true,
+        ctx.session.user.id,
+      );
       const lines = await linesWithNames(ctx.db, period.id);
       return {
         period,
@@ -382,36 +599,80 @@ export const payrollRouter = router({
         });
       }
       assertNotFuturePeriod(period.year, period.month);
-      const payIdr = mechanicPayIdr(line);
-      const maxDeduction = clampKasbonDeduction(
-        input.kasbonDeductionIdr,
-        line.kasbonBalanceIdr,
-        payIdr,
-      );
-      if (input.kasbonDeductionIdr > maxDeduction) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            input.kasbonDeductionIdr > line.kasbonBalanceIdr
-              ? "Potongan kasbon melebihi saldo"
-              : "Potongan kasbon melebihi gaji",
-        });
-      }
 
-      const takeHomeIdr = payIdr - input.kasbonDeductionIdr;
-      const kasbonRemainingIdr = line.kasbonBalanceIdr - input.kasbonDeductionIdr;
+      return await ctx.db.transaction(async (tx) => {
+        const oldPays = await tx
+          .select()
+          .from(kasbonPayment)
+          .where(
+            and(
+              eq(kasbonPayment.source, "payroll"),
+              eq(kasbonPayment.payrollLineId, line.id),
+            ),
+          );
+        await tx
+          .delete(kasbonPayment)
+          .where(
+            and(
+              eq(kasbonPayment.source, "payroll"),
+              eq(kasbonPayment.payrollLineId, line.id),
+            ),
+          );
 
-      const updated = await ctx.db
-        .update(payrollLine)
-        .set({
-          kasbonDeductionIdr: input.kasbonDeductionIdr,
-          takeHomeIdr,
-          kasbonRemainingIdr,
-        })
-        .where(eq(payrollLine.id, line.id))
-        .returning();
+        const slices = await debtSlicesForEmployee(tx, line.employeeId);
+        const grossSisa = slices.reduce((sum, slice) => {
+          const sisa = slice.amountIdr - slice.paidIdr;
+          return sisa > 0 ? sum + sisa : sum;
+        }, 0);
+        const payIdr =
+          line.dailyPayIdr + line.jobShareIdr + line.konsumsiIdr;
+        if (input.kasbonDeductionIdr > grossSisa) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Potongan kasbon melebihi saldo",
+          });
+        }
+        if (input.kasbonDeductionIdr > payIdr) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Potongan kasbon melebihi gaji",
+          });
+        }
 
-      return updated[0]!;
+        const allocated = allocatePayrollDeduction(
+          slices,
+          input.kasbonDeductionIdr,
+        );
+        for (const payment of allocated) {
+          await tx.insert(kasbonPayment).values({
+            id: crypto.randomUUID(),
+            kasbonId: payment.kasbonId,
+            amountIdr: payment.amountIdr,
+            source: "payroll",
+            payrollLineId: line.id,
+            createdByUserId: ctx.session.user.id,
+          });
+        }
+
+        const takeHomeIdr = payIdr - input.kasbonDeductionIdr;
+        const kasbonRemainingIdr = grossSisa - input.kasbonDeductionIdr;
+        const updated = await tx
+          .update(payrollLine)
+          .set({
+            kasbonBalanceIdr: grossSisa,
+            kasbonDeductionIdr: input.kasbonDeductionIdr,
+            takeHomeIdr,
+            kasbonRemainingIdr,
+          })
+          .where(eq(payrollLine.id, line.id))
+          .returning();
+
+        await refreshKasbonStatuses(tx, [
+          ...oldPays.map((row) => row.kasbonId),
+          ...allocated.map((row) => row.kasbonId),
+        ]);
+
+        return updated[0]!;
+      });
     }),
-
 });

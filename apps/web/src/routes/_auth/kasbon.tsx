@@ -29,6 +29,7 @@ import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { formatDateTime, formatRp } from "@/lib/format";
 import { sessionRole, roleLabel } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
 import { FieldError, fieldDescribedBy, focusFirstInvalid } from "@/components/field-error";
 import { ClearFiltersButton, FilterBar, FilterChips } from "@/components/filter-bar";
 import { FormDialog } from "@/components/form-dialog";
@@ -43,21 +44,7 @@ import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
 import { StatusBadge } from "@/components/status-badge";
 
-type KasbonRow = {
-  id: string;
-  employeeId: string;
-  employeeName?: string | null;
-  name?: string | null;
-  keperluan: string;
-  amountIdr: number;
-  status: string;
-  paidIdr?: number | null;
-  sisaIdr?: number | null;
-  rejectedReason?: string | null;
-  createdAt?: string | number | Date | null;
-};
-
-type EmployeeRow = { id: string; name: string };
+type KasbonRow = RouterOutputs["kasbon"]["list"][number];
 type StatusFilter = "" | "pending" | "approved" | "rejected" | "disbursed" | "lunas";
 
 export const KASBON_STATUS = {
@@ -99,8 +86,8 @@ function KasbonPage() {
     enabled: role === "supervisor",
   });
 
-  const rows = (listQuery.data ?? []) as KasbonRow[];
-  const employees = (employeesQuery.data ?? []) as EmployeeRow[];
+  const rows = listQuery.data ?? [];
+  const employees = employeesQuery.data ?? [];
   const summary = summaryQuery.data as
     | {
         ttlAmount?: number;
@@ -132,56 +119,83 @@ function KasbonPage() {
     trpc.kasbon.approve.mutationOptions({
       onMutate: async ({ kasbonId }) => {
         await queryClient.cancelQueries({ predicate: isKasbonListQuery });
+        const snapshots = queryClient.getQueriesData({ predicate: isKasbonListQuery });
         queryClient.setQueriesData({ predicate: isKasbonListQuery }, (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((row: KasbonRow) =>
             row.id === kasbonId ? { ...row, status: "approved" } : row,
           );
         });
+        return { snapshots };
       },
       onSuccess: () => {
         toast.success("Kasbon disetujui");
+      },
+      onError: (error, _vars, context) => {
+        for (const [key, data] of context?.snapshots ?? []) {
+          queryClient.setQueryData(key, data);
+        }
+        toast.error(error.message);
+      },
+      onSettled: () => {
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
     }),
   );
   const rejectMut = useMutation(
     trpc.kasbon.reject.mutationOptions({
       onMutate: async ({ kasbonId }) => {
         await queryClient.cancelQueries({ predicate: isKasbonListQuery });
+        const snapshots = queryClient.getQueriesData({ predicate: isKasbonListQuery });
         queryClient.setQueriesData({ predicate: isKasbonListQuery }, (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((row: KasbonRow) =>
             row.id === kasbonId ? { ...row, status: "rejected" } : row,
           );
         });
+        return { snapshots };
       },
       onSuccess: () => {
         toast.success("Kasbon ditolak");
         setRejectId(null);
         setRejectReason("");
+      },
+      onError: (error, _vars, context) => {
+        for (const [key, data] of context?.snapshots ?? []) {
+          queryClient.setQueryData(key, data);
+        }
+        toast.error(error.message);
+      },
+      onSettled: () => {
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
     }),
   );
   const disburseMut = useMutation(
     trpc.kasbon.disburse.mutationOptions({
       onMutate: async ({ kasbonId }) => {
         await queryClient.cancelQueries({ predicate: isKasbonListQuery });
+        const snapshots = queryClient.getQueriesData({ predicate: isKasbonListQuery });
         queryClient.setQueriesData({ predicate: isKasbonListQuery }, (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((row: KasbonRow) =>
             row.id === kasbonId ? { ...row, status: "disbursed" } : row,
           );
         });
+        return { snapshots };
       },
       onSuccess: () => {
         toast.success("Kasbon dicairkan");
+      },
+      onError: (error, _vars, context) => {
+        for (const [key, data] of context?.snapshots ?? []) {
+          queryClient.setQueryData(key, data);
+        }
+        toast.error(error.message);
+      },
+      onSettled: () => {
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
     }),
   );
   const payMut = useMutation(
@@ -207,18 +221,28 @@ function KasbonPage() {
         keperluan: value.keperluan,
         amountIdr: Number(value.amountIdr),
       };
-      if (role === "supervisor" && value.employeeId) {
+      if (role === "supervisor") {
         payload.employeeId = value.employeeId;
       }
       await createMut.mutateAsync(payload);
       form.reset();
     },
     validators: {
-      onSubmit: z.object({
-        employeeId: z.string(),
-        keperluan: z.string().min(1, "Masukkan keperluan kasbon."),
-        amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan jumlah lebih dari 0."),
-      }),
+      onSubmit: z
+        .object({
+          employeeId: z.string(),
+          keperluan: z.string().min(1, "Masukkan keperluan kasbon."),
+          amountIdr: z.string().refine((v) => Number(v) > 0, "Masukkan jumlah lebih dari 0."),
+        })
+        .superRefine((value, ctx) => {
+          if (role === "supervisor" && !value.employeeId) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["employeeId"],
+              message: "Pilih karyawan.",
+            });
+          }
+        }),
     },
   });
 
@@ -275,7 +299,7 @@ function KasbonPage() {
                   {pending.map((row) => (
                     <MobileListRow
                       key={row.id}
-                      title={row.employeeName?.trim() || row.name?.trim() || "—"}
+                      title={row.employeeName?.trim() || "—"}
                       subtitle={row.keperluan}
                       trailing={formatRp(row.amountIdr)}
                     >
@@ -318,7 +342,7 @@ function KasbonPage() {
                   {approved.map((row) => (
                     <MobileListRow
                       key={row.id}
-                      title={row.employeeName?.trim() || row.name?.trim() || "—"}
+                      title={row.employeeName?.trim() || "—"}
                       subtitle={row.keperluan}
                       trailing={formatRp(row.amountIdr)}
                     >
@@ -387,7 +411,7 @@ function KasbonPage() {
                       return (
                         <MobileListRow
                           key={row.id}
-                          title={row.employeeName?.trim() || row.name?.trim() || "—"}
+                          title={row.employeeName?.trim() || "—"}
                           subtitle={
                             <>
                               {row.keperluan}
@@ -455,6 +479,7 @@ function KasbonPage() {
                         const sisa = row.sisaIdr ?? Math.max(0, row.amountIdr - paid);
                         return (
                           <TableRow key={row.id}>
+                            <TableCell>{row.employeeName?.trim() || "—"}</TableCell>
                             <TableCell>
                               {row.keperluan}
                               {formatDateTime(row.createdAt) ? (
@@ -522,7 +547,12 @@ function KasbonPage() {
                   value={field.state.value || null}
                   onValueChange={(value) => field.handleChange(value ?? "")}
                 >
-                  <SelectTrigger id={field.name} className="w-full">
+                  <SelectTrigger
+                    id={field.name}
+                    className="w-full"
+                    aria-invalid={field.state.meta.errors.length > 0}
+                    aria-describedby={fieldDescribedBy("employee-error", field.state.meta.errors)}
+                  >
                     <SelectValue placeholder="Pilih karyawan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -533,6 +563,7 @@ function KasbonPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldError id="employee-error" errors={field.state.meta.errors} />
               </div>
             )}
           </form.Field>
@@ -591,7 +622,7 @@ function KasbonPage() {
         title="Tolak kasbon"
         description={
           rejectRow
-            ? `Kasbon ${rejectRow.employeeName?.trim() || rejectRow.name?.trim() || "—"} sebesar ${formatRp(rejectRow.amountIdr)} akan ditolak.`
+            ? `Kasbon ${rejectRow.employeeName?.trim() || "—"} sebesar ${formatRp(rejectRow.amountIdr)} akan ditolak.`
             : "Kasbon akan ditolak."
         }
         submitLabel="Tolak kasbon"

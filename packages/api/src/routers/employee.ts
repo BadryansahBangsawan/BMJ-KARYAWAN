@@ -48,7 +48,7 @@ async function findUserByEmail(db: Database, email: string) {
 
 async function signUpWithRole(
   db: Database,
-  input: { name: string; email: string; password: string; role: Role },
+  input: { name: string; email: string; passwordHash: string; role: Role },
 ) {
   const existing = await findUserByEmail(db, input.email);
   if (existing) {
@@ -56,7 +56,6 @@ async function signUpWithRole(
   }
 
   const userId = crypto.randomUUID();
-  const passwordHash = await hashPassword(input.password);
   try {
     await db.insert(user).values({
       id: userId,
@@ -70,7 +69,7 @@ async function signUpWithRole(
       accountId: userId,
       providerId: "credential",
       userId,
-      password: passwordHash,
+      password: input.passwordHash,
     });
   } catch {
     throw new TRPCError({ code: "CONFLICT", message: "Email already exists" });
@@ -140,7 +139,7 @@ export const employeeRouter = router({
         role: employee.role,
         payKind: employee.payKind,
         ongkosPercent: employee.ongkosPercent,
-        konsumsiMonthlyIdr: employee.konsumsiMonthlyIdr,
+        uangMakanHarianIdr: employee.uangMakanHarianIdr,
         bonusIdr: employee.bonusIdr,
         active: employee.active,
         createdAt: employee.createdAt,
@@ -158,9 +157,25 @@ export const employeeRouter = router({
         active: row.active,
         createdAt: row.createdAt,
         email: row.email,
+        payKind: null,
+        ongkosPercent: null,
+        uangMakanHarianIdr: null,
+        bonusIdr: null,
       }));
     }
-    return rows;
+    return rows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      name: row.name,
+      role: row.role,
+      active: row.active,
+      createdAt: row.createdAt,
+      email: row.email,
+      payKind: row.payKind,
+      ongkosPercent: row.ongkosPercent,
+      uangMakanHarianIdr: row.uangMakanHarianIdr,
+      bonusIdr: row.bonusIdr,
+    }));
   }),
 
   create: supervisorProcedure
@@ -178,7 +193,7 @@ export const employeeRouter = router({
         ),
         ongkosPercent: z.number().int().min(0).max(100),
         payKind: payKindSchema,
-        konsumsiMonthlyIdr: z.number().int().min(0),
+        uangMakanHarianIdr: z.number().int().min(0),
         bonusIdr: z.number().int().min(0),
         active: z.boolean(),
       }),
@@ -197,31 +212,38 @@ export const employeeRouter = router({
         await assertUniqueActiveName(ctx.db, input.name);
       }
 
-      let userId: string | null = null;
-      if (input.email && input.password) {
-        userId = await signUpWithRole(ctx.db, {
-          name: input.name,
-          email: input.email,
-          password: input.password,
-          role: input.role,
-        });
-      }
+      const passwordHash =
+        input.email && input.password
+          ? await hashPassword(input.password)
+          : null;
 
-      const [row] = await ctx.db
-        .insert(employee)
-        .values({
-          id: crypto.randomUUID(),
-          name: input.name,
-          role: input.role,
-          payKind: input.payKind,
-          ongkosPercent: input.payKind === "gaji" ? 0 : input.ongkosPercent,
-          konsumsiMonthlyIdr: input.konsumsiMonthlyIdr,
-          bonusIdr: input.payKind === "gaji" ? input.bonusIdr : 0,
-          active: input.active,
-          userId,
-        })
-        .returning();
-      return row;
+      return await ctx.db.transaction(async (tx) => {
+        let userId: string | null = null;
+        if (input.email && passwordHash) {
+          userId = await signUpWithRole(tx as unknown as Database, {
+            name: input.name,
+            email: input.email,
+            passwordHash,
+            role: input.role,
+          });
+        }
+
+        const [row] = await tx
+          .insert(employee)
+          .values({
+            id: crypto.randomUUID(),
+            name: input.name,
+            role: input.role,
+            payKind: input.payKind,
+            ongkosPercent: input.payKind === "gaji" ? 0 : input.ongkosPercent,
+            uangMakanHarianIdr: input.uangMakanHarianIdr,
+            bonusIdr: input.payKind === "gaji" ? input.bonusIdr : 0,
+            active: input.active,
+            userId,
+          })
+          .returning();
+        return row;
+      });
     }),
 
   update: supervisorProcedure
@@ -232,7 +254,7 @@ export const employeeRouter = router({
         role: roleSchema.optional(),
         payKind: payKindSchema.optional(),
         ongkosPercent: z.number().int().min(0).max(100).optional(),
-        konsumsiMonthlyIdr: z.number().int().min(0).optional(),
+        uangMakanHarianIdr: z.number().int().min(0).optional(),
         bonusIdr: z.number().int().min(0).optional(),
         active: z.boolean().optional(),
         email: z.email().nullable().optional(),
@@ -289,7 +311,7 @@ export const employeeRouter = router({
           nextUserId = await signUpWithRole(ctx.db, {
             name: nextName,
             email: input.email,
-            password: input.password,
+            passwordHash: await hashPassword(input.password),
             role: nextRole,
           });
         }
@@ -318,7 +340,7 @@ export const employeeRouter = router({
             (input.payKind ?? existing.payKind) === "gaji"
               ? 0
               : (input.ongkosPercent ?? existing.ongkosPercent),
-          konsumsiMonthlyIdr: input.konsumsiMonthlyIdr ?? existing.konsumsiMonthlyIdr,
+          uangMakanHarianIdr: input.uangMakanHarianIdr ?? existing.uangMakanHarianIdr,
           bonusIdr:
             (input.payKind ?? existing.payKind) === "persenan"
               ? 0
@@ -326,47 +348,6 @@ export const employeeRouter = router({
           active: nextActive,
           ...(nextUserId !== undefined ? { userId: nextUserId } : {}),
         })
-        .where(eq(employee.id, existing.id))
-        .returning();
-      return row;
-    }),
-
-  assignUser: supervisorProcedure
-    .input(
-      z.object({
-        employeeId: z.string().min(1),
-        userId: z.string().min(1),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [existing] = await ctx.db
-        .select()
-        .from(employee)
-        .where(eq(employee.id, input.employeeId))
-        .limit(1);
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Employee not found" });
-      }
-
-      const [authUser] = await ctx.db
-        .select({ id: user.id })
-        .from(user)
-        .where(eq(user.id, input.userId))
-        .limit(1);
-      if (!authUser) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
-      }
-
-      await assertUserIdFree(ctx.db, input.userId, existing.id);
-
-      await ctx.db
-        .update(user)
-        .set({ role: existing.role })
-        .where(eq(user.id, input.userId));
-
-      const [row] = await ctx.db
-        .update(employee)
-        .set({ userId: input.userId })
         .where(eq(employee.id, existing.id))
         .returning();
       return row;

@@ -1,8 +1,5 @@
-export type UserRole = "supervisor" | "kasir" | "mekanik";
-export function sessionRole(user: { role?: string } | undefined): UserRole {
-  if (user?.role === "supervisor" || user?.role === "kasir") return user.role;
-  return "mekanik";
-}
+export { sessionRole, type UserRole } from "@BMJ-KARYAWAN/api/lib/domain";
+
 
 export function coalesceAuthSession<S extends { user?: { role?: string } }>(
   live: S | null | undefined,

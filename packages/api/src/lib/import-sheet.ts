@@ -32,23 +32,23 @@ const JOB_SHEETS: Record<"RONI" | "ECHON" | "YULEN", string> = {
 type SeedEmployee = {
 	name: string;
 	role: "kasir" | "mekanik";
-	konsumsiMonthlyIdr: number;
+	uangMakanHarianIdr: number;
 	active: boolean;
 };
 
 const SEED_EMPLOYEES: SeedEmployee[] = [
-	{ name: "MM Heni", role: "kasir", konsumsiMonthlyIdr: 200000, active: true },
-	{ name: "Econ", role: "mekanik", konsumsiMonthlyIdr: 210000, active: true },
-	{ name: "Roni", role: "mekanik", konsumsiMonthlyIdr: 300000, active: true },
-	{ name: "Yulen", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
-	{ name: "Ryan", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
-	{ name: "Alqi", role: "mekanik", konsumsiMonthlyIdr: 330000, active: true },
-	{ name: "Talli", role: "mekanik", konsumsiMonthlyIdr: 270000, active: true },
-	{ name: "Iwan", role: "mekanik", konsumsiMonthlyIdr: 150000, active: true },
-	{ name: "Yusuf", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
-	{ name: "Nuboba", role: "mekanik", konsumsiMonthlyIdr: 0, active: true },
-	{ name: "D'Manye", role: "mekanik", konsumsiMonthlyIdr: 0, active: false },
-	{ name: "D'Liwan", role: "mekanik", konsumsiMonthlyIdr: 0, active: false },
+	{ name: "MM Heni", role: "kasir", uangMakanHarianIdr: 200000, active: true },
+	{ name: "Econ", role: "mekanik", uangMakanHarianIdr: 210000, active: true },
+	{ name: "Roni", role: "mekanik", uangMakanHarianIdr: 300000, active: true },
+	{ name: "Yulen", role: "mekanik", uangMakanHarianIdr: 0, active: true },
+	{ name: "Ryan", role: "mekanik", uangMakanHarianIdr: 0, active: true },
+	{ name: "Alqi", role: "mekanik", uangMakanHarianIdr: 330000, active: true },
+	{ name: "Talli", role: "mekanik", uangMakanHarianIdr: 270000, active: true },
+	{ name: "Iwan", role: "mekanik", uangMakanHarianIdr: 150000, active: true },
+	{ name: "Yusuf", role: "mekanik", uangMakanHarianIdr: 0, active: true },
+	{ name: "Nuboba", role: "mekanik", uangMakanHarianIdr: 0, active: true },
+	{ name: "D'Manye", role: "mekanik", uangMakanHarianIdr: 0, active: false },
+	{ name: "D'Liwan", role: "mekanik", uangMakanHarianIdr: 0, active: false },
 ];
 
 const NAME_ALIAS: Record<string, string> = {
@@ -161,10 +161,11 @@ function parsePercent(raw: string): number | null {
 	return pct;
 }
 
-function parseAbsenValue(raw: string): 0 | 50 | 100 | null {
-	const s = raw.trim().replace(",", ".");
-	if (s === "1") return 100;
-	if (s === "0.5") return 50;
+function parseAbsenValue(raw: string): 0 | 50 | 90 | 100 | null {
+	const s = raw.trim().replaceAll(" ", "").replace(",", ".");
+	if (s === "1" || s === "100") return 100;
+	if (s === "9>" || s === "9" || s === "90") return 90;
+	if (s === "0.5" || s === "50") return 50;
 	if (s === "0") return 0;
 	return null;
 }
@@ -257,32 +258,34 @@ function jobKey(row: {
 async function upsertEmployees(tx: Database) {
 	const existing = await tx.select().from(employee);
 	const idByName = new Map<string, string>();
+	const rowByName = new Map<string, (typeof existing)[number]>();
 	for (const row of existing) {
-		idByName.set(row.name.toLowerCase(), row.id);
+		const key = row.name.toLowerCase();
+		idByName.set(key, row.id);
+		rowByName.set(key, row);
 	}
 	let inserted = 0;
 	for (const seed of SEED_EMPLOYEES) {
-		const foundId = idByName.get(seed.name.toLowerCase());
-		if (foundId) {
-			await tx
-				.update(employee)
-				.set({
-					role: seed.role,
-					active: seed.active,
-				})
-				.where(eq(employee.id, foundId));
-			idByName.set(seed.name.toLowerCase(), foundId);
+		const key = seed.name.toLowerCase();
+		const found = rowByName.get(key);
+		if (found) {
+			if (found.uangMakanHarianIdr === 0 && seed.uangMakanHarianIdr > 0) {
+				await tx
+					.update(employee)
+					.set({ uangMakanHarianIdr: seed.uangMakanHarianIdr })
+					.where(eq(employee.id, found.id));
+			}
 		} else {
 			const id = crypto.randomUUID();
 			await tx.insert(employee).values({
 				id,
 				name: seed.name,
 				role: seed.role,
-				konsumsiMonthlyIdr: 0,
+				uangMakanHarianIdr: seed.uangMakanHarianIdr,
 				bonusIdr: 0,
 				active: seed.active,
 			});
-			idByName.set(seed.name.toLowerCase(), id);
+			idByName.set(key, id);
 			inserted += 1;
 		}
 	}
@@ -501,12 +504,14 @@ function collectAttendance(
 	);
 	if (headerIdx < 0) return [];
 
-	// Determine the year/month from the sheet's title rows; fall back to the
-	// current UTC month so that a missing header never silently misdates rows.
 	const detected = detectAbsenYearMonth(rows, headerIdx);
-	const now = new Date();
-	const year = detected?.year ?? now.getUTCFullYear();
-	const month = detected?.month ?? (now.getUTCMonth() + 1);
+	if (!detected) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Judul sheet absen tidak memuat bulan",
+		});
+	}
+	const { year, month } = detected;
 
 	const header = rows[headerIdx]!;
 	const colEmp: Array<string | null> = header.map((h, i) => {

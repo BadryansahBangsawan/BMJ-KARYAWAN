@@ -72,6 +72,7 @@
       },
       "devDependencies": {
         "@BMJ-KARYAWAN/config": "workspace:*",
+        "@libsql/client": "catalog:",
         "typescript": "catalog:",
       },
     },

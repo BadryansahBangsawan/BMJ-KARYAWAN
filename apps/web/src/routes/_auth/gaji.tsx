@@ -10,13 +10,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
-import { formatRp, jayapuraYearMonth, monthLabel } from "@/lib/format";
+import { formatHariHadir, formatRp, jayapuraYearMonth, monthLabel } from "@/lib/format";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
 import { BusyLabel } from "@/components/busy-label";
 import Loader from "@/components/loader";
 import { MetricCard } from "@/components/metric-card";
@@ -29,34 +30,7 @@ import { ResponsiveRecords } from "@/components/responsive-records";
 import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
 
-function formatHari(tenths: number) {
-  return (tenths / 100).toLocaleString("id-ID", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  });
-}
-
-type PayrollLine = {
-  id: string;
-  employeeId: string;
-  employeeName?: string | null;
-  name?: string | null;
-  daysPresent: number;
-  ongkosPercent: number;
-  dailyPayIdr: number;
-  kasbonBalanceIdr: number;
-  kasbonDeductionIdr: number;
-  konsumsiIdr: number;
-  bonusIdr: number;
-  jobShareIdr: number;
-  takeHomeIdr: number;
-  kasbonRemainingIdr: number;
-};
-
-type PayrollGet = {
-  period?: { id: string; year: number; month: number; payDate?: string };
-  lines?: PayrollLine[];
-};
+type PayrollLine = RouterOutputs["payroll"]["get"]["lines"][number];
 
 function lineName(line: PayrollLine) {
   return line.employeeName?.trim() || line.name?.trim() || "—";
@@ -118,13 +92,11 @@ function GajiPage() {
   const [year, setYear] = useState(now.year);
   const [month, setMonth] = useState(now.month);
   const [draftPotongan, setDraftPotongan] = useState<Record<string, string>>({});
-  const autoRecomputeKey = useRef<string | null>(null);
 
   const payrollQuery = useQuery(trpc.payroll.get.queryOptions({ year, month }));
   const meQuery = useQuery(trpc.employee.me.queryOptions());
-  const data = payrollQuery.data as PayrollGet | undefined;
-  const allLines = data?.lines ?? [];
-  const meId = (meQuery.data as { id?: string } | null | undefined)?.id;
+  const allLines = payrollQuery.data?.lines ?? [];
+  const meId = meQuery.data?.id;
   const lines =
     role === "supervisor"
       ? allLines
@@ -157,27 +129,19 @@ function GajiPage() {
   );
 
   function savePotongan(line: PayrollLine) {
+    if (line.id == null) return;
     deductionMut.mutate({
       lineId: line.id,
       kasbonDeductionIdr: Number(draftPotongan[line.id] ?? line.kasbonDeductionIdr),
     });
   }
 
-  function recompute(keepDeductions: boolean, silent = false) {
+  function recompute(keepDeductions: boolean) {
     recomputeMut.mutate(
       { year, month, keepDeductions },
-      silent ? undefined : { onSuccess: () => toast.success("Gaji dihitung ulang") },
+      { onSuccess: () => toast.success("Gaji dihitung ulang") },
     );
   }
-
-  useEffect(() => {
-    if (role !== "supervisor") return;
-    if (payrollQuery.isPending || payrollQuery.isError) return;
-    const key = `${year}-${month}`;
-    if (autoRecomputeKey.current === key) return;
-    autoRecomputeKey.current = key;
-    recompute((data?.lines?.length ?? 0) > 0, true);
-  }, [role, year, month, payrollQuery.isPending, payrollQuery.isError]);
 
   return (
     <PageShell>
@@ -266,9 +230,10 @@ function GajiPage() {
               <div className="flex flex-col gap-3">
                 {lines.map((line) => (
                   <PaySlip
-                    key={line.id}
+                    key={line.id ?? line.employeeId}
                     line={line}
                     periodLabel={monthLabel(year, month)}
+                    alpaDays={line.alpaDays}
                     showName={false}
                   />
                 ))}
@@ -277,27 +242,31 @@ function GajiPage() {
               <ResponsiveRecords
                 cards={
                   <div className="flex flex-col gap-3">
-                    {lines.map((line) => (
-                      <PaySlip
-                        key={line.id}
-                        line={line}
-                        periodLabel={monthLabel(year, month)}
-                        potongan={
-                          canEdit ? (
-                            <PotonganEditor
-                              id={`potongan-${line.id}`}
-                              line={line}
-                              value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
-                              onChange={(value) =>
-                                setDraftPotongan((prev) => ({ ...prev, [line.id]: value }))
-                              }
-                              onSave={() => savePotongan(line)}
-                              saving={deductionMut.isPending}
-                            />
-                          ) : undefined
-                        }
-                      />
-                    ))}
+                    {lines.map((line) => {
+                      const lineId = line.id;
+                      return (
+                        <PaySlip
+                          key={lineId ?? line.employeeId}
+                          line={line}
+                          periodLabel={monthLabel(year, month)}
+                          alpaDays={line.alpaDays}
+                          potongan={
+                            canEdit && lineId != null ? (
+                              <PotonganEditor
+                                id={`potongan-${lineId}`}
+                                line={line}
+                                value={draftPotongan[lineId] ?? String(line.kasbonDeductionIdr)}
+                                onChange={(value) =>
+                                  setDraftPotongan((prev) => ({ ...prev, [lineId]: value }))
+                                }
+                                onSave={() => savePotongan(line)}
+                                saving={deductionMut.isPending}
+                              />
+                            ) : undefined
+                          }
+                        />
+                      );
+                    })}
                   </div>
                 }
                 table={
@@ -306,6 +275,7 @@ function GajiPage() {
                       <TableRow>
                         <TableHead>Nama</TableHead>
                         <TableHead className="text-end">Hari</TableHead>
+                        <TableHead className="text-end">Alpa</TableHead>
                         <TableHead className="text-end">Gaji</TableHead>
                         <TableHead className="text-end">Persenan</TableHead>
                         <TableHead className="text-end">Uang makan</TableHead>
@@ -314,11 +284,16 @@ function GajiPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {lines.map((line) => (
-                        <TableRow key={line.id}>
+                      {lines.map((line) => {
+                        const lineId = line.id;
+                        return (
+                        <TableRow key={lineId ?? line.employeeId}>
                           <TableCell>{lineName(line)}</TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatHari(line.daysPresent)}
+                            {formatHariHadir(line.daysPresent)}
+                          </TableCell>
+                          <TableCell className="text-end tabular-nums">
+                            {line.alpaDays}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
                             {formatRp(line.dailyPayIdr)}
@@ -330,13 +305,13 @@ function GajiPage() {
                             {formatRp(line.konsumsiIdr)}
                           </TableCell>
                           <TableCell className="text-end">
-                            {canEdit ? (
+                            {canEdit && lineId != null ? (
                               <PotonganEditor
-                                id={`potongan-table-${line.id}`}
+                                id={`potongan-table-${lineId}`}
                                 line={line}
-                                value={draftPotongan[line.id] ?? String(line.kasbonDeductionIdr)}
+                                value={draftPotongan[lineId] ?? String(line.kasbonDeductionIdr)}
                                 onChange={(value) =>
-                                  setDraftPotongan((prev) => ({ ...prev, [line.id]: value }))
+                                  setDraftPotongan((prev) => ({ ...prev, [lineId]: value }))
                                 }
                                 onSave={() => savePotongan(line)}
                                 saving={deductionMut.isPending}
@@ -349,7 +324,8 @@ function GajiPage() {
                             {formatRp(line.takeHomeIdr)}
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 }

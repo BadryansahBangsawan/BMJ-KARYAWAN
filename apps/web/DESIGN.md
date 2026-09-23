@@ -67,11 +67,11 @@ components:
 
 Hari ini mengisi layar seperti lembar kalender yang dipaku di dinding bengkel. Angka tanggal tidak bisa tidak dilihat. Aksi berikutnya adalah mencentang kotak, bukan membaca kartu metrik.
 
-Dinding putih sedikit lebih gelap dari kertas sidebar, kertas gading, spidol merah hanya untuk hari ini dan tombol utama. Mekanik yang tidak mahir digital harus paham tanpa belajar menu.
+Dinding putih sedikit lebih gelap dari kertas sidebar, kertas gading, spidol biru hanya untuk hari ini dan tombol utama. Mekanik yang tidak mahir digital harus paham tanpa belajar menu.
 
 **Key Characteristics:**
 - Tanggal condensed raksasa, maksimum 6rem
-- Satu aksen: spidol merah
+- Satu aksen: spidol biru
 - Hit target sebesar kotak kalender
 - Tanpa kaca, tanpa grid 31 hari, tanpa kartu metrik sama ukuran
 

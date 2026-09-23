@@ -1,10 +1,9 @@
 import type { AppRouter } from "@BMJ-KARYAWAN/api/routers/index";
 import { Toaster } from "@BMJ-KARYAWAN/ui/components/sonner";
 import type { QueryClient } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { TRPCOptionsProxy } from "@trpc/tanstack-react-query";
+import { lazy, Suspense } from "react";
 
 import { AppBar } from "../components/app-bar";
 import { AppSidebar } from "../components/app-sidebar";
@@ -12,6 +11,25 @@ import { TabBar } from "../components/tab-bar";
 import { authClient } from "../lib/auth-client";
 
 import appCss from "../index.css?url";
+
+const Devtools = import.meta.env.DEV
+  ? lazy(() =>
+      Promise.all([
+        import("@tanstack/react-router-devtools"),
+        import("@tanstack/react-query-devtools"),
+      ]).then(([router, query]) => ({
+        default: function Devtools() {
+          return (
+            <>
+              <router.TanStackRouterDevtools position="bottom-left" />
+              <query.ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+            </>
+          );
+        },
+      })),
+    )
+  : null;
+
 
 export interface RouterAppContext {
   trpc: TRPCOptionsProxy<AppRouter>;
@@ -54,7 +72,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       },
       {
         name: "theme-color",
-        content: "#9f1d1d",
+        content: "#125fb3",
       },
       {
         property: "og:image",
@@ -125,12 +143,12 @@ function RootDocument() {
           closeButton
           duration={10000}
         />
-        <div className="hidden md:block">
-          <TanStackRouterDevtools position="bottom-left" />
-        </div>
-        <div className="hidden md:block">
-          <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
-        </div>
+        {Devtools ? (
+          <Suspense fallback={null}>
+            <Devtools />
+          </Suspense>
+        ) : null}
+
         <Scripts />
       </body>
     </html>

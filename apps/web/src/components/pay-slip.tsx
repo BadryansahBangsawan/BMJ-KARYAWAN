@@ -1,13 +1,6 @@
 import type { ReactNode } from "react";
 
-import { formatRp } from "@/lib/format";
-
-function formatHari(tenths: number) {
-  return (tenths / 100).toLocaleString("id-ID", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  });
-}
+import { formatHariHadir, formatRp } from "@/lib/format";
 
 export type PaySlipLine = {
   employeeName?: string | null;
@@ -50,12 +43,14 @@ export function PaySlip({
   payDate,
   potongan,
   showName = true,
+  alpaDays,
 }: {
   line: PaySlipLine;
   periodLabel: string;
   payDate?: string;
   potongan?: ReactNode;
   showName?: boolean;
+  alpaDays?: number;
 }) {
   return (
     <article className="rounded-xl bg-card px-4 py-5 shadow-[var(--shadow-border)]">
@@ -69,7 +64,10 @@ export function PaySlip({
       <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums leading-none">
         {formatRp(line.takeHomeIdr)}
       </p>
-      <p className="mt-2 text-sm text-muted-foreground tabular-nums">{formatHari(line.daysPresent)} hari hadir</p>
+      <p className="mt-2 text-sm text-muted-foreground tabular-nums">{formatHariHadir(line.daysPresent)} hari hadir</p>
+      {alpaDays != null && alpaDays > 0 ? (
+        <p className="mt-1 text-sm text-muted-foreground tabular-nums">{alpaDays} hari alpa</p>
+      ) : null}
 
       <dl className="mt-5 divide-y divide-border border-t border-border text-sm">
         {line.dailyPayIdr > 0 ? <Row label="Gaji" value={formatRp(line.dailyPayIdr)} /> : null}

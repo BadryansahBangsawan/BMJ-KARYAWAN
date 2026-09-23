@@ -49,23 +49,13 @@ import { authClient } from "@/lib/auth-client";
 import { formatRp } from "@/lib/format";
 import { roleLabel, sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
+import type { RouterOutputs } from "@/utils/trpc";
 
 type Role = "supervisor" | "kasir" | "mekanik";
 type RoleFilter = "" | Role;
 type StatusFilter = "" | "aktif" | "nonaktif";
 
-type EmployeeRow = {
-  id: string;
-  name: string;
-  role: string;
-  payKind?: string;
-  ongkosPercent?: number;
-  konsumsiMonthlyIdr?: number;
-  bonusIdr?: number;
-  active: boolean | number;
-  userId?: string | null;
-  email?: string | null;
-};
+type EmployeeRow = RouterOutputs["employee"]["list"][number];
 
 type ImportSheetResult = {
   employees: number;
@@ -86,7 +76,7 @@ type EmployeeFormValues = {
   password: string;
   payKind: "gaji" | "persenan";
   ongkosPercent: string;
-  konsumsiMonthlyIdr: string;
+  uangMakanHarianIdr: string;
   bonusIdr: string;
   active: boolean;
 };
@@ -115,7 +105,7 @@ const employeeFormFields = z.object({
       ctx.addIssue({ code: "custom", message: "Masukkan persen bengkel 0–100." });
     }
   }),
-  konsumsiMonthlyIdr: z.string(),
+  uangMakanHarianIdr: z.string(),
   bonusIdr: z.string(),
   active: z.boolean(),
 });
@@ -159,20 +149,20 @@ const defaultEmployeeValues: EmployeeFormValues = {
   password: "",
   payKind: "persenan",
   ongkosPercent: "0",
-  konsumsiMonthlyIdr: "",
+  uangMakanHarianIdr: "",
   bonusIdr: "0",
   active: true,
 };
 
 function isEmployeeActive(row: EmployeeRow) {
-  return row.active !== false && row.active !== 0;
+  return row.active !== false;
 }
 
 function asRole(role: string): Role {
   return role === "supervisor" || role === "kasir" ? role : "mekanik";
 }
 
-function asPayKind(value: string | undefined): "gaji" | "persenan" {
+function asPayKind(value: string | null | undefined): "gaji" | "persenan" {
   return value === "gaji" ? "gaji" : "persenan";
 }
 
@@ -392,7 +382,7 @@ function EmployeeFields({
           )
         }
       </form.Subscribe>
-      <form.Field name="konsumsiMonthlyIdr">
+      <form.Field name="uangMakanHarianIdr">
         {(field) => (
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-${field.name}`}>Uang makan / hari</Label>
@@ -508,7 +498,7 @@ function KaryawanPage() {
   );
 
   const listQuery = useQuery(trpc.employee.list.queryOptions());
-  const rows = (listQuery.data ?? []) as EmployeeRow[];
+  const rows = listQuery.data ?? [];
 
   const invalidate = () => {
     void queryClient.invalidateQueries();
@@ -555,7 +545,7 @@ function KaryawanPage() {
         role: value.role,
         payKind: value.payKind,
         ongkosPercent: Number(value.ongkosPercent),
-        konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
+        uangMakanHarianIdr: Number(value.uangMakanHarianIdr || 0),
         bonusIdr: Number(value.bonusIdr || 0),
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
@@ -583,7 +573,7 @@ function KaryawanPage() {
         role: value.role,
         payKind: value.payKind,
         ongkosPercent: Number(value.ongkosPercent),
-        konsumsiMonthlyIdr: Number(value.konsumsiMonthlyIdr || 0),
+        uangMakanHarianIdr: Number(value.uangMakanHarianIdr || 0),
         bonusIdr: Number(value.bonusIdr || 0),
         active: value.active,
         ...optionalLoginFields(value.email, value.password),
@@ -613,7 +603,7 @@ function KaryawanPage() {
     editForm.setFieldValue("password", "");
     editForm.setFieldValue("payKind", asPayKind(row.payKind));
     editForm.setFieldValue("ongkosPercent", String(row.ongkosPercent ?? 0));
-    editForm.setFieldValue("konsumsiMonthlyIdr", String(row.konsumsiMonthlyIdr ?? 0));
+    editForm.setFieldValue("uangMakanHarianIdr", String(row.uangMakanHarianIdr ?? 0));
     editForm.setFieldValue("bonusIdr", String(row.bonusIdr ?? 0));
     editForm.setFieldValue("active", isEmployeeActive(row));
   }
@@ -822,7 +812,7 @@ function KaryawanPage() {
                               : `Persenan ${row.ongkosPercent}%`}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
-                            {formatRp(row.konsumsiMonthlyIdr ?? 0)}
+                            {formatRp(row.uangMakanHarianIdr ?? 0)}
                           </TableCell>
                           <TableCell className="text-end tabular-nums">
                             {asPayKind(row.payKind) === "gaji" ? formatRp(row.bonusIdr ?? 0) : "—"}

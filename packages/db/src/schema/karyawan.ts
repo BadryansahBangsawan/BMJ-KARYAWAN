@@ -16,7 +16,8 @@ export const employee = sqliteTable("employee", {
 	role: text("role").notNull(),
 	payKind: text("pay_kind").notNull().default("persenan"),
 	ongkosPercent: integer("ongkos_percent").notNull().default(0),
-	konsumsiMonthlyIdr: integer("konsumsi_monthly_idr").notNull().default(0),
+	// Daily uang makan rate, multiplied by on-time days (value === 100), not a monthly total.
+	uangMakanHarianIdr: integer("konsumsi_monthly_idr").notNull().default(0),
 	bonusIdr: integer("bonus_idr").notNull().default(0),
 	active: integer("active", { mode: "boolean" }).notNull().default(true),
 	createdAt: timestampMs("created_at"),

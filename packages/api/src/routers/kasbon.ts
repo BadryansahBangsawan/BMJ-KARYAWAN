@@ -2,7 +2,6 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
-import type { Database } from "@BMJ-KARYAWAN/db";
 import { employee, kasbon, kasbonPayment } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
 import {
@@ -11,6 +10,9 @@ import {
   router,
   supervisorProcedure,
 } from "../index";
+import { kasbonStatusAfterSisa, sessionRole } from "../lib/domain";
+import { employeeByUserId, paymentTotals } from "../lib/workshop-db";
+
 
 const kasbonStatus = z.enum([
   "pending",
@@ -20,36 +22,6 @@ const kasbonStatus = z.enum([
   "lunas",
 ]);
 
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function sessionRole(role: string | null | undefined): Role {
-  if (role === "supervisor" || role === "kasir" || role === "mekanik") {
-    return role;
-  }
-  return "mekanik";
-}
-
-async function employeeByUserId(db: Database, userId: string) {
-  const [row] = await db
-    .select()
-    .from(employee)
-    .where(eq(employee.userId, userId))
-    .limit(1);
-  return row ?? null;
-}
-
-async function paymentTotals(db: Database, kasbonIds: string[]) {
-  const totals: Record<string, number> = {};
-  if (kasbonIds.length === 0) return totals;
-  const rows = await db
-    .select()
-    .from(kasbonPayment)
-    .where(inArray(kasbonPayment.kasbonId, kasbonIds));
-  for (const row of rows) {
-    totals[row.kasbonId] = (totals[row.kasbonId] ?? 0) + row.amountIdr;
-  }
-  return totals;
-}
 
 export const kasbonRouter = router({
   list: protectedProcedure
@@ -153,21 +125,31 @@ export const kasbonRouter = router({
       z.object({
         keperluan: z.string().trim().min(1),
         amountIdr: z.number().int().positive(),
-        employeeId: z.string().min(1).optional(),
+        employeeId: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       const role = sessionRole(ctx.session.user.role);
-      const me = await employeeByUserId(ctx.db, ctx.session.user.id);
 
-      let employeeId = me?.id;
-      if (role === "supervisor" && input.employeeId) {
-        employeeId = input.employeeId;
-      } else if (input.employeeId && input.employeeId !== me?.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Tidak bisa mengajukan kasbon untuk orang lain",
-        });
+      let employeeId: string | undefined;
+      if (role === "supervisor") {
+        const requested = input.employeeId?.trim();
+        if (!requested) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Pilih karyawan.",
+          });
+        }
+        employeeId = requested;
+      } else {
+        const me = await employeeByUserId(ctx.db, ctx.session.user.id);
+        if (input.employeeId && input.employeeId !== me?.id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Tidak bisa mengajukan kasbon untuk orang lain",
+          });
+        }
+        employeeId = me?.id;
       }
 
       if (!employeeId) {
@@ -341,43 +323,41 @@ export const kasbonRouter = router({
         });
       }
 
-      const totals = await paymentTotals(ctx.db, [row.id]);
-      const paidIdr = totals[row.id] ?? 0;
-      const sisa = row.amountIdr - paidIdr;
-      if (input.amountIdr > sisa) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Pembayaran melebihi sisa kasbon",
-        });
-      }
+      return await ctx.db.transaction(async (tx) => {
+        const totals = await paymentTotals(tx, [row.id]);
+        const paidIdr = totals[row.id] ?? 0;
+        const sisa = row.amountIdr - paidIdr;
+        if (input.amountIdr > sisa) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Pembayaran melebihi sisa kasbon",
+          });
+        }
 
-      const paymentId = crypto.randomUUID();
-      const paymentRows = await ctx.db
-        .insert(kasbonPayment)
-        .values({
-          id: paymentId,
-          kasbonId: row.id,
-          amountIdr: input.amountIdr,
-          source: "manual",
-          createdByUserId: ctx.session.user.id,
-        })
-        .returning();
-
-      const nextSisa = sisa - input.amountIdr;
-      let nextStatus = row.status;
-      if (nextSisa <= 0) {
-        const lunas = await ctx.db
-          .update(kasbon)
-          .set({ status: "lunas" })
-          .where(eq(kasbon.id, row.id))
+        const paymentId = crypto.randomUUID();
+        const paymentRows = await tx
+          .insert(kasbonPayment)
+          .values({
+            id: paymentId,
+            kasbonId: row.id,
+            amountIdr: input.amountIdr,
+            source: "manual",
+            createdByUserId: ctx.session.user.id,
+          })
           .returning();
-        nextStatus = lunas[0]?.status ?? "lunas";
-      }
 
-      return {
-        payment: paymentRows[0]!,
-        kasbon: { ...row, status: nextStatus },
-        sisaIdr: nextSisa,
-      };
+        const nextSisa = sisa - input.amountIdr;
+        const nextStatus = kasbonStatusAfterSisa(nextSisa);
+        await tx
+          .update(kasbon)
+          .set({ status: nextStatus })
+          .where(eq(kasbon.id, row.id));
+
+        return {
+          payment: paymentRows[0]!,
+          kasbon: { ...row, status: nextStatus },
+          sisaIdr: nextSisa,
+        };
+      });
     }),
 });

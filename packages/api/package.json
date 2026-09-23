@@ -10,7 +10,8 @@
     }
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@BMJ-KARYAWAN/auth": "workspace:*",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@BMJ-KARYAWAN/config": "workspace:*",
+    "@libsql/client": "catalog:",
     "typescript": "catalog:"
   }
 }

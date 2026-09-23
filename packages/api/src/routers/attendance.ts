@@ -2,9 +2,16 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { z } from "zod";
 
-import type { Database } from "@BMJ-KARYAWAN/db";
 import { attendance, employee } from "@BMJ-KARYAWAN/db/schema/karyawan";
 
+import {
+  isSundayJayapura,
+  monthRange,
+  sessionRole,
+  todayYmd,
+  workDatesMonSat,
+} from "../lib/domain";
+import { employeeByUserId } from "../lib/workshop-db";
 import {
   protectedProcedure,
   router,
@@ -32,63 +39,7 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type Role = "supervisor" | "kasir" | "mekanik";
-
-function sessionRole(role: string | null | undefined): Role {
-  if (role === "supervisor" || role === "kasir" || role === "mekanik") {
-    return role;
-  }
-  return "mekanik";
-}
-
-function monthRange(year: number, month: number) {
-  const ym = `${year}-${String(month).padStart(2, "0")}`;
-  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return { startDate: `${ym}-01`, endDate: `${ym}-${String(last).padStart(2, "0")}` };
-}
-
-function isSundayJayapura(workDate: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(workDate);
-  if (!match) return true;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const utc = new Date(Date.UTC(year, month - 1, day));
-  if (
-    utc.getUTCFullYear() !== year ||
-    utc.getUTCMonth() !== month - 1 ||
-    utc.getUTCDate() !== day
-  ) {
-    return true;
-  }
-  return utc.getUTCDay() === 0;
-}
-
-function workDatesMonSat(year: number, month: number) {
-  const { endDate } = monthRange(year, month);
-  const last = Number(endDate.slice(8));
-  const dates: string[] = [];
-  for (let day = 1; day <= last; day++) {
-    const workDate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    if (!isSundayJayapura(workDate)) dates.push(workDate);
-  }
-  return dates;
-}
-
-async function employeeByUserId(db: Database, userId: string) {
-  const [row] = await db
-    .select()
-    .from(employee)
-    .where(eq(employee.userId, userId))
-    .limit(1);
-  return row ?? null;
-}
-
 const TZ = "Asia/Jayapura";
-
-function todayYmdJayapura() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: TZ });
-}
 
 function jayapuraMinutes(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -120,14 +71,13 @@ function selfCheckinValue(now = new Date()) {
 }
 
 function assertNotFutureWorkDate(workDate: string) {
-  if (workDate > todayYmdJayapura()) {
+  if (workDate > todayYmd()) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Tidak bisa absen untuk tanggal yang belum terjadi",
     });
   }
 }
-
 
 function assertWorkshopPresence(lat: number, lng: number, workDate: string) {
   if (isSundayJayapura(workDate)) {
@@ -149,7 +99,7 @@ export const attendanceRouter = router({
   mineToday: protectedProcedure.query(async ({ ctx }) => {
     const me = await employeeByUserId(ctx.db, ctx.session.user.id);
     if (!me) return null;
-    const workDate = todayYmdJayapura();
+    const workDate = todayYmd();
     const [row] = await ctx.db
       .select({
         id: attendance.id,
@@ -179,7 +129,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const workDate = todayYmdJayapura();
+      const workDate = todayYmd();
       if (input.workDate !== workDate) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -214,16 +164,17 @@ export const attendanceRouter = router({
 
       const now = new Date();
       const value = selfCheckinValue(now);
-      if (existing) {
+
+      const stampCheckIn = async (rowId: string) => {
         const [updated] = await ctx.db
           .update(attendance)
           .set({
             value,
             markedByUserId: ctx.session.user.id,
             checkInAt: now,
-            checkInPhoto: input.photo,
+            checkInPhoto: null,
           })
-          .where(eq(attendance.id, existing.id))
+          .where(eq(attendance.id, rowId))
           .returning({
             id: attendance.id,
             employeeId: attendance.employeeId,
@@ -233,28 +184,62 @@ export const attendanceRouter = router({
             checkOutAt: attendance.checkOutAt,
           });
         return updated!;
+      };
+
+      if (existing) {
+        return stampCheckIn(existing.id);
       }
 
-      const [inserted] = await ctx.db
-        .insert(attendance)
-        .values({
-          id: crypto.randomUUID(),
-          employeeId: me.id,
-          workDate,
-          value,
-          markedByUserId: ctx.session.user.id,
-          checkInAt: now,
-          checkInPhoto: input.photo,
-        })
-        .returning({
-          id: attendance.id,
-          employeeId: attendance.employeeId,
-          workDate: attendance.workDate,
-          value: attendance.value,
-          checkInAt: attendance.checkInAt,
-          checkOutAt: attendance.checkOutAt,
-        });
-      return inserted!;
+      try {
+        const [inserted] = await ctx.db
+          .insert(attendance)
+          .values({
+            id: crypto.randomUUID(),
+            employeeId: me.id,
+            workDate,
+            value,
+            markedByUserId: ctx.session.user.id,
+            checkInAt: now,
+            checkInPhoto: null,
+          })
+          .returning({
+            id: attendance.id,
+            employeeId: attendance.employeeId,
+            workDate: attendance.workDate,
+            value: attendance.value,
+            checkInAt: attendance.checkInAt,
+            checkOutAt: attendance.checkOutAt,
+          });
+        return inserted!;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const causeMessage =
+          error instanceof Error && error.cause instanceof Error
+            ? error.cause.message
+            : "";
+        if (
+          !message.includes("UNIQUE constraint failed") &&
+          !causeMessage.includes("UNIQUE constraint failed")
+        ) {
+          throw error;
+        }
+        const [row] = await ctx.db
+          .select({
+            id: attendance.id,
+            checkInAt: attendance.checkInAt,
+          })
+          .from(attendance)
+          .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, workDate)))
+          .limit(1);
+        if (row?.checkInAt) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Sudah absen masuk hari ini",
+          });
+        }
+        if (row) return stampCheckIn(row.id);
+        throw error;
+      }
     }),
 
   selfCheckout: protectedProcedure
@@ -271,7 +256,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const workDate = todayYmdJayapura();
+      const workDate = todayYmd();
       if (input.workDate !== workDate) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -316,7 +301,7 @@ export const attendanceRouter = router({
         .set({
           markedByUserId: ctx.session.user.id,
           checkOutAt: new Date(),
-          checkOutPhoto: input.photo,
+          checkOutPhoto: null,
         })
         .where(eq(attendance.id, existing.id))
         .returning({
@@ -435,6 +420,7 @@ export const attendanceRouter = router({
         .limit(1);
 
       if (existing[0]) {
+        // manual set is the pay override; GPS timestamps stay as audit and are not cleared
         const updated = await ctx.db
           .update(attendance)
           .set({
