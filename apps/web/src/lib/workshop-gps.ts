@@ -5,9 +5,11 @@ export type WorkshopPosition = {
 };
 
 const PRIME_TTL_MS = 90_000;
-const GPS_WAIT_MS = 60_000;
-const GPS_CACHE_MS = 30_000;
-/** Match packages/api CHECKIN_MAX_ACCURACY_M — keep watching until a fix the server will accept. */
+const GPS_WAIT_MS = 20_000;
+const GPS_CACHE_MS = 60_000;
+const GPS_QUICK_MS = 4_000;
+const GPS_IMPROVE_MS = 8_000;
+/** Match packages/api CHECKIN_MAX_ACCURACY_M. */
 const GPS_MAX_ACCURACY_M = 80;
 
 let primedAt = 0;
@@ -66,21 +68,41 @@ export function requestWorkshopPosition(): Promise<WorkshopPosition> {
     reject(error);
   };
 
-  watchId = navigator.geolocation.watchPosition(
+  const consider = (pos: GeolocationPosition) => {
+    if (gen !== gpsGen) return;
+    const next: WorkshopPosition = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracyM: pos.coords.accuracy,
+    };
+    if (!best || next.accuracyM < best.accuracyM) best = next;
+    if (next.accuracyM > 0 && next.accuracyM <= GPS_MAX_ACCURACY_M) finish(next);
+  };
+
+  const onDenied = (err: GeolocationPositionError) => {
+    if (err.code === err.PERMISSION_DENIED) {
+      fail(Object.assign(new Error("Izin GPS ditolak. Aktifkan lokasi di pengaturan."), { name: "GpsPermissionDenied" }));
+    }
+  };
+
+  navigator.geolocation.getCurrentPosition(consider, onDenied, {
+    enableHighAccuracy: false,
+    maximumAge: GPS_CACHE_MS,
+    timeout: GPS_QUICK_MS,
+  });
+
+  navigator.geolocation.getCurrentPosition(
     (pos) => {
-      const next: WorkshopPosition = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracyM: pos.coords.accuracy,
-      };
-      if (!best || next.accuracyM < best.accuracyM) best = next;
-      if (next.accuracyM > 0 && next.accuracyM <= GPS_MAX_ACCURACY_M) finish(next);
+      consider(pos);
+      if (gen !== gpsGen || !inflight || !best) return;
+      if (best.accuracyM <= GPS_MAX_ACCURACY_M) return;
+      watchId = navigator.geolocation.watchPosition(consider, onDenied, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: GPS_IMPROVE_MS,
+      });
     },
-    (err) => {
-      if (err.code === err.PERMISSION_DENIED) {
-        fail(Object.assign(new Error("Izin GPS ditolak. Aktifkan lokasi di pengaturan."), { name: "GpsPermissionDenied" }));
-      }
-    },
+    onDenied,
     { enableHighAccuracy: true, maximumAge: GPS_CACHE_MS, timeout: GPS_WAIT_MS },
   );
 

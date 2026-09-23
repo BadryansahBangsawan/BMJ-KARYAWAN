@@ -53,7 +53,7 @@ export function AbsenClockButton({
       return;
     }
     const session = ++sessionRef.current;
-    let pending = primeWorkshopPosition();
+    const pending = primeWorkshopPosition();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
@@ -74,23 +74,15 @@ export function AbsenClockButton({
       toast.error("Izin kamera ditolak. Aktifkan kamera di pengaturan browser.");
       return;
     }
-    while (session === sessionRef.current) {
-      try {
-        await pending;
-        if (session !== sessionRef.current) return;
-        setGpsReady(true);
-        return;
-      } catch (error) {
-        if (session !== sessionRef.current) return;
-        if (error instanceof Error && error.name === "AbortError") return;
-        if (error instanceof Error && error.name === "GpsPermissionDenied") {
-          toast.error(error.message);
-          closeCamera();
-          return;
-        }
-        toast.error(error instanceof Error ? error.message : "Izin GPS ditolak. Aktifkan lokasi di pengaturan.");
-        pending = primeWorkshopPosition();
-      }
+    try {
+      await pending;
+      if (session !== sessionRef.current) return;
+      setGpsReady(true);
+    } catch (error) {
+      if (session !== sessionRef.current) return;
+      if (error instanceof Error && error.name === "AbortError") return;
+      toast.error(error instanceof Error ? error.message : "Izin GPS ditolak. Aktifkan lokasi di pengaturan.");
+      closeCamera();
     }
   }
 
