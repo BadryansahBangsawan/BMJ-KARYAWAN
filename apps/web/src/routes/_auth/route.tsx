@@ -4,6 +4,7 @@ import { useEffect } from "react";
 
 import { getUser } from "@/functions/get-user";
 import { jayapuraYearMonth, monthBounds, todayYmd } from "@/lib/format";
+import { clearSessionCache, readClientSession, writeClientSession } from "@/lib/session-query";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 
@@ -12,12 +13,17 @@ export const Route = createFileRoute("/_auth")({
   shouldReload: ({ cause }) => cause === "enter",
   component: AuthLayout,
   beforeLoad: async () => {
-    const session = await getUser();
+    let session = readClientSession();
     if (!session) {
+      session = await getUser();
+    }
+    if (!session) {
+      clearSessionCache();
       throw redirect({
         to: "/login",
       });
     }
+    writeClientSession(session);
     return { session };
   },
 });
@@ -27,6 +33,10 @@ function AuthLayout() {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const role = sessionRole(session?.user);
+
+  useEffect(() => {
+    if (session) writeClientSession(session);
+  }, [session]);
 
   useEffect(() => {
     const { year, month } = jayapuraYearMonth();

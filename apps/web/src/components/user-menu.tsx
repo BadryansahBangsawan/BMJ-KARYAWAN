@@ -9,9 +9,11 @@ import {
   DropdownMenuTrigger,
 } from "@BMJ-KARYAWAN/ui/components/dropdown-menu";
 import { Skeleton } from "@BMJ-KARYAWAN/ui/components/skeleton";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
+import { clearSessionCache } from "@/lib/session-query";
 import { sessionRole, roleLabel } from "@/lib/session-role";
 
 export default function UserMenu({
@@ -24,6 +26,7 @@ export default function UserMenu({
   className?: string;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: session, isPending } = authClient.useSession();
   const role = sessionRole(session?.user);
 
@@ -62,6 +65,8 @@ export default function UserMenu({
           <DropdownMenuItem
             variant="destructive"
             onClick={() => {
+              clearSessionCache(queryClient);
+              queryClient.clear();
               authClient.signOut({
                 fetchOptions: {
                   onSuccess: () => {

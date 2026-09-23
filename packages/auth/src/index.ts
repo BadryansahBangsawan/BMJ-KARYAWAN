@@ -24,7 +24,8 @@ export function createAuth(env: AuthConfig, database: Database) {
     baseURL: env.BETTER_AUTH_URL,
     session: {
       cookieCache: {
-        enabled: false,
+        enabled: true,
+        maxAge: 5 * 60,
       },
     },
     ...(env.GOOGLE_CLIENT_ID

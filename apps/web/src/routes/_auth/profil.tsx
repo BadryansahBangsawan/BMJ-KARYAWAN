@@ -16,12 +16,24 @@ import { PageShell } from "@/components/page-shell";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { getLoginConfig } from "@/functions/get-login-config";
 import { authClient } from "@/lib/auth-client";
+import {
+  LOGIN_CONFIG_QUERY_KEY,
+  clearSessionCache,
+  writeClientSession,
+} from "@/lib/session-query";
 import { roleLabel, sessionRole } from "@/lib/session-role";
 import { jpegDataUrlFromFile } from "@/lib/workshop-gps";
 import { useTRPC } from "@/utils/trpc";
 
 export const Route = createFileRoute("/_auth/profil")({
-  loader: () => getLoginConfig(),
+  staleTime: 60 * 60 * 1000,
+  shouldReload: false,
+  loader: ({ context }) =>
+    context.queryClient.ensureQueryData({
+      queryKey: LOGIN_CONFIG_QUERY_KEY,
+      queryFn: () => getLoginConfig(),
+      staleTime: 60 * 60 * 1000,
+    }),
   component: ProfilPage,
 });
 
@@ -73,8 +85,14 @@ function ProfilPage() {
     trpc.employee.updateProfile.mutationOptions({
       onSuccess: async () => {
         toast.success("Profil disimpan");
-        await authClient.getSession({ query: { disableCookieCache: true } });
-        void queryClient.invalidateQueries();
+        const { data } = await authClient.getSession({ query: { disableCookieCache: true } });
+        if (data) writeClientSession(data);
+        void queryClient.invalidateQueries({
+          predicate: (query) => {
+            const path = query.queryKey[0];
+            return Array.isArray(path) && path[0] === "employee";
+          },
+        });
         void router.invalidate();
         setImageDraft(undefined);
       },
@@ -265,6 +283,8 @@ function ProfilPage() {
             variant="destructive"
             className="w-full"
             onClick={() => {
+              clearSessionCache(queryClient);
+              queryClient.clear();
               authClient.signOut({
                 fetchOptions: {
                   onSuccess: () => {

@@ -8,7 +8,7 @@ import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { toast } from "sonner";
 
 import { routeTree } from "./routeTree.gen";
-import { authClient } from "./lib/auth-client";
+import { invalidateMutationQueries } from "./lib/session-query";
 import { TRPCProvider } from "./utils/trpc";
 
 function createQueryClient() {
@@ -27,9 +27,8 @@ function createQueryClient() {
       },
     }),
     mutationCache: new MutationCache({
-      onSuccess: () => {
-        void queryClient.invalidateQueries();
-        void authClient.getSession({ query: { disableCookieCache: true } });
+      onSuccess: (_data, _variables, _onMutateResult, mutation) => {
+        invalidateMutationQueries(queryClient, mutation.options.mutationKey);
       },
     }),
     defaultOptions: {
