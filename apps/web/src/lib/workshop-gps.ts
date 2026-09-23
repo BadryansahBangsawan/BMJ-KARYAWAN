@@ -5,119 +5,237 @@ export type WorkshopPosition = {
 };
 
 const PRIME_TTL_MS = 90_000;
-const GPS_WAIT_MS = 20_000;
+const GPS_WAIT_MS = 12_000;
 const GPS_CACHE_MS = 60_000;
 const GPS_QUICK_MS = 4_000;
-const GPS_IMPROVE_MS = 8_000;
 /** Match packages/api CHECKIN_MAX_ACCURACY_M. */
 const GPS_MAX_ACCURACY_M = 80;
+
+type NativeGps = {
+  requestPosition: (id: string) => void;
+  cancel: () => void;
+};
+
+type NativePayload = {
+  ok?: boolean;
+  lat?: number;
+  lng?: number;
+  accuracyM?: number;
+  code?: string;
+  message?: string;
+};
+
+type GpsWindow = Window & {
+  KaryawanGps?: NativeGps;
+  __karyawanGpsDone?: (id: string, payload: NativePayload) => void;
+};
 
 let primedAt = 0;
 let primedPos: WorkshopPosition | null = null;
 let primePromise: Promise<WorkshopPosition> | null = null;
-let watchId: number | null = null;
 let waitTimer: ReturnType<typeof setTimeout> | null = null;
 let gpsGen = 0;
 let inflight: {
   resolve: (pos: WorkshopPosition) => void;
   reject: (error: Error) => void;
 } | null = null;
+let nativeHooked = false;
 
-function stopGpsWatch() {
-  if (watchId != null) {
-    navigator.geolocation?.clearWatch(watchId);
-    watchId = null;
-  }
+function gpsWindow(): GpsWindow | null {
+  return typeof window === "undefined" ? null : (window as GpsWindow);
+}
+
+function nativeGps(): NativeGps | null {
+  const g = gpsWindow()?.KaryawanGps;
+  return g && typeof g.requestPosition === "function" ? g : null;
+}
+
+function abortError() {
+  return Object.assign(new Error("GPS dibatalkan"), { name: "AbortError" });
+}
+
+function deniedError() {
+  return Object.assign(new Error("Izin GPS ditolak. Aktifkan lokasi di pengaturan."), {
+    name: "GpsPermissionDenied",
+  });
+}
+
+function stopTimer() {
   if (waitTimer != null) {
     clearTimeout(waitTimer);
     waitTimer = null;
   }
 }
 
+function settleOk(pos: WorkshopPosition) {
+  const pending = inflight;
+  if (!pending) return;
+  inflight = null;
+  stopTimer();
+  pending.resolve(pos);
+}
+
+function settleErr(error: Error) {
+  const pending = inflight;
+  if (!pending) return;
+  inflight = null;
+  stopTimer();
+  try {
+    nativeGps()?.cancel();
+  } catch {
+    /* ignore */
+  }
+  pending.reject(error);
+}
+
 function abortInflightGps() {
   gpsGen += 1;
-  stopGpsWatch();
+  stopTimer();
+  try {
+    nativeGps()?.cancel();
+  } catch {
+    /* WebView may already be gone */
+  }
   const pending = inflight;
   inflight = null;
-  pending?.reject(Object.assign(new Error("GPS dibatalkan"), { name: "AbortError" }));
+  pending?.reject(abortError());
+}
+
+function hookNativeDone() {
+  const win = gpsWindow();
+  if (nativeHooked || !win) return;
+  nativeHooked = true;
+  win.__karyawanGpsDone = (id, payload) => {
+    if (!inflight || id !== String(gpsGen)) return;
+    if (payload?.ok === true) {
+      const lat = Number(payload.lat);
+      const lng = Number(payload.lng);
+      const accuracyM = Number(payload.accuracyM);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(accuracyM) && accuracyM > 0) {
+        settleOk({ lat, lng, accuracyM });
+        return;
+      }
+      settleErr(new Error("GPS tidak akurat. Coba di luar ruangan."));
+      return;
+    }
+    if (payload?.code === "abort") {
+      settleErr(abortError());
+      return;
+    }
+    if (payload?.code === "denied") {
+      settleErr(deniedError());
+      return;
+    }
+    settleErr(new Error(typeof payload?.message === "string" && payload.message ? payload.message : "GPS gagal."));
+  };
+}
+
+function armWatchdog(gen: number, ms: number) {
+  stopTimer();
+  waitTimer = setTimeout(() => {
+    if (gen !== gpsGen) return;
+    settleErr(new Error("Permintaan GPS habis waktu. Coba lagi."));
+  }, ms);
+}
+
+function isGeoDenied(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && (error as GeolocationPositionError).code === 1;
+}
+
+function fromCoords(pos: GeolocationPosition): WorkshopPosition {
+  return {
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    accuracyM: pos.coords.accuracy,
+  };
+}
+
+function goodFix(pos: WorkshopPosition) {
+  return pos.accuracyM > 0 && pos.accuracyM <= GPS_MAX_ACCURACY_M;
+}
+
+function getCurrentPosition(options: PositionOptions) {
+  return new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
+  });
+}
+
+async function requestWebPosition(gen: number) {
+  if (!navigator.geolocation) {
+    settleErr(new Error("GPS tidak tersedia di perangkat ini."));
+    return;
+  }
+
+  // One request at a time. Android WebView often ignores the W3C timeout, so
+  // two overlapping getCurrentPosition calls can hang with no callbacks.
+  try {
+    const cached = await getCurrentPosition({
+      enableHighAccuracy: false,
+      maximumAge: GPS_CACHE_MS,
+      timeout: GPS_QUICK_MS,
+    });
+    if (gen !== gpsGen || !inflight) return;
+    const pos = fromCoords(cached);
+    if (goodFix(pos)) {
+      settleOk(pos);
+      return;
+    }
+  } catch (error) {
+    if (gen !== gpsGen || !inflight) return;
+    if (isGeoDenied(error)) {
+      settleErr(deniedError());
+      return;
+    }
+  }
+
+  if (gen !== gpsGen || !inflight) return;
+
+  try {
+    const fine = await getCurrentPosition({
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: GPS_WAIT_MS,
+    });
+    if (gen !== gpsGen || !inflight) return;
+    const pos = fromCoords(fine);
+    if (goodFix(pos)) {
+      settleOk(pos);
+      return;
+    }
+    settleErr(new Error("GPS tidak akurat. Coba di luar ruangan."));
+  } catch (error) {
+    if (gen !== gpsGen || !inflight) return;
+    if (isGeoDenied(error)) {
+      settleErr(deniedError());
+      return;
+    }
+    settleErr(new Error("Permintaan GPS habis waktu. Coba lagi."));
+  }
+}
+
+function requestNativePosition(gen: number) {
+  hookNativeDone();
+  const gps = nativeGps();
+  if (!gps) {
+    settleErr(new Error("GPS native tidak tersedia."));
+    return;
+  }
+  try {
+    gps.requestPosition(String(gen));
+  } catch {
+    settleErr(new Error("GPS native gagal."));
+  }
 }
 
 export function requestWorkshopPosition(): Promise<WorkshopPosition> {
-  const { promise, resolve, reject } = Promise.withResolvers<WorkshopPosition>();
-  if (!navigator.geolocation) {
-    reject(new Error("GPS tidak tersedia di perangkat ini."));
-    return promise;
-  }
-
   abortInflightGps();
+  const { promise, resolve, reject } = Promise.withResolvers<WorkshopPosition>();
   const gen = ++gpsGen;
   inflight = { resolve, reject };
-  let best: WorkshopPosition | null = null;
-
-  const finish = (pos: WorkshopPosition) => {
-    if (gen !== gpsGen || !inflight) return;
-    inflight = null;
-    stopGpsWatch();
-    resolve(pos);
-  };
-
-  const fail = (error: Error) => {
-    if (gen !== gpsGen || !inflight) return;
-    inflight = null;
-    stopGpsWatch();
-    reject(error);
-  };
-
-  const consider = (pos: GeolocationPosition) => {
-    if (gen !== gpsGen) return;
-    const next: WorkshopPosition = {
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      accuracyM: pos.coords.accuracy,
-    };
-    if (!best || next.accuracyM < best.accuracyM) best = next;
-    if (next.accuracyM > 0 && next.accuracyM <= GPS_MAX_ACCURACY_M) finish(next);
-  };
-
-  const onDenied = (err: GeolocationPositionError) => {
-    if (err.code === err.PERMISSION_DENIED) {
-      fail(Object.assign(new Error("Izin GPS ditolak. Aktifkan lokasi di pengaturan."), { name: "GpsPermissionDenied" }));
-    }
-  };
-
-  navigator.geolocation.getCurrentPosition(consider, onDenied, {
-    enableHighAccuracy: false,
-    maximumAge: GPS_CACHE_MS,
-    timeout: GPS_QUICK_MS,
-  });
-
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      consider(pos);
-      if (gen !== gpsGen || !inflight || !best) return;
-      if (best.accuracyM <= GPS_MAX_ACCURACY_M) return;
-      watchId = navigator.geolocation.watchPosition(consider, onDenied, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: GPS_IMPROVE_MS,
-      });
-    },
-    onDenied,
-    { enableHighAccuracy: true, maximumAge: GPS_CACHE_MS, timeout: GPS_WAIT_MS },
-  );
-
-  waitTimer = setTimeout(() => {
-    if (best && best.accuracyM > 0 && best.accuracyM <= GPS_MAX_ACCURACY_M) {
-      finish(best);
-      return;
-    }
-    if (best) {
-      fail(new Error("GPS tidak akurat. Coba di luar ruangan."));
-      return;
-    }
-    fail(new Error("Permintaan GPS habis waktu. Coba lagi."));
-  }, GPS_WAIT_MS);
-
+  const native = nativeGps();
+  armWatchdog(gen, native ? GPS_WAIT_MS + 2_000 : GPS_WAIT_MS);
+  if (native) requestNativePosition(gen);
+  else void requestWebPosition(gen);
   return promise;
 }
 
@@ -149,7 +267,12 @@ export function primeWorkshopPosition(): Promise<WorkshopPosition> {
 export function abandonWorkshopPosition() {
   if (primedPos && Date.now() - primedAt < PRIME_TTL_MS) {
     gpsGen += 1;
-    stopGpsWatch();
+    stopTimer();
+    try {
+      nativeGps()?.cancel();
+    } catch {
+      /* ignore */
+    }
     inflight = null;
     return;
   }
@@ -167,7 +290,7 @@ async function readWorkshopPosition(): Promise<WorkshopPosition> {
 }
 
 function clearPrimedPosition() {
-  stopGpsWatch();
+  stopTimer();
   inflight = null;
   primedPos = null;
   primedAt = 0;
