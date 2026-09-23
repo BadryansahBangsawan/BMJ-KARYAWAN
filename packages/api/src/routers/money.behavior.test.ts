@@ -421,6 +421,7 @@ describe("money behavior", () => {
       await mek.attendance.selfCheckin({
         lat: WORKSHOP_LAT,
         lng: WORKSHOP_LNG,
+        accuracyM: 12,
         workDate: "2026-09-23",
         photo,
       });
@@ -454,6 +455,37 @@ describe("money behavior", () => {
       expect(mine?.kasbonDeductionIdr).toBe(25_000);
       expect(mine?.takeHomeIdr).toBe(line!.jobShareIdr + line!.konsumsiIdr - 25_000);
       expect(mine?.kasbonRemainingIdr).toBe(15_000);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test("selfCheckin rejects coarse GPS accuracy", async () => {
+    setSystemTime(new Date("2026-09-23T07:00:00+09:00"));
+    try {
+      const { client, db } = await openMemory();
+      const mekanikUser: SessionUser = {
+        id: "user-mek",
+        name: "Mek",
+        email: "mek@test.local",
+        role: "mekanik",
+      };
+      await insertUser(client, mekanikUser);
+      await insertEmployee(client, {
+        id: "emp-mek",
+        userId: mekanikUser.id,
+        name: "Mek",
+      });
+      const mek = caller(db, mekanikUser);
+      await expect(
+        mek.attendance.selfCheckin({
+          lat: WORKSHOP_LAT,
+          lng: WORKSHOP_LNG,
+          accuracyM: 200,
+          workDate: "2026-09-23",
+          photo: `data:image/jpeg;base64,${"A".repeat(40)}`,
+        }),
+      ).rejects.toThrow("GPS tidak akurat");
     } finally {
       setSystemTime();
     }

@@ -8,8 +8,16 @@ export function markClockPermissionGranted() {
   }
 }
 
-export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }> {
-  const { promise, resolve, reject } = Promise.withResolvers<{ lat: number; lng: number }>();
+export function requestWorkshopPosition(): Promise<{
+  lat: number;
+  lng: number;
+  accuracyM: number;
+}> {
+  const { promise, resolve, reject } = Promise.withResolvers<{
+    lat: number;
+    lng: number;
+    accuracyM: number;
+  }>();
   if (!navigator.geolocation) {
     reject(new Error("GPS tidak tersedia di perangkat ini."));
     return promise;
@@ -17,7 +25,11 @@ export function requestWorkshopPosition(): Promise<{ lat: number; lng: number }>
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       markClockPermissionGranted();
-      resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      resolve({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyM: pos.coords.accuracy,
+      });
     },
     (err) => {
       if (err.code === err.PERMISSION_DENIED) {
@@ -90,8 +102,9 @@ export async function captureClockProof(file: File): Promise<{
   photo: string;
   lat: number;
   lng: number;
+  accuracyM: number;
 }> {
   const photo = await jpegDataUrlFromFile(file);
   const pos = await requestWorkshopPosition();
-  return { photo, lat: pos.lat, lng: pos.lng };
+  return { photo, lat: pos.lat, lng: pos.lng, accuracyM: pos.accuracyM };
 }

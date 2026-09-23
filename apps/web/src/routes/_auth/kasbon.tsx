@@ -32,8 +32,7 @@ import { useTRPC } from "@/utils/trpc";
 import type { RouterOutputs } from "@/utils/trpc";
 import { FieldError, fieldDescribedBy } from "@/components/field-error";
 import { ClearFiltersButton, FilterBar, FilterChips } from "@/components/filter-bar";
-import { FormDialog } from "@/components/form-dialog";
-import { PayKasbonDialog, RejectKasbonDialog } from "./kasbon-dialogs";
+import { CreateKasbonDialog, PayKasbonDialog, RejectKasbonDialog } from "./-kasbon-dialogs";
 import Loader from "@/components/loader";
 import { MetricCard } from "@/components/metric-card";
 import { MobileList, MobileListRow } from "@/components/mobile-list";
@@ -530,14 +529,11 @@ function KasbonPage() {
         </>
       )}
 
-      <FormDialog
+      <CreateKasbonDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="Ajukan kasbon"
-        description="Masukkan keperluan dan jumlah. Nominal dalam rupiah utuh."
-        submitLabel="Ajukan kasbon"
         submitting={createMut.isPending}
-        onSubmit={() => form.handleSubmit()}
+        onSubmit={() => void form.handleSubmit()}
       >
         {role === "supervisor" ? (
           <form.Field name="employeeId">
@@ -610,7 +606,7 @@ function KasbonPage() {
             </div>
           )}
         </form.Field>
-      </FormDialog>
+      </CreateKasbonDialog>
 
       <RejectKasbonDialog
         open={rejectId !== null}

@@ -25,6 +25,7 @@ import {
 export const WORKSHOP_LAT = -1.8779371;  // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
 export const WORKSHOP_LNG = 136.2299775; // Jl. Mariadei No.55, Serui, Kab. Kepulauan Yapen
 const CHECKIN_RADIUS_M = 50;
+const CHECKIN_MAX_ACCURACY_M = 80;
 
 /** Haversine distance in metres between two WGS-84 coordinates. */
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -79,11 +80,22 @@ function assertNotFutureWorkDate(workDate: string) {
   }
 }
 
-function assertWorkshopPresence(lat: number, lng: number, workDate: string) {
+function assertWorkshopPresence(
+  lat: number,
+  lng: number,
+  accuracyM: number,
+  workDate: string,
+) {
   if (isSundayJayapura(workDate)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Hari Minggu tidak bisa absen",
+    });
+  }
+  if (!Number.isFinite(accuracyM) || accuracyM <= 0 || accuracyM > CHECKIN_MAX_ACCURACY_M) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "GPS tidak akurat. Coba di luar ruangan.",
     });
   }
   const distM = haversineM(lat, lng, WORKSHOP_LAT, WORKSHOP_LNG);
@@ -120,6 +132,7 @@ export const attendanceRouter = router({
       z.object({
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
+        accuracyM: z.number().positive(),
         workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         photo: z
           .string()
@@ -136,7 +149,7 @@ export const attendanceRouter = router({
           message: "Absen masuk hanya untuk hari ini",
         });
       }
-      assertWorkshopPresence(input.lat, input.lng, workDate);
+      assertWorkshopPresence(input.lat, input.lng, input.accuracyM, workDate);
 
       const me = await employeeByUserId(ctx.db, ctx.session.user.id);
       if (!me) {
@@ -251,6 +264,7 @@ export const attendanceRouter = router({
       z.object({
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
+        accuracyM: z.number().positive(),
         workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         photo: z
           .string()
@@ -267,7 +281,7 @@ export const attendanceRouter = router({
           message: "Absen pulang hanya untuk hari ini",
         });
       }
-      assertWorkshopPresence(input.lat, input.lng, workDate);
+      assertWorkshopPresence(input.lat, input.lng, input.accuracyM, workDate);
 
       const me = await employeeByUserId(ctx.db, ctx.session.user.id);
       if (!me) {

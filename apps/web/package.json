@@ -6,6 +6,7 @@
     "build": "vite build",
     "serve": "vite preview",
     "check-types": "vite build && tsc --noEmit",
+    "test:e2e": "playwright test",
     "dev:bare": "vite dev",
     "env:generate": "varlock codegen"
   },
@@ -38,6 +39,7 @@
   "devDependencies": {
     "@BMJ-KARYAWAN/config": "workspace:*",
     "@BMJ-KARYAWAN/infra": "workspace:*",
+    "@playwright/test": "^1.63.0",
     "@tanstack/react-query-devtools": "^5.102.8",
     "@tanstack/react-router-devtools": "^1.167.1",
     "@testing-library/dom": "^10.4.1",

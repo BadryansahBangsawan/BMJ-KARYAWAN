@@ -1,10 +1,39 @@
 import { Label } from "@BMJ-KARYAWAN/ui/components/label";
 import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
+import type { ReactNode } from "react";
 
 import { focusFirstInvalid } from "@/components/field-error";
 import { FormDialog } from "@/components/form-dialog";
 import { MoneyField } from "@/components/money-field";
 import { formatRp } from "@/lib/format";
+
+export function CreateKasbonDialog({
+  open,
+  submitting,
+  children,
+  onOpenChange,
+  onSubmit,
+}: {
+  open: boolean;
+  submitting: boolean;
+  children: ReactNode;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Ajukan kasbon"
+      description="Masukkan keperluan dan jumlah. Nominal dalam rupiah utuh."
+      submitLabel="Ajukan kasbon"
+      submitting={submitting}
+      onSubmit={onSubmit}
+    >
+      {children}
+    </FormDialog>
+  );
+}
 
 export function RejectKasbonDialog({
   open,

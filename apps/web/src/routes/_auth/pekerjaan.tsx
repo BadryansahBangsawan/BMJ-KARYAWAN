@@ -16,14 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@BMJ-KARYAWAN/ui/components/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@BMJ-KARYAWAN/ui/components/table";
 import { Textarea } from "@BMJ-KARYAWAN/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,15 +29,12 @@ import { FieldError, fieldDescribedBy } from "@/components/field-error";
 import { ClearFiltersButton, FilterBar, FilterChips } from "@/components/filter-bar";
 import { ConfirmDialog, FormDialog } from "@/components/form-dialog";
 import Loader from "@/components/loader";
-import { MobileList, MobileListRow } from "@/components/mobile-list";
 import { MoneyField } from "@/components/money-field";
 import { PageHeader } from "@/components/page-header";
 import { PageShell } from "@/components/page-shell";
 import { DateRangeFields } from "@/components/period-fields";
-import { ResponsiveRecords } from "@/components/responsive-records";
 import { SectionHeader } from "@/components/section-header";
 import { PageError, StatePanel } from "@/components/state-panel";
-import { StatusBadge } from "@/components/status-badge";
 import { PAGE_DESCRIPTION } from "@/lib/app-nav";
 import { authClient } from "@/lib/auth-client";
 import { formatLongDate, formatRp, monthBounds, todayYmd } from "@/lib/format";
@@ -53,14 +42,11 @@ import { jpegDataUrlFromFile } from "@/lib/workshop-gps";
 import { sessionRole } from "@/lib/session-role";
 import { useTRPC } from "@/utils/trpc";
 import {
-  JobRowActions,
+  JobRecords,
   extractStruk,
   isStrukImage,
-  jobKindLabel,
-  jobMechanicName,
   jobNeedsAction,
-  jobStatusMeta,
-} from "./pekerjaan-form";
+} from "./-pekerjaan-form";
 
 type StatusFilter = "" | "proses" | "selesai" | "diterima" | "batal";
 
@@ -362,79 +348,14 @@ function PekerjaanPage() {
               }
             />
           ) : (
-            <ResponsiveRecords
-              cards={
-                <MobileList>
-                  {visible.map((job) => (
-                    <MobileListRow
-                      key={job.id}
-                      title={job.description}
-                      subtitle={
-                        <>
-                          {jobKindLabel(job)}
-                          {" · "}
-                          {jobMechanicName(job, nameById)}
-                          {" · "}
-                          <span className="tabular-nums">{job.workDate}</span>
-                          {job.struk && !isStrukImage(job.struk) ? ` · No. ${job.struk}` : null}
-                        </>
-                      }
-                      trailing={formatRp(job.amountIdr)}
-                      meta={<StatusBadge {...jobStatusMeta(job.status)} />}
-                    >
-                      <JobRowActions
-                        job={job}
-                        role={role}
-                        busy={rowBusy(job.id)}
-                        onTerima={() => statusMut.mutate({ id: job.id, status: "diterima" })}
-                        onBatal={() => setCancelId(job.id)}
-                        onDetail={() => setDetailId(job.id)}
-                      />
-                    </MobileListRow>
-                  ))}
-                </MobileList>
-              }
-              table={
-                <Table>
-                  <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background">
-                    <TableRow>
-                      <TableHead>Tanggal</TableHead>
-                      <TableHead>Mekanik</TableHead>
-                      <TableHead>Uraian</TableHead>
-                      <TableHead>Jenis</TableHead>
-                      <TableHead className="text-end">Ongkos</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Aksi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visible.map((job) => (
-                      <TableRow key={job.id}>
-                        <TableCell className="tabular-nums">{job.workDate}</TableCell>
-                        <TableCell>{jobMechanicName(job, nameById)}</TableCell>
-                        <TableCell className="max-w-xs whitespace-normal">{job.description}</TableCell>
-                        <TableCell>{jobKindLabel(job)}</TableCell>
-                        <TableCell className="text-end tabular-nums">{formatRp(job.amountIdr)}</TableCell>
-                        <TableCell>
-                          <StatusBadge {...jobStatusMeta(job.status)} />
-                        </TableCell>
-                        <TableCell className="whitespace-normal">
-                          <div className="flex flex-wrap gap-2">
-                            <JobRowActions
-                              job={job}
-                              role={role}
-                              busy={rowBusy(job.id)}
-                              onTerima={() => statusMut.mutate({ id: job.id, status: "diterima" })}
-                              onBatal={() => setCancelId(job.id)}
-                              onDetail={() => setDetailId(job.id)}
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              }
+            <JobRecords
+              jobs={visible}
+              role={role}
+              nameById={nameById}
+              rowBusy={rowBusy}
+              onTerima={(id) => statusMut.mutate({ id, status: "diterima" })}
+              onBatal={setCancelId}
+              onDetail={setDetailId}
             />
           )}
         </section>
