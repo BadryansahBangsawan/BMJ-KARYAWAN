@@ -104,7 +104,7 @@ export const Route = createFileRoute("/api/extract-struk")({
 
         const apiKey = asString(env.AI_API_KEY ?? process.env["AI_API_KEY"]);
         const baseUrl = normalizeBaseUrl(asString(env.AI_BASE_URL ?? process.env["AI_BASE_URL"]));
-        const model = asString(env.AI_MODEL ?? process.env["AI_MODEL"]) || "AlwaysOn";
+        const model = asString(env.AI_MODEL ?? process.env["AI_MODEL"]) || "BMJ";
 
         if (!apiKey || !baseUrl) {
           return Response.json({ error: "AI baca struk belum dikonfigurasi." }, { status: 503 });
