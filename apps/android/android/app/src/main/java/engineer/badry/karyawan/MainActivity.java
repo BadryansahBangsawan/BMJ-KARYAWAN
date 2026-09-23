@@ -14,6 +14,9 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(KaryawanGps.class);
         super.onCreate(savedInstanceState);
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().setWebChromeClient(new KaryawanChromeClient(getBridge()));
+        }
         maybeAskRuntimePermissions();
     }
 

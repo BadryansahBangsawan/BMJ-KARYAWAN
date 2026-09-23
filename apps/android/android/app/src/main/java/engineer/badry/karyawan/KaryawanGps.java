@@ -22,8 +22,8 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.location.CurrentLocationRequest;
 import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.Granularity;
 import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.Priority;
@@ -36,10 +36,11 @@ import org.json.JSONObject;
 
 /**
  * Native location for the remote-URL WebView. Chrome absen works because it
- * uses Play Services fused location (Wi‑Fi/cell, works indoors). System
- * WebView / LocationManager GPS often never returns in a workshop. The
- * website talks to {@code window.KaryawanGps} because Capacitor plugins are
- * not injected into https://karyawan.badry.engineer.
+ * uses Play Services fused location (Wi‑Fi/cell, works indoors). HIGH_ACCURACY
+ * waits on GNSS and often never returns in a workshop. Warm BALANCED updates
+ * while the app is in front so absen can read a fresh lastFix() instead of
+ * starting cold on the camera tap. Capacitor plugins are not injected into
+ * https://karyawan.badry.engineer — the site talks to {@code window.KaryawanGps}.
  */
 @CapacitorPlugin(name = "KaryawanGps")
 public class KaryawanGps extends Plugin {
@@ -89,14 +90,23 @@ public class KaryawanGps extends Plugin {
     private CancellationTokenSource gmsCancel;
     private String pendingId;
     private Location best;
+    private volatile Location warmFix;
     private int gen;
+    private boolean warmOn;
     private Runnable timeout;
 
     static boolean onActivityPermissionResult(int requestCode, int[] grantResults) {
         KaryawanGps gps = installed;
-        if (gps == null || requestCode != REQ_GPS) return false;
-        gps.main.post(() -> gps.onGpsPermission(grantResults));
-        return true;
+        if (gps == null) return false;
+        if (requestCode == REQ_GPS) {
+            gps.main.post(() -> gps.onGpsPermission(grantResults));
+            return true;
+        }
+        if (requestCode == REQ_BOOT) {
+            gps.main.post(gps::startWarm);
+            return false;
+        }
+        return false;
     }
 
     @Override
@@ -106,10 +116,36 @@ public class KaryawanGps extends Plugin {
     }
 
     @Override
+    protected void handleOnResume() {
+        main.post(this::startWarm);
+        super.handleOnResume();
+    }
+
+    @Override
+    protected void handleOnPause() {
+        main.post(this::stopWarm);
+        super.handleOnPause();
+    }
+
+    @Override
     protected void handleOnDestroy() {
-        main.post(this::stopUpdates);
+        main.post(() -> {
+            stopAbsenWait();
+            stopWarm();
+        });
         if (installed == this) installed = null;
         super.handleOnDestroy();
+    }
+
+    @JavascriptInterface
+    public String lastFix() {
+        Location loc = warmFix;
+        if (!usable(loc, LAST_KNOWN_MAX_AGE_MS)) return "";
+        try {
+            return toJson(loc).toString();
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     @JavascriptInterface
@@ -127,7 +163,7 @@ public class KaryawanGps extends Plugin {
             fail(id == null ? "" : id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
             return;
         }
-        stopUpdates();
+        stopAbsenWait();
         pendingId = id;
         best = null;
         int myGen = ++gen;
@@ -145,13 +181,37 @@ public class KaryawanGps extends Plugin {
             );
             return;
         }
+        if (usable(warmFix, LAST_KNOWN_MAX_AGE_MS)) {
+            succeed(warmFix);
+            return;
+        }
+        if (!hasFinePermission()) {
+            ActivityCompat.requestPermissions(
+                activity,
+                new String[] { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION },
+                REQ_GPS
+            );
+            return;
+        }
         locate(myGen);
     }
 
     private void onGpsPermission(int[] grantResults) {
-        if (pendingId == null) return;
+        if (pendingId == null) {
+            startWarm();
+            return;
+        }
         if (!granted(grantResults) || !hasLocationPermission()) {
-            fail(pendingId, "denied", "Izin lokasi app belum aktif. Pengaturan → Aplikasi → Karyawan → Izin → Lokasi.");
+            fail(
+                pendingId,
+                "denied",
+                "Izin lokasi app belum aktif. Pengaturan → Aplikasi → Karyawan → Izin → Lokasi."
+            );
+            return;
+        }
+        startWarm();
+        if (usable(warmFix, LAST_KNOWN_MAX_AGE_MS)) {
+            succeed(warmFix);
             return;
         }
         locate(gen);
@@ -167,6 +227,18 @@ public class KaryawanGps extends Plugin {
                 succeed(best);
                 return;
             }
+            if (usable(warmFix, STALE_LAST_KNOWN_MS)) {
+                succeed(warmFix);
+                return;
+            }
+            if (!hasFinePermission()) {
+                fail(
+                    pendingId,
+                    "denied",
+                    "Izin lokasi app belum akurat. Pengaturan → Aplikasi → Karyawan → Izin → Lokasi → Gunakan lokasi tepat."
+                );
+                return;
+            }
             Location stale = gmsReady() ? null : bestManagerKnown(STALE_LAST_KNOWN_MS);
             if (stale != null) {
                 succeed(stale);
@@ -180,46 +252,106 @@ public class KaryawanGps extends Plugin {
         };
         main.postDelayed(timeout, WAIT_MS);
 
-        if (gmsReady()) startGms();
+        startWarm();
+        if (gmsReady()) startGmsOnce();
         else startManager();
     }
 
     @SuppressLint("MissingPermission")
-    private void startGms() {
+    private void startWarm() {
+        if (warmOn || !hasLocationPermission()) return;
         Activity activity = getActivity();
-        if (activity == null || !hasLocationPermission()) return;
-        fused = LocationServices.getFusedLocationProviderClient(activity);
-        gmsCancel = new CancellationTokenSource();
-        int priority = hasFinePermission() ? Priority.PRIORITY_HIGH_ACCURACY : Priority.PRIORITY_BALANCED_POWER_ACCURACY;
+        if (activity == null || activity.isFinishing()) return;
 
-        fused.getLastLocation().addOnSuccessListener(mainExecutor, loc -> {
+        if (gmsReady()) {
+            FusedLocationProviderClient client = fusedClient();
+            if (client == null) return;
+            warmOn = true;
+            client.getLastLocation().addOnSuccessListener(mainExecutor, loc -> {
+                if (loc != null) consider(loc);
+            });
+            LocationRequest req = new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 2000)
+                .setMinUpdateIntervalMillis(500)
+                .setWaitForAccurateLocation(false)
+                .build();
+            try {
+                client.requestLocationUpdates(req, gmsCallback, Looper.getMainLooper());
+            } catch (SecurityException ignored) {
+                warmOn = false;
+            }
+            return;
+        }
+
+        lm = (LocationManager) activity.getSystemService(Activity.LOCATION_SERVICE);
+        if (lm == null) return;
+        warmOn = true;
+        try {
+            Criteria balanced = new Criteria();
+            balanced.setAccuracy(Criteria.ACCURACY_COARSE);
+            balanced.setCostAllowed(true);
+            lm.requestLocationUpdates(1000, 0, balanced, managerListener, Looper.getMainLooper());
+        } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
+        for (String provider : managerProviders()) {
+            try {
+                lm.requestLocationUpdates(provider, 1000, 0, managerListener, Looper.getMainLooper());
+            } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
+        }
+    }
+
+    private void stopWarm() {
+        if (!warmOn) return;
+        warmOn = false;
+        if (fused != null) {
+            try {
+                fused.removeLocationUpdates(gmsCallback);
+            } catch (Exception ignored) {}
+        }
+        if (lm != null) {
+            try {
+                lm.removeUpdates(managerListener);
+            } catch (SecurityException | IllegalArgumentException ignored) {}
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private void startGmsOnce() {
+        FusedLocationProviderClient client = fusedClient();
+        if (client == null || !hasLocationPermission()) return;
+        if (gmsCancel != null) {
+            try {
+                gmsCancel.cancel();
+            } catch (Exception ignored) {}
+        }
+        gmsCancel = new CancellationTokenSource();
+
+        client.getLastLocation().addOnSuccessListener(mainExecutor, loc -> {
             if (pendingId == null || loc == null) return;
-            if (accurate(loc) && ageMs(loc) <= LAST_KNOWN_MAX_AGE_MS) {
+            if (usable(loc, LAST_KNOWN_MAX_AGE_MS)) {
                 succeed(loc);
                 return;
             }
             consider(loc);
         });
 
-        CurrentLocationRequest current = new CurrentLocationRequest.Builder()
-            .setPriority(priority)
+        CurrentLocationRequest balanced = new CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_BALANCED_POWER_ACCURACY)
             .setDurationMillis(WAIT_MS)
             .setMaxUpdateAgeMillis(LAST_KNOWN_MAX_AGE_MS)
-            .setGranularity(hasFinePermission() ? Granularity.GRANULARITY_FINE : Granularity.GRANULARITY_PERMISSION_LEVEL)
             .build();
-        fused.getCurrentLocation(current, gmsCancel.getToken()).addOnSuccessListener(mainExecutor, loc -> {
+        client.getCurrentLocation(balanced, gmsCancel.getToken()).addOnSuccessListener(mainExecutor, loc -> {
             if (loc != null) consider(loc);
         });
 
-        com.google.android.gms.location.LocationRequest req =
-            new com.google.android.gms.location.LocationRequest.Builder(priority, 1000)
-                .setMinUpdateIntervalMillis(200)
-                .setWaitForAccurateLocation(false)
-                .setMaxUpdates(10)
+        if (hasFinePermission()) {
+            CurrentLocationRequest fine = new CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
                 .setDurationMillis(WAIT_MS)
-                .setGranularity(hasFinePermission() ? Granularity.GRANULARITY_FINE : Granularity.GRANULARITY_PERMISSION_LEVEL)
+                .setMaxUpdateAgeMillis(LAST_KNOWN_MAX_AGE_MS)
                 .build();
-        fused.requestLocationUpdates(req, gmsCallback, Looper.getMainLooper());
+            client.getCurrentLocation(fine, gmsCancel.getToken()).addOnSuccessListener(mainExecutor, loc -> {
+                if (loc != null) consider(loc);
+            });
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -250,8 +382,17 @@ public class KaryawanGps extends Plugin {
     }
 
     private void consider(Location location) {
-        if (pendingId == null || location == null) return;
+        if (location == null) return;
         if (!location.hasAccuracy() || location.getAccuracy() <= 0) return;
+        Location current = warmFix;
+        if (
+            current == null ||
+            location.getAccuracy() <= current.getAccuracy() ||
+            ageMs(current) > LAST_KNOWN_MAX_AGE_MS
+        ) {
+            warmFix = location;
+        }
+        if (pendingId == null) return;
         if (best == null || location.getAccuracy() < best.getAccuracy()) best = location;
         if (accurate(location)) succeed(location);
     }
@@ -262,7 +403,7 @@ public class KaryawanGps extends Plugin {
         for (String provider : managerProviders()) {
             try {
                 Location loc = lm.getLastKnownLocation(provider);
-                if (loc == null || !accurate(loc) || ageMs(loc) > maxAgeMs) continue;
+                if (loc == null || !usable(loc, maxAgeMs)) continue;
                 if (found == null || loc.getAccuracy() < found.getAccuracy()) found = loc;
             } catch (SecurityException | IllegalArgumentException ignored) {}
         }
@@ -299,24 +440,27 @@ public class KaryawanGps extends Plugin {
         }
     }
 
+    private FusedLocationProviderClient fusedClient() {
+        Activity activity = getActivity();
+        if (activity == null) return null;
+        if (fused == null) fused = LocationServices.getFusedLocationProviderClient(activity);
+        return fused;
+    }
+
     private void succeed(Location loc) {
         String id = pendingId;
-        stopUpdates();
+        stopAbsenWait();
+        warmFix = loc;
         if (id == null || id.isEmpty()) return;
         try {
-            JSONObject payload = new JSONObject();
-            payload.put("ok", true);
-            payload.put("lat", loc.getLatitude());
-            payload.put("lng", loc.getLongitude());
-            payload.put("accuracyM", loc.getAccuracy());
-            deliver(id, payload);
+            deliver(id, toJson(loc));
         } catch (Exception ignored) {
             fail(id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
         }
     }
 
     private void fail(String id, String code, String message) {
-        stopUpdates();
+        stopAbsenWait();
         if (id == null || id.isEmpty()) return;
         try {
             JSONObject payload = new JSONObject();
@@ -330,7 +474,7 @@ public class KaryawanGps extends Plugin {
     private void abort(String code, String message) {
         String id = pendingId;
         if (id == null) {
-            stopUpdates();
+            stopAbsenWait();
             return;
         }
         fail(id, code, message);
@@ -343,7 +487,7 @@ public class KaryawanGps extends Plugin {
         getBridge().eval(js, null);
     }
 
-    private void stopUpdates() {
+    private void stopAbsenWait() {
         pendingId = null;
         best = null;
         if (timeout != null) {
@@ -355,16 +499,6 @@ public class KaryawanGps extends Plugin {
                 gmsCancel.cancel();
             } catch (Exception ignored) {}
             gmsCancel = null;
-        }
-        if (fused != null) {
-            try {
-                fused.removeLocationUpdates(gmsCallback);
-            } catch (Exception ignored) {}
-        }
-        if (lm != null) {
-            try {
-                lm.removeUpdates(managerListener);
-            } catch (SecurityException | IllegalArgumentException ignored) {}
         }
     }
 
@@ -395,8 +529,21 @@ public class KaryawanGps extends Plugin {
         return loc != null && loc.hasAccuracy() && loc.getAccuracy() > 0 && loc.getAccuracy() <= MAX_ACCURACY_M;
     }
 
+    private static boolean usable(Location loc, long maxAgeMs) {
+        return accurate(loc) && ageMs(loc) <= maxAgeMs;
+    }
+
     private static long ageMs(Location loc) {
         long age = (SystemClock.elapsedRealtimeNanos() - loc.getElapsedRealtimeNanos()) / 1_000_000L;
         return age < 0 ? Long.MAX_VALUE : age;
+    }
+
+    private static JSONObject toJson(Location loc) throws Exception {
+        JSONObject payload = new JSONObject();
+        payload.put("ok", true);
+        payload.put("lat", loc.getLatitude());
+        payload.put("lng", loc.getLongitude());
+        payload.put("accuracyM", loc.getAccuracy());
+        return payload;
     }
 }

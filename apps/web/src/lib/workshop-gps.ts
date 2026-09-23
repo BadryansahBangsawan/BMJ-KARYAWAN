@@ -14,6 +14,7 @@ const GPS_MAX_ACCURACY_M = 80;
 type NativeGps = {
   requestPosition: (id: string) => void;
   cancel: () => void;
+  lastFix?: () => string;
 };
 
 type NativePayload = {
@@ -48,6 +49,30 @@ function gpsWindow(): GpsWindow | null {
 function nativeGps(): NativeGps | null {
   const g = gpsWindow()?.KaryawanGps;
   return g && typeof g.requestPosition === "function" ? g : null;
+}
+
+function parseNativePos(payload: NativePayload | null | undefined): WorkshopPosition | null {
+  if (!payload) return null;
+  const lat = Number(payload.lat);
+  const lng = Number(payload.lng);
+  const accuracyM = Number(payload.accuracyM);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(accuracyM) && accuracyM > 0) {
+    return { lat, lng, accuracyM };
+  }
+  return null;
+}
+
+function nativeLastFix(): WorkshopPosition | null {
+  const gps = nativeGps();
+  if (!gps || typeof gps.lastFix !== "function") return null;
+  try {
+    const raw = gps.lastFix();
+    if (!raw || raw === "null") return null;
+    const pos = parseNativePos(JSON.parse(raw) as NativePayload);
+    return pos && goodFix(pos) ? pos : null;
+  } catch {
+    return null;
+  }
 }
 
 function abortError() {
@@ -108,11 +133,9 @@ function hookNativeDone() {
   win.__karyawanGpsDone = (id, payload) => {
     if (!inflight || id !== String(gpsGen)) return;
     if (payload?.ok === true) {
-      const lat = Number(payload.lat);
-      const lng = Number(payload.lng);
-      const accuracyM = Number(payload.accuracyM);
-      if (Number.isFinite(lat) && Number.isFinite(lng) && Number.isFinite(accuracyM) && accuracyM > 0) {
-        settleOk({ lat, lng, accuracyM });
+      const pos = parseNativePos(payload);
+      if (pos && goodFix(pos)) {
+        settleOk(pos);
         return;
       }
       settleErr(new Error("GPS tidak akurat. Coba di luar ruangan."));
@@ -123,7 +146,15 @@ function hookNativeDone() {
       return;
     }
     if (payload?.code === "denied") {
-      settleErr(deniedError());
+      settleErr(
+        payload.message
+          ? Object.assign(new Error(payload.message), { name: "GpsPermissionDenied" })
+          : deniedError(),
+      );
+      return;
+    }
+    if (payload?.code === "inaccurate") {
+      settleErr(new Error(payload.message || "GPS tidak akurat. Coba di luar ruangan."));
       return;
     }
     armWatchdog(gpsGen, GPS_WAIT_MS);
@@ -230,6 +261,8 @@ function requestNativePosition(gen: number) {
 
 export function requestWorkshopPosition(): Promise<WorkshopPosition> {
   abortInflightGps();
+  const cachedNative = nativeLastFix();
+  if (cachedNative) return Promise.resolve(cachedNative);
   const { promise, resolve, reject } = Promise.withResolvers<WorkshopPosition>();
   const gen = ++gpsGen;
   inflight = { resolve, reject };
