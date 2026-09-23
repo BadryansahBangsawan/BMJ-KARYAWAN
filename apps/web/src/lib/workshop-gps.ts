@@ -126,7 +126,8 @@ function hookNativeDone() {
       settleErr(deniedError());
       return;
     }
-    settleErr(new Error(typeof payload?.message === "string" && payload.message ? payload.message : "GPS gagal."));
+    armWatchdog(gpsGen, GPS_WAIT_MS);
+    void requestWebPosition(gpsGen);
   };
 }
 
@@ -217,13 +218,13 @@ function requestNativePosition(gen: number) {
   hookNativeDone();
   const gps = nativeGps();
   if (!gps) {
-    settleErr(new Error("GPS native tidak tersedia."));
+    void requestWebPosition(gen);
     return;
   }
   try {
     gps.requestPosition(String(gen));
   } catch {
-    settleErr(new Error("GPS native gagal."));
+    void requestWebPosition(gen);
   }
 }
 

@@ -3,11 +3,13 @@ package engineer.badry.karyawan;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -16,6 +18,10 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.concurrent.Executor;
 import org.json.JSONObject;
 
 /**
@@ -30,15 +36,20 @@ public class KaryawanGps extends Plugin {
     static final int REQ_GPS = 2402;
     private static final int MAX_ACCURACY_M = 80;
     private static final long LAST_KNOWN_MAX_AGE_MS = 60_000;
+    private static final long STALE_LAST_KNOWN_MS = 300_000;
     private static final long WAIT_MS = 12_000;
 
     private static KaryawanGps installed;
 
     private final Handler main = new Handler(Looper.getMainLooper());
+    private final Executor mainExecutor = command -> {
+        if (Looper.myLooper() == main.getLooper()) command.run();
+        else main.post(command);
+    };
     private final LocationListener listener = new LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
-            consider(location, false);
+            consider(location);
         }
 
         @Override
@@ -56,8 +67,8 @@ public class KaryawanGps extends Plugin {
     private String pendingId;
     private Location best;
     private int gen;
-    private int updateCount;
     private Runnable timeout;
+    private CancellationSignal currentCancel;
 
     static boolean onActivityPermissionResult(int requestCode, int[] grantResults) {
         KaryawanGps gps = installed;
@@ -91,7 +102,7 @@ public class KaryawanGps extends Plugin {
 
     private void start(String id) {
         if (id == null || !id.matches("[A-Za-z0-9_-]{1,40}")) {
-            fail(id == null ? "" : id, "timeout", "Permintaan GPS habis waktu. Coba lagi.");
+            fail(id == null ? "" : id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
             return;
         }
         stopUpdates();
@@ -101,17 +112,13 @@ public class KaryawanGps extends Plugin {
 
         Activity activity = getActivity();
         if (activity == null || activity.isFinishing()) {
-            fail(id, "timeout", "Permintaan GPS habis waktu. Coba lagi.");
+            fail(id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
             return;
         }
 
         lm = (LocationManager) activity.getSystemService(Activity.LOCATION_SERVICE);
         if (lm == null) {
-            fail(id, "off", "Lokasi HP mati. Nyalakan lokasi di pengaturan, lalu coba lagi.");
-            return;
-        }
-        if (!locationOn()) {
-            fail(id, "off", "Lokasi HP mati. Nyalakan lokasi di pengaturan, lalu coba lagi.");
+            fail(id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
             return;
         }
         if (!hasLocationPermission()) {
@@ -129,7 +136,7 @@ public class KaryawanGps extends Plugin {
     private void onGpsPermission(int[] grantResults) {
         if (pendingId == null) return;
         if (!granted(grantResults) || !hasLocationPermission()) {
-            fail(pendingId, "denied", "Izin GPS ditolak. Aktifkan lokasi di pengaturan.");
+            fail(pendingId, "denied", "Izin lokasi app belum aktif. Pengaturan → Aplikasi → Karyawan → Izin → Lokasi.");
             return;
         }
         locate(gen);
@@ -137,7 +144,7 @@ public class KaryawanGps extends Plugin {
 
     private void locate(int myGen) {
         if (myGen != gen || pendingId == null) return;
-        Location last = bestLastKnown();
+        Location last = bestLastKnown(LAST_KNOWN_MAX_AGE_MS);
         if (last != null) {
             succeed(last);
             return;
@@ -149,64 +156,110 @@ public class KaryawanGps extends Plugin {
                 succeed(best);
                 return;
             }
+            Location stale = bestLastKnown(STALE_LAST_KNOWN_MS);
+            if (stale != null) {
+                succeed(stale);
+                return;
+            }
             if (best != null) {
                 fail(pendingId, "inaccurate", "GPS tidak akurat. Coba di luar ruangan.");
                 return;
             }
-            fail(pendingId, "timeout", "Permintaan GPS habis waktu. Coba lagi.");
+            fail(pendingId, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
         };
         main.postDelayed(timeout, WAIT_MS);
+        subscribe();
+    }
 
-        updateCount = 0;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            listen(LocationManager.FUSED_PROVIDER);
+    private void subscribe() {
+        if (lm == null || !hasLocationPermission()) return;
+
+        try {
+            Criteria fine = new Criteria();
+            fine.setAccuracy(Criteria.ACCURACY_FINE);
+            fine.setCostAllowed(true);
+            lm.requestLocationUpdates(500, 0, fine, listener, Looper.getMainLooper());
+        } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
+
+        try {
+            Criteria coarse = new Criteria();
+            coarse.setAccuracy(Criteria.ACCURACY_COARSE);
+            coarse.setCostAllowed(true);
+            lm.requestLocationUpdates(500, 0, coarse, listener, Looper.getMainLooper());
+        } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
+
+        for (String provider : knownProviders()) {
+            listen(provider);
         }
-        listen(LocationManager.GPS_PROVIDER);
-        listen(LocationManager.NETWORK_PROVIDER);
-        if (updateCount == 0) {
-            fail(pendingId, "off", "Lokasi HP mati. Nyalakan lokasi di pengaturan, lalu coba lagi.");
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            currentCancel = new CancellationSignal();
+            for (String provider : knownProviders()) {
+                try {
+                    lm.getCurrentLocation(provider, currentCancel, mainExecutor, loc -> {
+                        if (loc != null) consider(loc);
+                    });
+                } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                android.location.LocationRequest req = new android.location.LocationRequest.Builder(500)
+                    .setQuality(android.location.LocationRequest.QUALITY_HIGH_ACCURACY)
+                    .setDurationMillis(WAIT_MS)
+                    .setMaxUpdates(8)
+                    .build();
+                lm.requestLocationUpdates(LocationManager.FUSED_PROVIDER, req, mainExecutor, listener);
+            } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
         }
     }
 
     private void listen(String provider) {
-        if (lm == null || !hasLocationPermission()) return;
+        if (lm == null || provider == null || !hasLocationPermission()) return;
         try {
-            if (!lm.isProviderEnabled(provider)) return;
             lm.requestLocationUpdates(provider, 500, 0, listener, Looper.getMainLooper());
-            updateCount++;
         } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
     }
 
-    private void consider(Location location, boolean lastKnown) {
+    private void consider(Location location) {
         if (pendingId == null || location == null) return;
         if (!location.hasAccuracy() || location.getAccuracy() <= 0) return;
         if (best == null || location.getAccuracy() < best.getAccuracy()) best = location;
-        if (!lastKnown && accurate(location)) succeed(location);
+        if (accurate(location)) succeed(location);
     }
 
-    private Location bestLastKnown() {
+    private Location bestLastKnown(long maxAgeMs) {
         if (lm == null || !hasLocationPermission()) return null;
         Location found = null;
-        String[] providers = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            ? new String[] {
-                LocationManager.FUSED_PROVIDER,
-                LocationManager.GPS_PROVIDER,
-                LocationManager.NETWORK_PROVIDER,
-                LocationManager.PASSIVE_PROVIDER
-            }
-            : new String[] {
-                LocationManager.GPS_PROVIDER,
-                LocationManager.NETWORK_PROVIDER,
-                LocationManager.PASSIVE_PROVIDER
-            };
-        for (String provider : providers) {
+        for (String provider : knownProviders()) {
             try {
                 Location loc = lm.getLastKnownLocation(provider);
-                if (loc == null || !accurate(loc) || ageMs(loc) > LAST_KNOWN_MAX_AGE_MS) continue;
+                if (loc == null || !accurate(loc) || ageMs(loc) > maxAgeMs) continue;
                 if (found == null || loc.getAccuracy() < found.getAccuracy()) found = loc;
             } catch (SecurityException | IllegalArgumentException ignored) {}
         }
         return found;
+    }
+
+    private List<String> knownProviders() {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        if (lm != null) {
+            try {
+                List<String> all = lm.getAllProviders();
+                if (all != null) names.addAll(all);
+            } catch (Exception ignored) {}
+            try {
+                List<String> enabled = lm.getProviders(true);
+                if (enabled != null) names.addAll(enabled);
+            } catch (Exception ignored) {}
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) names.add(LocationManager.FUSED_PROVIDER);
+        names.add(LocationManager.GPS_PROVIDER);
+        names.add(LocationManager.NETWORK_PROVIDER);
+        names.add(LocationManager.PASSIVE_PROVIDER);
+        names.remove(null);
+        return new ArrayList<>(names);
     }
 
     private void succeed(Location loc) {
@@ -221,7 +274,7 @@ public class KaryawanGps extends Plugin {
             payload.put("accuracyM", loc.getAccuracy());
             deliver(id, payload);
         } catch (Exception ignored) {
-            fail(id, "timeout", "Permintaan GPS habis waktu. Coba lagi.");
+            fail(id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
         }
     }
 
@@ -256,26 +309,20 @@ public class KaryawanGps extends Plugin {
     private void stopUpdates() {
         pendingId = null;
         best = null;
-        updateCount = 0;
         if (timeout != null) {
             main.removeCallbacks(timeout);
             timeout = null;
+        }
+        if (currentCancel != null) {
+            try {
+                currentCancel.cancel();
+            } catch (Exception ignored) {}
+            currentCancel = null;
         }
         if (lm != null) {
             try {
                 lm.removeUpdates(listener);
             } catch (SecurityException | IllegalArgumentException ignored) {}
-        }
-    }
-
-    private boolean locationOn() {
-        if (lm == null) return false;
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return lm.isLocationEnabled();
-            return lm.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-        } catch (Exception ignored) {
-            return false;
         }
     }
 
