@@ -5,7 +5,7 @@ export type WorkshopPosition = {
 };
 
 const PRIME_TTL_MS = 90_000;
-const GPS_WAIT_MS = 12_000;
+const GPS_WAIT_MS = 20_000;
 const GPS_CACHE_MS = 60_000;
 const GPS_QUICK_MS = 4_000;
 /** Match packages/api CHECKIN_MAX_ACCURACY_M. */
@@ -15,6 +15,7 @@ type NativeGps = {
   requestPosition: (id: string) => void;
   cancel: () => void;
   lastFix?: () => string;
+  version?: () => string;
 };
 
 type NativePayload = {
@@ -29,12 +30,14 @@ type NativePayload = {
 type GpsWindow = Window & {
   KaryawanGps?: NativeGps;
   __karyawanGpsDone?: (id: string, payload: NativePayload) => void;
+  __karyawanGpsFix?: NativePayload;
 };
 
 let primedAt = 0;
 let primedPos: WorkshopPosition | null = null;
 let primePromise: Promise<WorkshopPosition> | null = null;
 let waitTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 let gpsGen = 0;
 let inflight: {
   resolve: (pos: WorkshopPosition) => void;
@@ -64,15 +67,23 @@ function parseNativePos(payload: NativePayload | null | undefined): WorkshopPosi
 
 function nativeLastFix(): WorkshopPosition | null {
   const gps = nativeGps();
-  if (!gps || typeof gps.lastFix !== "function") return null;
-  try {
-    const raw = gps.lastFix();
-    if (!raw || raw === "null") return null;
-    const pos = parseNativePos(JSON.parse(raw) as NativePayload);
-    return pos && goodFix(pos) ? pos : null;
-  } catch {
-    return null;
+  if (gps && typeof gps.lastFix === "function") {
+    try {
+      const raw = gps.lastFix();
+      if (raw && raw !== "null") {
+        const pos = parseNativePos(JSON.parse(raw) as NativePayload);
+        if (pos && goodFix(pos)) return pos;
+      }
+    } catch {
+      /* ignore */
+    }
   }
+  const pushed = parseNativePos(gpsWindow()?.__karyawanGpsFix);
+  return pushed && goodFix(pushed) ? pushed : null;
+}
+
+export function isNativeWorkshopGps() {
+  return nativeGps() != null;
 }
 
 function abortError() {
@@ -89,6 +100,10 @@ function stopTimer() {
   if (waitTimer != null) {
     clearTimeout(waitTimer);
     waitTimer = null;
+  }
+  if (pollTimer != null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
@@ -163,11 +178,26 @@ function hookNativeDone() {
 }
 
 function armWatchdog(gen: number, ms: number) {
-  stopTimer();
+  if (waitTimer != null) {
+    clearTimeout(waitTimer);
+    waitTimer = null;
+  }
   waitTimer = setTimeout(() => {
     if (gen !== gpsGen) return;
     settleErr(new Error("Permintaan GPS habis waktu. Coba lagi."));
   }, ms);
+}
+
+function armPoll(gen: number) {
+  if (pollTimer != null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  pollTimer = setInterval(() => {
+    if (gen !== gpsGen || !inflight) return;
+    const pos = nativeLastFix();
+    if (pos) settleOk(pos);
+  }, 250);
 }
 
 function isGeoDenied(error: unknown) {
@@ -268,8 +298,10 @@ export function requestWorkshopPosition(): Promise<WorkshopPosition> {
   inflight = { resolve, reject };
   const native = nativeGps();
   armWatchdog(gen, native ? GPS_WAIT_MS + 2_000 : GPS_WAIT_MS);
-  if (native) requestNativePosition(gen);
-  else void requestWebPosition(gen);
+  if (native) {
+    armPoll(gen);
+    requestNativePosition(gen);
+  } else void requestWebPosition(gen);
   return promise;
 }
 

@@ -28,6 +28,6 @@ public class KaryawanChromeClient extends BridgeWebChromeClient {
             PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(bridge.getContext(), Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED;
-        callback.invoke(origin, allowed, false);
+        callback.invoke(origin, allowed, true);
     }
 }

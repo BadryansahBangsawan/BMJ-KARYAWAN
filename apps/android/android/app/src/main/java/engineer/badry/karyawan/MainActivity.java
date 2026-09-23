@@ -3,6 +3,7 @@ package engineer.badry.karyawan;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.webkit.WebView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
@@ -15,7 +16,10 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(KaryawanGps.class);
         super.onCreate(savedInstanceState);
         if (getBridge() != null && getBridge().getWebView() != null) {
-            getBridge().getWebView().setWebChromeClient(new KaryawanChromeClient(getBridge()));
+            WebView web = getBridge().getWebView();
+            web.getSettings().setJavaScriptEnabled(true);
+            web.getSettings().setGeolocationEnabled(true);
+            web.setWebChromeClient(new KaryawanChromeClient(getBridge()));
         }
         maybeAskRuntimePermissions();
     }

@@ -11,7 +11,12 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BusyLabel } from "@/components/busy-label";
-import { abandonWorkshopPosition, jpegFileFromVideo, primeWorkshopPosition } from "@/lib/workshop-gps";
+import {
+  abandonWorkshopPosition,
+  isNativeWorkshopGps,
+  jpegFileFromVideo,
+  primeWorkshopPosition,
+} from "@/lib/workshop-gps";
 
 export function AbsenClockButton({
   checkedIn,
@@ -85,6 +90,13 @@ export function AbsenClockButton({
       closeCamera();
     }
   }
+
+  useEffect(() => {
+    if (!isNativeWorkshopGps()) return;
+    void primeWorkshopPosition().catch(() => {
+      /* tap retries */
+    });
+  }, []);
 
   useEffect(() => {
     if (!open || !videoEl || !streamRef.current) return;
