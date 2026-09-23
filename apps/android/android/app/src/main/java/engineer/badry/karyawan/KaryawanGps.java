@@ -3,6 +3,7 @@ package engineer.badry.karyawan;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
@@ -18,12 +19,14 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.CurrentLocationRequest;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.Priority;
 import com.google.android.gms.tasks.CancellationTokenSource;
 import java.util.ArrayList;
@@ -36,16 +39,17 @@ import org.json.JSONObject;
  * Native location for the remote-URL WebView. Chrome absen works because it
  * uses Play Services fused location (Wi‑Fi/cell, works indoors). Never gate on
  * Play Services "SUCCESS" — try fused and LocationManager together. Do not stop
- * updates on pause (camera / permission dialogs). The site talks to
- * {@code window.KaryawanGps} because Capacitor plugins are not injected into
- * https://karyawan.badry.engineer.
+ * updates except on destroy (camera / OEM onStop / permission dialogs). The
+ * site talks to {@code window.KaryawanGps} because Capacitor plugins are not
+ * injected into https://karyawan.badry.engineer.
  */
 @CapacitorPlugin(name = "KaryawanGps")
 public class KaryawanGps extends Plugin {
 
     static final int REQ_BOOT = 2401;
     static final int REQ_GPS = 2402;
-    static final String VERSION = "1.5";
+    static final int REQ_SETTINGS = 2403;
+    static final String VERSION = "1.6";
     private static final int MAX_ACCURACY_M = 80;
     private static final long LAST_KNOWN_MAX_AGE_MS = 90_000;
     private static final long STALE_LAST_KNOWN_MS = 300_000;
@@ -93,6 +97,7 @@ public class KaryawanGps extends Plugin {
     private int gen;
     private boolean gmsWarmOn;
     private boolean lmWarmOn;
+    private boolean settingsAsked;
     private Runnable timeout;
 
     static boolean onActivityPermissionResult(int requestCode, int[] grantResults) {
@@ -107,6 +112,16 @@ public class KaryawanGps extends Plugin {
             return false;
         }
         return false;
+    }
+
+    static void onSettingsResult(int requestCode, int resultCode) {
+        if (requestCode != REQ_SETTINGS) return;
+        KaryawanGps gps = installed;
+        if (gps == null) return;
+        gps.main.post(() -> {
+            gps.startWarm();
+            if (gps.pendingId != null) gps.locate(gps.gen);
+        });
     }
 
     @Override
@@ -125,14 +140,6 @@ public class KaryawanGps extends Plugin {
     protected void handleOnResume() {
         main.post(this::startWarm);
         super.handleOnResume();
-    }
-
-    @Override
-    protected void handleOnStop() {
-        main.post(() -> {
-            if (pendingId == null) stopWarm();
-        });
-        super.handleOnStop();
     }
 
     @Override
@@ -271,23 +278,108 @@ public class KaryawanGps extends Plugin {
 
     @SuppressLint("MissingPermission")
     private void startGmsWarm() {
-        if (gmsWarmOn) return;
         FusedLocationProviderClient client = fusedClient();
-        if (client == null) return;
+        if (client == null || !hasLocationPermission()) return;
+        pullGmsLast(client);
+        ensureLocationSettings();
+        if (gmsWarmOn) return;
+        boolean ok = false;
+        if (requestGmsUpdates(client, Priority.PRIORITY_HIGH_ACCURACY, 1000)) ok = true;
+        if (requestGmsUpdates(client, Priority.PRIORITY_BALANCED_POWER_ACCURACY, 2000)) ok = true;
+        if (requestGmsUpdates(client, Priority.PRIORITY_PASSIVE, 3000)) ok = true;
+        gmsWarmOn = ok;
+    }
+
+    @SuppressLint("MissingPermission")
+    private void pullGmsLast(FusedLocationProviderClient client) {
         try {
             client
                 .getLastLocation()
                 .addOnSuccessListener(mainExecutor, loc -> {
                     if (loc != null) consider(loc);
-                });
-            LocationRequest req = new LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 2000)
-                .setMinUpdateIntervalMillis(500)
+                })
+                .addOnFailureListener(mainExecutor, e -> {});
+        } catch (Exception ignored) {}
+    }
+
+    @SuppressLint("MissingPermission")
+    private boolean requestGmsUpdates(FusedLocationProviderClient client, int priority, long intervalMs) {
+        long minInterval = Math.max(250, intervalMs / 4);
+        try {
+            LocationRequest req = new LocationRequest.Builder(priority, intervalMs)
+                .setMinUpdateIntervalMillis(minInterval)
                 .setWaitForAccurateLocation(false)
                 .build();
             client.requestLocationUpdates(req, gmsCallback, Looper.getMainLooper());
-            gmsWarmOn = true;
+            return true;
+        } catch (Exception ignored) {}
+        try {
+            LocationRequest req = legacyRequest(priority, intervalMs, minInterval);
+            if (req == null) return false;
+            client.requestLocationUpdates(req, gmsCallback, Looper.getMainLooper());
+            return true;
         } catch (Exception ignored) {
-            gmsWarmOn = false;
+            return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private static LocationRequest legacyRequest(int priority, long intervalMs, long minInterval) {
+        try {
+            LocationRequest req = LocationRequest.create();
+            req.setPriority(priority);
+            req.setInterval(intervalMs);
+            req.setFastestInterval(minInterval);
+            return req;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void ensureLocationSettings() {
+        if (settingsAsked) return;
+        Activity activity = getActivity();
+        if (activity == null || activity.isFinishing()) return;
+        settingsAsked = true;
+        try {
+            LocationRequest high = new LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
+                .setWaitForAccurateLocation(false)
+                .build();
+            LocationSettingsRequest req = new LocationSettingsRequest.Builder()
+                .addLocationRequest(high)
+                .setAlwaysShow(true)
+                .build();
+            LocationServices.getSettingsClient(activity.getApplicationContext())
+                .checkLocationSettings(req)
+                .addOnFailureListener(mainExecutor, e -> {
+                    if (!(e instanceof ResolvableApiException)) return;
+                    Activity current = getActivity();
+                    if (current == null || current.isFinishing()) return;
+                    try {
+                        ((ResolvableApiException) e).startResolutionForResult(current, REQ_SETTINGS);
+                    } catch (IntentSender.SendIntentException ignored) {}
+                });
+        } catch (Exception ignored) {
+            try {
+                LocationRequest high = legacyRequest(Priority.PRIORITY_HIGH_ACCURACY, 1000, 250);
+                if (high == null) return;
+                LocationSettingsRequest req = new LocationSettingsRequest.Builder()
+                    .addLocationRequest(high)
+                    .setAlwaysShow(true)
+                    .build();
+                Activity current = getActivity();
+                if (current == null) return;
+                LocationServices.getSettingsClient(current.getApplicationContext())
+                    .checkLocationSettings(req)
+                    .addOnFailureListener(mainExecutor, e -> {
+                        if (!(e instanceof ResolvableApiException)) return;
+                        Activity act = getActivity();
+                        if (act == null || act.isFinishing()) return;
+                        try {
+                            ((ResolvableApiException) e).startResolutionForResult(act, REQ_SETTINGS);
+                        } catch (IntentSender.SendIntentException ignored2) {}
+                    });
+            } catch (Exception ignored2) {}
         }
     }
 
@@ -343,6 +435,7 @@ public class KaryawanGps extends Plugin {
             } catch (Exception ignored) {}
         }
         gmsCancel = new CancellationTokenSource();
+        pullGmsLast(client);
         try {
             client
                 .getLastLocation()
@@ -353,23 +446,49 @@ public class KaryawanGps extends Plugin {
                         return;
                     }
                     consider(loc);
-                });
+                })
+                .addOnFailureListener(mainExecutor, e -> {});
+        } catch (Exception ignored) {}
+        pullGmsCurrent(client, Priority.PRIORITY_BALANCED_POWER_ACCURACY);
+        pullGmsCurrent(client, Priority.PRIORITY_HIGH_ACCURACY);
+        try {
             CurrentLocationRequest balanced = new CurrentLocationRequest.Builder()
                 .setPriority(Priority.PRIORITY_BALANCED_POWER_ACCURACY)
                 .setDurationMillis(WAIT_MS)
                 .setMaxUpdateAgeMillis(LAST_KNOWN_MAX_AGE_MS)
                 .build();
-            client.getCurrentLocation(balanced, gmsCancel.getToken()).addOnSuccessListener(mainExecutor, loc -> {
-                if (loc != null) consider(loc);
-            });
+            client
+                .getCurrentLocation(balanced, gmsCancel.getToken())
+                .addOnSuccessListener(mainExecutor, loc -> {
+                    if (loc != null) consider(loc);
+                })
+                .addOnFailureListener(mainExecutor, e -> {});
+        } catch (Exception ignored) {}
+        try {
             CurrentLocationRequest high = new CurrentLocationRequest.Builder()
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
                 .setDurationMillis(WAIT_MS)
                 .setMaxUpdateAgeMillis(LAST_KNOWN_MAX_AGE_MS)
                 .build();
-            client.getCurrentLocation(high, gmsCancel.getToken()).addOnSuccessListener(mainExecutor, loc -> {
-                if (loc != null) consider(loc);
-            });
+            client
+                .getCurrentLocation(high, gmsCancel.getToken())
+                .addOnSuccessListener(mainExecutor, loc -> {
+                    if (loc != null) consider(loc);
+                })
+                .addOnFailureListener(mainExecutor, e -> {});
+        } catch (Exception ignored) {}
+    }
+
+    @SuppressLint("MissingPermission")
+    private void pullGmsCurrent(FusedLocationProviderClient client, int priority) {
+        if (gmsCancel == null) return;
+        try {
+            client
+                .getCurrentLocation(priority, gmsCancel.getToken())
+                .addOnSuccessListener(mainExecutor, loc -> {
+                    if (loc != null) consider(loc);
+                })
+                .addOnFailureListener(mainExecutor, e -> {});
         } catch (Exception ignored) {}
     }
 

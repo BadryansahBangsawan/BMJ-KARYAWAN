@@ -1,6 +1,7 @@
 package engineer.badry.karyawan;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.webkit.WebView;
@@ -28,6 +29,13 @@ public class MainActivity extends BridgeActivity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (KaryawanGps.onActivityPermissionResult(requestCode, grantResults)) return;
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        KaryawanGps.onSettingsResult(requestCode, resultCode);
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     private void maybeAskRuntimePermissions() {

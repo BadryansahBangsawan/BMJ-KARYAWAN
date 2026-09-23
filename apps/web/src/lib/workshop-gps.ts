@@ -86,6 +86,21 @@ export function isNativeWorkshopGps() {
   return nativeGps() != null;
 }
 
+export function nativeWorkshopGpsVersion(): string {
+  const gps = nativeGps();
+  if (!gps || typeof gps.version !== "function") return "";
+  try {
+    return String(gps.version() || "");
+  } catch {
+    return "";
+  }
+}
+
+function nativeVersionTag() {
+  const v = nativeWorkshopGpsVersion();
+  return v ? ` (app ${v})` : "";
+}
+
 function abortError() {
   return Object.assign(new Error("GPS dibatalkan"), { name: "AbortError" });
 }
@@ -153,7 +168,7 @@ function hookNativeDone() {
         settleOk(pos);
         return;
       }
-      settleErr(new Error("GPS tidak akurat. Coba di luar ruangan."));
+      settleErr(new Error("GPS tidak akurat. Coba di luar ruangan." + nativeVersionTag()));
       return;
     }
     if (payload?.code === "abort") {
@@ -168,12 +183,10 @@ function hookNativeDone() {
       );
       return;
     }
-    if (payload?.code === "inaccurate") {
-      settleErr(new Error(payload.message || "GPS tidak akurat. Coba di luar ruangan."));
-      return;
-    }
-    armWatchdog(gpsGen, GPS_WAIT_MS);
-    void requestWebPosition(gpsGen);
+    // Native fail is final. WebView getCurrentPosition often never callbacks.
+    settleErr(
+      new Error(payload?.message || "Tidak dapat membaca GPS. Coba lagi." + nativeVersionTag()),
+    );
   };
 }
 
@@ -184,7 +197,7 @@ function armWatchdog(gen: number, ms: number) {
   }
   waitTimer = setTimeout(() => {
     if (gen !== gpsGen) return;
-    settleErr(new Error("Permintaan GPS habis waktu. Coba lagi."));
+    settleErr(new Error("Permintaan GPS habis waktu. Coba lagi." + nativeVersionTag()));
   }, ms);
 }
 
@@ -271,7 +284,7 @@ async function requestWebPosition(gen: number) {
       settleErr(deniedError());
       return;
     }
-    settleErr(new Error("Permintaan GPS habis waktu. Coba lagi."));
+    settleErr(new Error("Permintaan GPS habis waktu. Coba lagi." + nativeVersionTag()));
   }
 }
 
@@ -285,7 +298,7 @@ function requestNativePosition(gen: number) {
   try {
     gps.requestPosition(String(gen));
   } catch {
-    void requestWebPosition(gen);
+    settleErr(new Error("Tidak dapat membaca GPS. Coba lagi." + nativeVersionTag()));
   }
 }
 
@@ -297,7 +310,7 @@ export function requestWorkshopPosition(): Promise<WorkshopPosition> {
   const gen = ++gpsGen;
   inflight = { resolve, reject };
   const native = nativeGps();
-  armWatchdog(gen, native ? GPS_WAIT_MS + 2_000 : GPS_WAIT_MS);
+  armWatchdog(gen, native ? GPS_WAIT_MS + 5_000 : GPS_WAIT_MS);
   if (native) {
     armPoll(gen);
     requestNativePosition(gen);

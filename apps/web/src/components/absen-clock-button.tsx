@@ -15,6 +15,7 @@ import {
   abandonWorkshopPosition,
   isNativeWorkshopGps,
   jpegFileFromVideo,
+  nativeWorkshopGpsVersion,
   primeWorkshopPosition,
 } from "@/lib/workshop-gps";
 
@@ -37,6 +38,7 @@ export function AbsenClockButton({
   const [snapping, setSnapping] = useState(false);
   const done = checkedOut;
   const label = done ? "Sudah absen pulang" : checkedIn ? "Absen pulang" : "Absen masuk";
+  const gpsVer = nativeWorkshopGpsVersion();
 
   function stopCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -166,7 +168,7 @@ export function AbsenClockButton({
               onClick={() => void snap()}
             >
               <BusyLabel busy={snapping || !gpsReady}>
-                {gpsReady || snapping ? "Ambil foto" : "Mencari GPS…"}
+                {gpsReady || snapping ? "Ambil foto" : gpsVer ? `Mencari GPS… (${gpsVer})` : "Mencari GPS…"}
               </BusyLabel>
             </Button>
           </DialogFooter>
