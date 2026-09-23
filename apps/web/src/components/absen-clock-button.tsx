@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BusyLabel } from "@/components/busy-label";
-import { jpegFileFromVideo, primeWorkshopPosition } from "@/lib/workshop-gps";
+import { abandonWorkshopPosition, jpegFileFromVideo, primeWorkshopPosition } from "@/lib/workshop-gps";
 
 export function AbsenClockButton({
   checkedIn,
@@ -44,6 +44,7 @@ export function AbsenClockButton({
     stopCamera();
     setOpen(false);
     setGpsReady(false);
+    abandonWorkshopPosition();
   }
 
   async function openCamera() {
@@ -52,7 +53,7 @@ export function AbsenClockButton({
       return;
     }
     const session = ++sessionRef.current;
-    const location = primeWorkshopPosition();
+    let pending = primeWorkshopPosition();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
@@ -69,17 +70,27 @@ export function AbsenClockButton({
       streamRef.current = stream;
       setOpen(true);
     } catch {
+      if (session === sessionRef.current) abandonWorkshopPosition();
       toast.error("Izin kamera ditolak. Aktifkan kamera di pengaturan browser.");
       return;
     }
-    try {
-      await location;
-      if (session !== sessionRef.current) return;
-      setGpsReady(true);
-    } catch (error) {
-      if (session !== sessionRef.current) return;
-      closeCamera();
-      toast.error(error instanceof Error ? error.message : "Izin GPS ditolak. Aktifkan lokasi di pengaturan browser.");
+    while (session === sessionRef.current) {
+      try {
+        await pending;
+        if (session !== sessionRef.current) return;
+        setGpsReady(true);
+        return;
+      } catch (error) {
+        if (session !== sessionRef.current) return;
+        if (error instanceof Error && error.name === "AbortError") return;
+        if (error instanceof Error && error.name === "GpsPermissionDenied") {
+          toast.error(error.message);
+          closeCamera();
+          return;
+        }
+        toast.error(error instanceof Error ? error.message : "Izin GPS ditolak. Aktifkan lokasi di pengaturan.");
+        pending = primeWorkshopPosition();
+      }
     }
   }
 
@@ -150,7 +161,9 @@ export function AbsenClockButton({
               aria-busy={snapping || !gpsReady}
               onClick={() => void snap()}
             >
-              <BusyLabel busy={snapping || !gpsReady}>Ambil foto</BusyLabel>
+              <BusyLabel busy={snapping || !gpsReady}>
+                {gpsReady || snapping ? "Ambil foto" : "Mencari GPS…"}
+              </BusyLabel>
             </Button>
           </DialogFooter>
         </DialogContent>
