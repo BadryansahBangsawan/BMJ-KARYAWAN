@@ -1,6 +1,7 @@
 package engineer.badry.karyawan;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -9,7 +10,6 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.CancellationSignal;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -18,6 +18,16 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.location.CurrentLocationRequest;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.Granularity;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
+import com.google.android.gms.tasks.CancellationTokenSource;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -25,9 +35,11 @@ import java.util.concurrent.Executor;
 import org.json.JSONObject;
 
 /**
- * Native location for the remote-URL WebView. Capacitor JS plugins are not
- * injected into https://karyawan.badry.engineer, so the website talks to
- * {@code window.KaryawanGps} directly.
+ * Native location for the remote-URL WebView. Chrome absen works because it
+ * uses Play Services fused location (Wi‑Fi/cell, works indoors). System
+ * WebView / LocationManager GPS often never returns in a workshop. The
+ * website talks to {@code window.KaryawanGps} because Capacitor plugins are
+ * not injected into https://karyawan.badry.engineer.
  */
 @CapacitorPlugin(name = "KaryawanGps")
 public class KaryawanGps extends Plugin {
@@ -46,7 +58,7 @@ public class KaryawanGps extends Plugin {
         if (Looper.myLooper() == main.getLooper()) command.run();
         else main.post(command);
     };
-    private final LocationListener listener = new LocationListener() {
+    private final LocationListener managerListener = new LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
             consider(location);
@@ -62,13 +74,23 @@ public class KaryawanGps extends Plugin {
         @Override
         public void onStatusChanged(String provider, int status, Bundle extras) {}
     };
+    private final LocationCallback gmsCallback = new LocationCallback() {
+        @Override
+        public void onLocationResult(LocationResult result) {
+            if (result == null) return;
+            Location last = result.getLastLocation();
+            if (last != null) consider(last);
+            for (Location loc : result.getLocations()) consider(loc);
+        }
+    };
 
     private LocationManager lm;
+    private FusedLocationProviderClient fused;
+    private CancellationTokenSource gmsCancel;
     private String pendingId;
     private Location best;
     private int gen;
     private Runnable timeout;
-    private CancellationSignal currentCancel;
 
     static boolean onActivityPermissionResult(int requestCode, int[] grantResults) {
         KaryawanGps gps = installed;
@@ -115,12 +137,6 @@ public class KaryawanGps extends Plugin {
             fail(id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
             return;
         }
-
-        lm = (LocationManager) activity.getSystemService(Activity.LOCATION_SERVICE);
-        if (lm == null) {
-            fail(id, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
-            return;
-        }
         if (!hasLocationPermission()) {
             ActivityCompat.requestPermissions(
                 activity,
@@ -129,7 +145,6 @@ public class KaryawanGps extends Plugin {
             );
             return;
         }
-
         locate(myGen);
     }
 
@@ -142,13 +157,9 @@ public class KaryawanGps extends Plugin {
         locate(gen);
     }
 
+    @SuppressLint("MissingPermission")
     private void locate(int myGen) {
         if (myGen != gen || pendingId == null) return;
-        Location last = bestLastKnown(LAST_KNOWN_MAX_AGE_MS);
-        if (last != null) {
-            succeed(last);
-            return;
-        }
 
         timeout = () -> {
             if (myGen != gen) return;
@@ -156,7 +167,7 @@ public class KaryawanGps extends Plugin {
                 succeed(best);
                 return;
             }
-            Location stale = bestLastKnown(STALE_LAST_KNOWN_MS);
+            Location stale = gmsReady() ? null : bestManagerKnown(STALE_LAST_KNOWN_MS);
             if (stale != null) {
                 succeed(stale);
                 return;
@@ -168,58 +179,74 @@ public class KaryawanGps extends Plugin {
             fail(pendingId, "timeout", "Tidak dapat membaca GPS. Coba lagi.");
         };
         main.postDelayed(timeout, WAIT_MS);
-        subscribe();
+
+        if (gmsReady()) startGms();
+        else startManager();
     }
 
-    private void subscribe() {
-        if (lm == null || !hasLocationPermission()) return;
+    @SuppressLint("MissingPermission")
+    private void startGms() {
+        Activity activity = getActivity();
+        if (activity == null || !hasLocationPermission()) return;
+        fused = LocationServices.getFusedLocationProviderClient(activity);
+        gmsCancel = new CancellationTokenSource();
+        int priority = hasFinePermission() ? Priority.PRIORITY_HIGH_ACCURACY : Priority.PRIORITY_BALANCED_POWER_ACCURACY;
+
+        fused.getLastLocation().addOnSuccessListener(mainExecutor, loc -> {
+            if (pendingId == null || loc == null) return;
+            if (accurate(loc) && ageMs(loc) <= LAST_KNOWN_MAX_AGE_MS) {
+                succeed(loc);
+                return;
+            }
+            consider(loc);
+        });
+
+        CurrentLocationRequest current = new CurrentLocationRequest.Builder()
+            .setPriority(priority)
+            .setDurationMillis(WAIT_MS)
+            .setMaxUpdateAgeMillis(LAST_KNOWN_MAX_AGE_MS)
+            .setGranularity(hasFinePermission() ? Granularity.GRANULARITY_FINE : Granularity.GRANULARITY_PERMISSION_LEVEL)
+            .build();
+        fused.getCurrentLocation(current, gmsCancel.getToken()).addOnSuccessListener(mainExecutor, loc -> {
+            if (loc != null) consider(loc);
+        });
+
+        com.google.android.gms.location.LocationRequest req =
+            new com.google.android.gms.location.LocationRequest.Builder(priority, 1000)
+                .setMinUpdateIntervalMillis(200)
+                .setWaitForAccurateLocation(false)
+                .setMaxUpdates(10)
+                .setDurationMillis(WAIT_MS)
+                .setGranularity(hasFinePermission() ? Granularity.GRANULARITY_FINE : Granularity.GRANULARITY_PERMISSION_LEVEL)
+                .build();
+        fused.requestLocationUpdates(req, gmsCallback, Looper.getMainLooper());
+    }
+
+    @SuppressLint("MissingPermission")
+    private void startManager() {
+        Activity activity = getActivity();
+        if (activity == null || !hasLocationPermission()) return;
+        lm = (LocationManager) activity.getSystemService(Activity.LOCATION_SERVICE);
+        if (lm == null) return;
+
+        Location last = bestManagerKnown(LAST_KNOWN_MAX_AGE_MS);
+        if (last != null) {
+            succeed(last);
+            return;
+        }
 
         try {
             Criteria fine = new Criteria();
             fine.setAccuracy(Criteria.ACCURACY_FINE);
             fine.setCostAllowed(true);
-            lm.requestLocationUpdates(500, 0, fine, listener, Looper.getMainLooper());
+            lm.requestLocationUpdates(500, 0, fine, managerListener, Looper.getMainLooper());
         } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
 
-        try {
-            Criteria coarse = new Criteria();
-            coarse.setAccuracy(Criteria.ACCURACY_COARSE);
-            coarse.setCostAllowed(true);
-            lm.requestLocationUpdates(500, 0, coarse, listener, Looper.getMainLooper());
-        } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
-
-        for (String provider : knownProviders()) {
-            listen(provider);
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            currentCancel = new CancellationSignal();
-            for (String provider : knownProviders()) {
-                try {
-                    lm.getCurrentLocation(provider, currentCancel, mainExecutor, loc -> {
-                        if (loc != null) consider(loc);
-                    });
-                } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        for (String provider : managerProviders()) {
             try {
-                android.location.LocationRequest req = new android.location.LocationRequest.Builder(500)
-                    .setQuality(android.location.LocationRequest.QUALITY_HIGH_ACCURACY)
-                    .setDurationMillis(WAIT_MS)
-                    .setMaxUpdates(8)
-                    .build();
-                lm.requestLocationUpdates(LocationManager.FUSED_PROVIDER, req, mainExecutor, listener);
+                lm.requestLocationUpdates(provider, 500, 0, managerListener, Looper.getMainLooper());
             } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
         }
-    }
-
-    private void listen(String provider) {
-        if (lm == null || provider == null || !hasLocationPermission()) return;
-        try {
-            lm.requestLocationUpdates(provider, 500, 0, listener, Looper.getMainLooper());
-        } catch (SecurityException | IllegalArgumentException | IllegalStateException ignored) {}
     }
 
     private void consider(Location location) {
@@ -229,10 +256,10 @@ public class KaryawanGps extends Plugin {
         if (accurate(location)) succeed(location);
     }
 
-    private Location bestLastKnown(long maxAgeMs) {
+    private Location bestManagerKnown(long maxAgeMs) {
         if (lm == null || !hasLocationPermission()) return null;
         Location found = null;
-        for (String provider : knownProviders()) {
+        for (String provider : managerProviders()) {
             try {
                 Location loc = lm.getLastKnownLocation(provider);
                 if (loc == null || !accurate(loc) || ageMs(loc) > maxAgeMs) continue;
@@ -242,7 +269,7 @@ public class KaryawanGps extends Plugin {
         return found;
     }
 
-    private List<String> knownProviders() {
+    private List<String> managerProviders() {
         LinkedHashSet<String> names = new LinkedHashSet<>();
         if (lm != null) {
             try {
@@ -260,6 +287,16 @@ public class KaryawanGps extends Plugin {
         names.add(LocationManager.PASSIVE_PROVIDER);
         names.remove(null);
         return new ArrayList<>(names);
+    }
+
+    private boolean gmsReady() {
+        Activity activity = getActivity();
+        if (activity == null) return false;
+        try {
+            return GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(activity) == ConnectionResult.SUCCESS;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private void succeed(Location loc) {
@@ -313,15 +350,20 @@ public class KaryawanGps extends Plugin {
             main.removeCallbacks(timeout);
             timeout = null;
         }
-        if (currentCancel != null) {
+        if (gmsCancel != null) {
             try {
-                currentCancel.cancel();
+                gmsCancel.cancel();
             } catch (Exception ignored) {}
-            currentCancel = null;
+            gmsCancel = null;
+        }
+        if (fused != null) {
+            try {
+                fused.removeLocationUpdates(gmsCallback);
+            } catch (Exception ignored) {}
         }
         if (lm != null) {
             try {
-                lm.removeUpdates(listener);
+                lm.removeUpdates(managerListener);
             } catch (SecurityException | IllegalArgumentException ignored) {}
         }
     }
@@ -329,9 +371,15 @@ public class KaryawanGps extends Plugin {
     private boolean hasLocationPermission() {
         Activity activity = getActivity();
         if (activity == null) return false;
-        return ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED ||
+        return hasFinePermission() ||
             ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasFinePermission() {
+        Activity activity = getActivity();
+        return activity != null &&
+            ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED;
     }
 
