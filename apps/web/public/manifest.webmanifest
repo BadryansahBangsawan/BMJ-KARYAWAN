@@ -2,6 +2,7 @@
   "name": "BMJ Karyawan",
   "short_name": "Karyawan",
   "description": "Absen, pekerjaan, kasbon, dan gaji bengkel Manuju Jaya.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

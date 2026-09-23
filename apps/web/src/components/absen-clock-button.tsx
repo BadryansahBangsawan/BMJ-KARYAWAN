@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { BusyLabel } from "@/components/busy-label";
-import { jpegFileFromVideo, markClockPermissionGranted } from "@/lib/workshop-gps";
+import { jpegFileFromVideo, primeWorkshopPosition } from "@/lib/workshop-gps";
 
 export function AbsenClockButton({
   checkedIn,
@@ -25,8 +25,10 @@ export function AbsenClockButton({
   onFile: (file: File) => void;
 }) {
   const streamRef = useRef<MediaStream | null>(null);
+  const sessionRef = useRef(0);
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [gpsReady, setGpsReady] = useState(false);
   const [snapping, setSnapping] = useState(false);
   const done = checkedOut;
   const label = done ? "Sudah absen pulang" : checkedIn ? "Absen pulang" : "Absen masuk";
@@ -38,8 +40,10 @@ export function AbsenClockButton({
   }
 
   function closeCamera() {
+    sessionRef.current += 1;
     stopCamera();
     setOpen(false);
+    setGpsReady(false);
   }
 
   async function openCamera() {
@@ -47,6 +51,8 @@ export function AbsenClockButton({
       toast.error("Kamera tidak tersedia di perangkat ini.");
       return;
     }
+    const session = ++sessionRef.current;
+    const location = primeWorkshopPosition();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
@@ -56,11 +62,24 @@ export function AbsenClockButton({
           height: { ideal: 720 },
         },
       });
-      markClockPermissionGranted();
+      if (session !== sessionRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       setOpen(true);
     } catch {
       toast.error("Izin kamera ditolak. Aktifkan kamera di pengaturan browser.");
+      return;
+    }
+    try {
+      await location;
+      if (session !== sessionRef.current) return;
+      setGpsReady(true);
+    } catch (error) {
+      if (session !== sessionRef.current) return;
+      closeCamera();
+      toast.error(error instanceof Error ? error.message : "Izin GPS ditolak. Aktifkan lokasi di pengaturan browser.");
     }
   }
 
@@ -125,8 +144,13 @@ export function AbsenClockButton({
             <Button type="button" variant="outline" onClick={closeCamera}>
               Batal
             </Button>
-            <Button type="button" disabled={snapping} aria-busy={snapping} onClick={() => void snap()}>
-              <BusyLabel busy={snapping}>Ambil foto</BusyLabel>
+            <Button
+              type="button"
+              disabled={snapping || !gpsReady}
+              aria-busy={snapping || !gpsReady}
+              onClick={() => void snap()}
+            >
+              <BusyLabel busy={snapping || !gpsReady}>Ambil foto</BusyLabel>
             </Button>
           </DialogFooter>
         </DialogContent>

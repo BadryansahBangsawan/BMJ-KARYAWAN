@@ -1,30 +1,23 @@
-const CLOCK_PERM_KEY = "bmj-karyawan-clock-perm";
-
-export function markClockPermissionGranted() {
-  try {
-    localStorage.setItem(CLOCK_PERM_KEY, "1");
-  } catch {
-    /* private mode */
-  }
-}
-
-export function requestWorkshopPosition(): Promise<{
+export type WorkshopPosition = {
   lat: number;
   lng: number;
   accuracyM: number;
-}> {
-  const { promise, resolve, reject } = Promise.withResolvers<{
-    lat: number;
-    lng: number;
-    accuracyM: number;
-  }>();
+};
+
+const PRIME_TTL_MS = 45_000;
+
+let primedAt = 0;
+let primedPos: WorkshopPosition | null = null;
+let primePromise: Promise<WorkshopPosition> | null = null;
+
+export function requestWorkshopPosition(): Promise<WorkshopPosition> {
+  const { promise, resolve, reject } = Promise.withResolvers<WorkshopPosition>();
   if (!navigator.geolocation) {
     reject(new Error("GPS tidak tersedia di perangkat ini."));
     return promise;
   }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      markClockPermissionGranted();
       resolve({
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
@@ -45,6 +38,28 @@ export function requestWorkshopPosition(): Promise<{
     { timeout: 15_000, maximumAge: 0, enableHighAccuracy: true },
   );
   return promise;
+}
+
+/** Start GPS in the same tap as the camera so the OS dialogs fire once together. */
+export function primeWorkshopPosition(): Promise<WorkshopPosition> {
+  primePromise = requestWorkshopPosition().then((pos) => {
+    primedPos = pos;
+    primedAt = Date.now();
+    return pos;
+  });
+  return primePromise;
+}
+
+async function readWorkshopPosition(): Promise<WorkshopPosition> {
+  if (primedPos && Date.now() - primedAt < PRIME_TTL_MS) return primedPos;
+  if (primePromise) return primePromise;
+  return requestWorkshopPosition();
+}
+
+function clearPrimedPosition() {
+  primedPos = null;
+  primedAt = 0;
+  primePromise = null;
 }
 
 const MAX_PHOTO_CHARS = 50_000;
@@ -105,6 +120,10 @@ export async function captureClockProof(file: File): Promise<{
   accuracyM: number;
 }> {
   const photo = await jpegDataUrlFromFile(file);
-  const pos = await requestWorkshopPosition();
-  return { photo, lat: pos.lat, lng: pos.lng, accuracyM: pos.accuracyM };
+  try {
+    const pos = await readWorkshopPosition();
+    return { photo, lat: pos.lat, lng: pos.lng, accuracyM: pos.accuracyM };
+  } finally {
+    clearPrimedPosition();
+  }
 }
